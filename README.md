@@ -1,18 +1,18 @@
-# Fionn
+# Dun
 
-Fionn is an agent-friendly quality check runner for codebases. It focuses on
+Dun is an agent-friendly quality check runner for codebases. It focuses on
 fast, automatic discovery of the right checks and produces summarized,
 LLM-friendly output so agents (and humans) can quickly assess whether code works.
 
 ## Why
 
-Agents can generate lots of code quickly. The hard part is confidence. Fionn
+Agents can generate lots of code quickly. The hard part is confidence. Dun
 answers: "What checks should run here?" and "What is the short, actionable
 result?" without requiring a long, custom configuration.
 
 ## Goals
 
-- Zero-config entrypoint: `fionn check` inspects the repo and runs the right
+- Zero-config entrypoint: `dun check` inspects the repo and runs the right
   checks.
 - LLM-friendly summaries: each check emits a short, structured result.
 - Fast and portable: a single Go binary with minimal dependencies.
@@ -37,17 +37,17 @@ result?" without requiring a long, custom configuration.
 The minimal entrypoint is:
 
 ```bash
-fionn check
+dun check
 ```
 
 Planned options:
 
 ```bash
-fionn check --format=llm
-fionn check --format=json
-fionn check --changed
-fionn list
-fionn explain <check-id>
+dun check --format=llm
+dun check --format=json
+dun check --changed
+dun list
+dun explain <check-id>
 ```
 
 ## LLM-Friendly Output
@@ -70,7 +70,7 @@ Guidelines:
 
 ## Extensibility Model
 
-Fionn is designed to be easy to extend. The core types are:
+Dun is designed to be easy to extend. The core types are:
 
 - Discoverers: detect languages, frameworks, tooling, or repo conventions.
 - Checks: declarative definitions (id, command, inputs, timeouts).
@@ -104,7 +104,7 @@ pre-push:
 
 ## Related Tools
 
-Fionn is a near relative to lefthook, but is designed for agents and dynamic
+Dun is a near relative to lefthook, but is designed for agents and dynamic
 discovery rather than static hook configuration.
 
 ## Status
