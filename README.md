@@ -25,6 +25,14 @@ result?" without requiring a long, custom configuration.
 - Becoming a general build system. It orchestrates checks, not builds.
 - Providing a UI. The primary interface is CLI output.
 
+## Design Constraints
+
+- Deterministic plans: discovered checks are ordered and identified stably.
+- Bounded runtime: per-check timeouts plus a global budget.
+- Bounded concurrency: a fixed worker limit to avoid resource spikes.
+- Partial results: surface failures and timeouts without hiding other signals.
+- Portable defaults: avoid per-project config unless necessary.
+
 ## How It Works (Conceptually)
 
 1. Discoverers scan the repo (files, config, language hints).
