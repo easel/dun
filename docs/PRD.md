@@ -205,5 +205,13 @@ without runtime dependencies.
 Initial feedback: teams want one command for agent loops, predictable summaries,
 and a way to raise quality standards without blocking early adoption.
 
+### D. Research References (Comparable Tooling)
+- lefthook: git hook runner with YAML config. https://github.com/evilmartians/lefthook
+- pre-commit: language-agnostic hook framework. https://pre-commit.com/
+- lint-staged: run checks on staged files. https://github.com/okonet/lint-staged
+- Nx affected: change-aware task execution. https://nx.dev/ci/features/affected
+- Bazel test: scalable test execution and caching. https://bazel.build/
+- GitHub Actions: CI runner for full pipelines. https://docs.github.com/actions
+
 ---
 *This PRD is a living document and will be updated as we learn more.*
