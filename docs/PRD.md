@@ -194,6 +194,9 @@ time without heavy setup.
 ### A. Competitive Analysis
 - lefthook: strong hook runner, static config, limited discovery.
 - pre-commit: broad ecosystem, but config heavy and verbose.
+- lint-staged: scoped to git staging, not full repo discovery.
+- Nx affected: great change detection but framework-specific.
+- Bazel test: powerful caching/graph execution, heavy upfront setup.
 - CI platforms: comprehensive but slow and not loop-friendly.
 
 ### B. Technical Feasibility
