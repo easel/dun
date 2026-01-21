@@ -42,6 +42,12 @@ actionable. A zero-config, discovery-based tool that provides structured,
 deterministic summaries can close the loop and help teams improve quality over
 time without heavy setup.
 
+### Why Now
+Agent-driven development is accelerating output, but verification pipelines have
+not adapted to tight iteration loops. Stable, machine-readable quality signals
+make it possible to automate validation between iterations and to ratchet
+standards over time without stalling velocity.
+
 ## Goals and Objectives
 
 ### Business Goals
