@@ -21,7 +21,7 @@ result?" without requiring a long, custom configuration.
 
 ## Non-goals
 
-- Replacing CI. Fionn complements CI by giving fast local feedback.
+- Replacing CI. Dun complements CI by giving fast local feedback.
 - Becoming a general build system. It orchestrates checks, not builds.
 - Providing a UI. The primary interface is CLI output.
 
@@ -68,6 +68,24 @@ Guidelines:
 - One detail line for context.
 - Optional next step command.
 
+## Agent Loop Patterns (Ralph Wiggum Inspired)
+
+Dun is designed to work well inside iterative agent loops (for example, the
+Ralph Wiggum technique). The patterns we borrow:
+
+- One repeatable command per iteration (`dun check`).
+- Deterministic, compact summaries so loops can detect "all green".
+- Explicit `next:` hints to guide the next iteration.
+- Encourage escape hatches via loop limits and timeouts.
+
+Example loop usage:
+
+```text
+/ralph-loop "Implement feature X. Run `dun check --format=llm --changed` each
+iteration. If all checks pass, output <promise>DONE</promise>."
+  --completion-promise "DONE" --max-iterations 20
+```
+
 ## Extensibility Model
 
 Dun is designed to be easy to extend. The core types are:
@@ -90,7 +108,7 @@ Agent helper via `AGENTS.md`:
 
 ```text
 ## Tools
-- fionn: run `fionn check --format=llm` before summarizing results
+- dun: run `dun check --format=llm` before summarizing results
 ```
 
 Hook usage (lefthook-style):
@@ -98,8 +116,8 @@ Hook usage (lefthook-style):
 ```yaml
 pre-push:
   commands:
-    fionn:
-      run: fionn check --changed
+    dun:
+      run: dun check --changed
 ```
 
 ## Related Tools
