@@ -40,12 +40,14 @@ func runCheck(args []string) {
 	agentCmd := fs.String("agent-cmd", "", "agent command override")
 	agentTimeout := fs.Int("agent-timeout", 300, "agent timeout in seconds")
 	agentMode := fs.String("agent-mode", "prompt", "agent mode (prompt|auto)")
+	automation := fs.String("automation", "manual", "automation mode (manual|plan|auto|yolo)")
 	fs.Parse(args)
 
 	opts := dun.Options{
-		AgentCmd:     *agentCmd,
-		AgentTimeout: time.Duration(*agentTimeout) * time.Second,
-		AgentMode:    *agentMode,
+		AgentCmd:       *agentCmd,
+		AgentTimeout:   time.Duration(*agentTimeout) * time.Second,
+		AgentMode:      *agentMode,
+		AutomationMode: *automation,
 	}
 	result, err := dun.CheckRepo(".", opts)
 	if err != nil {

@@ -30,6 +30,9 @@ prompt envelopes by default, with optional auto execution when configured.
 - **Prompt Emitter**: emits prompt envelopes + callbacks.
 - **Agent Runner (optional)**: executes prompts when configured.
 - **Reporter**: renders JSON/LLM output.
+- **Drift Analyzer**: compares docs and code to identify misalignment.
+- **Change Planner**: produces ordered updates across artifacts.
+- **Automation Policy**: enforces manual/plan/auto/yolo behavior.
 
 ## Data Flow
 
@@ -37,6 +40,7 @@ prompt envelopes by default, with optional auto execution when configured.
 2. Rule checks run and emit results.
 3. Agent checks emit prompt envelopes (default).
 4. Optional auto mode runs the agent and parses responses.
+5. Drift analyzer and planner identify downstream changes when docs shift.
 
 ## Deployment
 
@@ -49,3 +53,4 @@ prompt envelopes by default, with optional auto execution when configured.
 - **Slow checks**: timeouts and worker limits.
 - **Noisy outputs**: strict output schema and concise summaries.
 - **Plugin drift**: versioned manifests and deterministic checks.
+- **Over-automation**: automation slider gates agent behavior.

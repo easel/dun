@@ -10,7 +10,10 @@ This registry tracks the core Dun features and their current status.
 | F-004 | LLM/JSON outputs | P0 | In progress | Human-readable summaries and JSON |
 | F-005 | Helix plugin (docs + gates) | P0 | In progress | Validate Helix artifacts and gates |
 | F-006 | Plugin manifest system | P0 | In progress | Extensible check definitions |
-| F-007 | Install command | P1 | In progress | Insert AGENTS.md guidance |
-| F-008 | Changed-only checks | P1 | Planned | Scope checks to git diff |
-| F-009 | Quality ratchet | P1 | Planned | Baseline compare to prevent regressions |
-| F-010 | External plugin loading | P2 | Planned | Load plugin dirs via config |
+| F-007 | Git hygiene + hooks | P0 | In progress | Ensure clean working tree + hook checks |
+| F-008 | Doc/code reconciliation | P0 | Planned | Detect drift and propagate updates |
+| F-009 | Automation slider | P0 | Planned | Manual ↔ yolo execution policy |
+| F-010 | Install command | P1 | In progress | Insert AGENTS.md guidance |
+| F-011 | Changed-only checks | P1 | Planned | Scope checks to git diff |
+| F-012 | Quality ratchet | P1 | Planned | Baseline compare to prevent regressions |
+| F-013 | External plugin loading | P2 | Planned | Load plugin dirs via config |

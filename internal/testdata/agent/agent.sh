@@ -24,6 +24,13 @@ JSON
   exit 0
 fi
 
+if printf '%s' "$prompt" | grep -q "Check-ID: helix-reconcile-stack"; then
+  cat <<'JSON'
+{"status":"warn","signal":"drift plan ready","detail":"Reconciliation plan generated","next":"Apply plan updates"}
+JSON
+  exit 0
+fi
+
 cat <<'JSON'
 {"status":"fail","signal":"unknown check","detail":"agent could not identify check id"}
 JSON

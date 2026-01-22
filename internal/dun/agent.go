@@ -39,6 +39,7 @@ type PromptInput struct {
 type PromptContext struct {
 	CheckID string
 	Inputs  []PromptInput
+	AutomationMode string
 }
 
 func runAgentCheck(root string, plugin Plugin, check Check, opts Options) (CheckResult, error) {
@@ -46,8 +47,12 @@ func runAgentCheck(root string, plugin Plugin, check Check, opts Options) (Check
 	if err != nil {
 		return CheckResult{}, err
 	}
+	automation, err := normalizeAutomationMode(opts.AutomationMode)
+	if err != nil {
+		return CheckResult{}, err
+	}
 
-	envelope, err := buildPromptEnvelope(root, plugin, check)
+	envelope, err := buildPromptEnvelope(root, plugin, check, automation)
 	if err != nil {
 		return CheckResult{}, err
 	}
@@ -99,6 +104,17 @@ func normalizeAgentMode(mode string) (string, error) {
 	}
 }
 
+func normalizeAutomationMode(mode string) (string, error) {
+	switch mode {
+	case "", "manual":
+		return "manual", nil
+	case "plan", "auto", "yolo":
+		return mode, nil
+	default:
+		return "", fmt.Errorf("unknown automation mode: %s", mode)
+	}
+}
+
 func promptResult(check Check, envelope PromptEnvelope, signal string, detail string) CheckResult {
 	next := envelope.Callback.Command
 	if next == "" {
@@ -114,13 +130,13 @@ func promptResult(check Check, envelope PromptEnvelope, signal string, detail st
 	}
 }
 
-func buildPromptEnvelope(root string, plugin Plugin, check Check) (PromptEnvelope, error) {
+func buildPromptEnvelope(root string, plugin Plugin, check Check, automationMode string) (PromptEnvelope, error) {
 	inputs, err := resolveInputs(root, check.Inputs)
 	if err != nil {
 		return PromptEnvelope{}, err
 	}
 
-	promptText, schemaText, err := renderPromptText(plugin, check, inputs)
+	promptText, schemaText, err := renderPromptText(plugin, check, inputs, automationMode)
 	if err != nil {
 		return PromptEnvelope{}, err
 	}
@@ -145,7 +161,7 @@ func buildPromptEnvelope(root string, plugin Plugin, check Check) (PromptEnvelop
 	}, nil
 }
 
-func renderPromptText(plugin Plugin, check Check, inputs []PromptInput) (string, string, error) {
+func renderPromptText(plugin Plugin, check Check, inputs []PromptInput, automationMode string) (string, string, error) {
 	tmplText, err := loadPromptTemplate(plugin, check.Prompt)
 	if err != nil {
 		return "", "", err
@@ -160,6 +176,7 @@ func renderPromptText(plugin Plugin, check Check, inputs []PromptInput) (string,
 	ctx := PromptContext{
 		CheckID: check.ID,
 		Inputs:  inputs,
+		AutomationMode: automationMode,
 	}
 	if err := tmpl.Execute(&buf, ctx); err != nil {
 		return "", "", err

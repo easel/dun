@@ -21,6 +21,8 @@ and the feedback loop that turns missing artifacts into actionable prompts.
 - Ensure rule-based checks identify missing artifacts and gate order.
 - Ensure prompt envelopes are emitted for agent checks.
 - Ensure `dun respond` parses structured responses.
+- Ensure doc reconciliation emits ordered downstream plans.
+- Ensure automation slider modes alter prompt behavior.
 - Demonstrate the feedback loop for missing docs and alignment checks.
 - Demonstrate prompt-default behavior with optional auto mode.
 - Validate Helix gate files against required evidence paths.
@@ -99,6 +101,8 @@ internal/
 5. `dun respond` parses structured agent output.
 6. State rules detect missing upstream artifacts.
 7. Gate checks fail when required evidence is missing.
+8. Reconciliation plan lists downstream artifacts in order.
+9. Automation modes include policy in prompt envelopes.
 
 ## Implementation Roadmap
 

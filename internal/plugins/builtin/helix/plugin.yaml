@@ -63,6 +63,8 @@ checks:
         path: docs/helix/01-frame/prd.md
       - type: path-exists
         path: docs/helix/02-design/architecture.md
+      - type: path-exists
+        path: docs/helix/03-test/test-plan.md
       - type: glob-min-count
         path: docs/helix/01-frame/features/*.md
         expected: 1
@@ -71,4 +73,25 @@ checks:
       - docs/helix/02-design/architecture.md
       - docs/helix/01-frame/features/*.md
     prompt: prompts/align-specs.md
+    response_schema: responses/agent-default.json
+
+  - id: helix-reconcile-stack
+    description: "Plan doc/code reconciliation across Helix artifacts"
+    type: agent
+    phase: iterate
+    conditions:
+      - type: path-exists
+        path: docs/helix/01-frame/prd.md
+      - type: path-exists
+        path: docs/helix/02-design/architecture.md
+      - type: glob-min-count
+        path: docs/helix/01-frame/features/*.md
+        expected: 1
+    inputs:
+      - docs/helix/01-frame/prd.md
+      - docs/helix/01-frame/features/*.md
+      - docs/helix/01-frame/user-stories/*.md
+      - docs/helix/02-design/**/*.md
+      - docs/helix/03-test/test-plan.md
+    prompt: prompts/reconcile-stack.md
     response_schema: responses/agent-default.json

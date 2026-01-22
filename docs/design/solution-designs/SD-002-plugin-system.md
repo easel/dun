@@ -223,6 +223,7 @@ not feasible with simple rules.
   (agent)
 - `helix-design-to-test`: design artifacts align with test plans (agent)
 - `helix-test-to-build`: test plans align with implementation plans (agent)
+- `helix-reconcile-stack`: plan doc/code reconciliation across artifacts (agent)
 
 ### Phase Ordering
 Checks run in phase order (frame -> design -> test -> build) and stop at the

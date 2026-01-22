@@ -6,9 +6,10 @@ import (
 )
 
 type Options struct {
-	AgentCmd     string
-	AgentTimeout time.Duration
-	AgentMode    string
+	AgentCmd        string
+	AgentTimeout    time.Duration
+	AgentMode       string
+	AutomationMode  string
 }
 
 type Result struct {

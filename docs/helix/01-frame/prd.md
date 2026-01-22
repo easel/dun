@@ -13,6 +13,7 @@ and often too slow for tight iteration loops.
 - One command (`dun check`) that discovers and runs the right checks.
 - Deterministic, agent-friendly output that is easy to parse.
 - Fast local feedback to keep loops moving.
+- Detect documentation drift and propose downstream updates.
 
 ## Scope
 
@@ -20,6 +21,7 @@ In scope:
 - Local CLI that discovers checks and emits prompt-as-data output.
 - Built-in Helix plugin for doc and gate validation.
 - Extensible plugin system for future workflows.
+- Doc-to-code reconciliation with plan and yolo modes.
 
 Out of scope:
 - Replacing CI/CD.
@@ -31,6 +33,7 @@ Out of scope:
 - Time to first output under 2 seconds on typical repos.
 - Median run time under 30 seconds on medium repos.
 - At least 5 active repos using `dun check` during MVP.
+- Doc drift issues resolved within 2 loop iterations on average.
 
 ## Users and Personas
 
@@ -41,4 +44,3 @@ Out of scope:
 
 - Building a general-purpose build system.
 - Providing a graphical UI.
-

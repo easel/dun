@@ -111,7 +111,9 @@ standards over time without stalling velocity.
 3. Parallel execution with per-check timeouts and global budget.
 4. Prompt-as-data output with callback instructions (default).
 5. LLM-friendly and JSON output formats for humans and tooling.
-5. Exit codes aligned with pass/fail outcomes.
+6. Documentation drift detection with downstream impact plans.
+7. Automation slider (manual/plan/auto/yolo) for agent autonomy.
+8. Exit codes aligned with pass/fail outcomes.
 
 ### Should Have (P1)
 1. `--changed` mode scoped to affected files.

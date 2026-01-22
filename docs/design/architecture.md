@@ -210,6 +210,20 @@ graph TB
   - Mark checks as `prompt` when agent input is required
 - **Implementation Notes**: Output is deterministic and machine-readable.
 
+#### Component: Drift Analyzer
+- **Purpose**: Detect documentation/implementation drift.
+- **Responsibilities**:
+  - Compare Helix artifacts across phases
+  - Emit ordered reconciliation issues
+- **Implementation Notes**: Deterministic ordering and stable IDs.
+
+#### Component: Automation Policy
+- **Purpose**: Control agent autonomy per run.
+- **Responsibilities**:
+  - Enforce manual/plan/auto/yolo modes
+  - Inject mode into prompt envelopes
+- **Implementation Notes**: Default to manual.
+
 #### Component: Agent Runner (Optional)
 - **Purpose**: Execute prompt checks via a configured agent when requested.
 - **Responsibilities**:

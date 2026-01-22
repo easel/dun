@@ -55,6 +55,7 @@ Planned options:
 dun check --format=prompt
 dun check --format=llm
 dun check --format=json
+dun check --automation=plan
 dun check --changed
 dun list
 dun explain <check-id>
