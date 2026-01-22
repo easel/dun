@@ -56,10 +56,26 @@ dun check --format=prompt
 dun check --format=llm
 dun check --format=json
 dun check --automation=plan
+dun check --config dun.yaml
 dun check --changed
 dun list
 dun explain <check-id>
 dun respond --id <check-id> --response -
+```
+
+## Configuration
+
+Dun reads `dun.yaml` in the repo root when present. CLI flags always override
+config values. The default automation mode is `auto`.
+
+Example:
+
+```yaml
+version: "1"
+agent:
+  automation: auto
+  mode: prompt
+  timeout_ms: 300000
 ```
 
 ## Prompt-as-Data Output

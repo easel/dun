@@ -37,8 +37,8 @@ type PromptInput struct {
 }
 
 type PromptContext struct {
-	CheckID string
-	Inputs  []PromptInput
+	CheckID        string
+	Inputs         []PromptInput
 	AutomationMode string
 }
 
@@ -106,9 +106,11 @@ func normalizeAgentMode(mode string) (string, error) {
 
 func normalizeAutomationMode(mode string) (string, error) {
 	switch mode {
-	case "", "manual":
+	case "", "auto":
+		return "auto", nil
+	case "manual":
 		return "manual", nil
-	case "plan", "auto", "yolo":
+	case "plan", "yolo":
 		return mode, nil
 	default:
 		return "", fmt.Errorf("unknown automation mode: %s", mode)
@@ -174,8 +176,8 @@ func renderPromptText(plugin Plugin, check Check, inputs []PromptInput, automati
 
 	var buf bytes.Buffer
 	ctx := PromptContext{
-		CheckID: check.ID,
-		Inputs:  inputs,
+		CheckID:        check.ID,
+		Inputs:         inputs,
 		AutomationMode: automationMode,
 	}
 	if err := tmpl.Execute(&buf, ctx); err != nil {

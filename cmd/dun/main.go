@@ -35,15 +35,28 @@ func main() {
 }
 
 func runCheck(args []string) {
-	fs := flag.NewFlagSet("check", flag.ExitOnError)
-	format := fs.String("format", "prompt", "output format (prompt|llm|json)")
-	agentCmd := fs.String("agent-cmd", "", "agent command override")
-	agentTimeout := fs.Int("agent-timeout", 300, "agent timeout in seconds")
-	agentMode := fs.String("agent-mode", "prompt", "agent mode (prompt|auto)")
-	automation := fs.String("automation", "manual", "automation mode (manual|plan|auto|yolo)")
-	fs.Parse(args)
+	explicitConfig := findConfigFlag(args)
+	opts := dun.DefaultOptions()
+	cfg, loaded, err := dun.LoadConfig(".", explicitConfig)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "dun check failed: config error: %v\n", err)
+		os.Exit(4)
+	}
+	if loaded {
+		opts = dun.ApplyConfig(opts, cfg)
+	}
 
-	opts := dun.Options{
+	fs := flag.NewFlagSet("check", flag.ExitOnError)
+	configPath := fs.String("config", explicitConfig, "path to config file (default dun.yaml if present)")
+	format := fs.String("format", "prompt", "output format (prompt|llm|json)")
+	agentCmd := fs.String("agent-cmd", opts.AgentCmd, "agent command override")
+	agentTimeout := fs.Int("agent-timeout", int(opts.AgentTimeout/time.Second), "agent timeout in seconds")
+	agentMode := fs.String("agent-mode", opts.AgentMode, "agent mode (prompt|auto)")
+	automation := fs.String("automation", opts.AutomationMode, "automation mode (manual|plan|auto|yolo)")
+	fs.Parse(args)
+	explicitConfig = *configPath
+
+	opts = dun.Options{
 		AgentCmd:       *agentCmd,
 		AgentTimeout:   time.Duration(*agentTimeout) * time.Second,
 		AgentMode:      *agentMode,
@@ -72,7 +85,13 @@ func runCheck(args []string) {
 func runList(args []string) {
 	fs := flag.NewFlagSet("list", flag.ExitOnError)
 	format := fs.String("format", "text", "output format (text|json)")
+	configPath := fs.String("config", "", "path to config file (default dun.yaml if present)")
 	fs.Parse(args)
+
+	if _, _, err := dun.LoadConfig(".", *configPath); err != nil {
+		fmt.Fprintf(os.Stderr, "dun list failed: config error: %v\n", err)
+		os.Exit(4)
+	}
 
 	plan, err := dun.PlanRepo(".")
 	if err != nil {
@@ -96,6 +115,7 @@ func runList(args []string) {
 func runExplain(args []string) {
 	fs := flag.NewFlagSet("explain", flag.ExitOnError)
 	format := fs.String("format", "text", "output format (text|json)")
+	configPath := fs.String("config", "", "path to config file (default dun.yaml if present)")
 	fs.Parse(args)
 
 	if fs.NArg() < 1 {
@@ -103,6 +123,11 @@ func runExplain(args []string) {
 		os.Exit(1)
 	}
 	target := fs.Arg(0)
+
+	if _, _, err := dun.LoadConfig(".", *configPath); err != nil {
+		fmt.Fprintf(os.Stderr, "dun explain failed: config error: %v\n", err)
+		os.Exit(4)
+	}
 
 	plan, err := dun.PlanRepo(".")
 	if err != nil {
@@ -233,6 +258,22 @@ func formatRules(rules []dun.Rule) string {
 		parts = append(parts, desc)
 	}
 	return strings.Join(parts, "; ")
+}
+
+func findConfigFlag(args []string) string {
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if arg == "--config" {
+			if i+1 < len(args) {
+				return args[i+1]
+			}
+			return ""
+		}
+		if strings.HasPrefix(arg, "--config=") {
+			return strings.TrimPrefix(arg, "--config=")
+		}
+	}
+	return ""
 }
 
 func printLLM(result dun.Result) {

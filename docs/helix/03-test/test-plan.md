@@ -24,7 +24,7 @@ and the feedback loop that turns missing artifacts into actionable prompts.
 - Ensure doc reconciliation emits ordered downstream plans.
 - Ensure automation slider modes alter prompt behavior.
 - Demonstrate the feedback loop for missing docs and alignment checks.
-- Demonstrate prompt-default behavior with optional auto mode.
+- Demonstrate prompt-default behavior with configurable automation mode (default auto).
 - Validate Helix gate files against required evidence paths.
 
 **Out of Scope**:

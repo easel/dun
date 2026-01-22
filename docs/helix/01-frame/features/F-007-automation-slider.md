@@ -8,6 +8,7 @@ execution, when reconciling documentation and code.
 ## Requirements
 
 - Provide a CLI flag to set automation mode.
+- Default automation mode is `auto`, with overrides via `dun.yaml`.
 - Modes:
   - `manual`: prompt-only, human approval for each change.
   - `plan`: emit a detailed plan without modifying artifacts.

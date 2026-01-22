@@ -222,7 +222,7 @@ graph TB
 - **Responsibilities**:
   - Enforce manual/plan/auto/yolo modes
   - Inject mode into prompt envelopes
-- **Implementation Notes**: Default to manual.
+- **Implementation Notes**: Default to auto.
 
 #### Component: Agent Runner (Optional)
 - **Purpose**: Execute prompt checks via a configured agent when requested.

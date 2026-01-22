@@ -6,5 +6,6 @@ review when needed or let it run freely.
 ## Acceptance Criteria
 
 - I can set automation mode via a CLI flag.
+- I can set a default automation mode via `dun.yaml`.
 - Manual mode requires approval for each suggestion.
 - Yolo mode allows Dun to fill in missing artifacts to declare completeness.

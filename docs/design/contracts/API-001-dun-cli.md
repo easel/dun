@@ -31,7 +31,7 @@ $ dun [command] [options] [arguments]
 - `--agent-cmd` : Command to run agent checks (optional, used with `--agent-mode=auto`)
 - `--agent-timeout` : Agent check timeout in seconds (default `300`)
 - `--agent-mode` : Agent mode (`prompt` or `auto`, default `prompt`)
-- `--automation` : Automation mode (`manual`, `plan`, `auto`, `yolo`, default `manual`)
+- `--automation` : Automation mode (`manual`, `plan`, `auto`, `yolo`, default `auto`)
 
 **Input**:
 - Format: File system + optional config file
