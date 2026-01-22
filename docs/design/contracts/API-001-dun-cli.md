@@ -28,6 +28,8 @@ $ dun [command] [options] [arguments]
 - `--check-timeout` : Per-check timeout in seconds (default `120`)
 - `--workers` : Max concurrent checks (default `min(4, CPU)`)
 - `--config` : Path to config file (default `dun.yaml` if present)
+- `--agent-cmd` : Command to run agent checks (default `DUN_AGENT_CMD`)
+- `--agent-timeout` : Agent check timeout in seconds (default `300`)
 
 **Input**:
 - Format: File system + optional config file
@@ -169,6 +171,14 @@ equivalent JSON shape.
       "properties": {
         "enable": { "type": "array", "items": { "type": "string" } },
         "disable": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "agent": {
+      "type": "object",
+      "properties": {
+        "cmd": { "type": "string" },
+        "timeout_ms": { "type": "integer", "minimum": 1000 },
+        "response_format": { "type": "string", "enum": ["json"] }
       }
     },
     "ratchet": {

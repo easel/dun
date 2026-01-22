@@ -121,26 +121,36 @@ Shows the internal structure of each container.
 graph TB
     subgraph "Dun CLI"
         Entry[CLI Entry<br/>Args + config]
+        Plug[Plugin Registry<br/>Manifests + triggers]
         Disc[Discovery Engine<br/>Signals + checks]
         Plan[Planner<br/>Deterministic plan]
         Run[Runner<br/>Workers + timeouts]
+        Prompt[Prompt Renderer<br/>Agent prompts]
+        Agent[Agent Runner<br/>Response parser]
         Proc[Processor<br/>Summaries]
         Rep[Reporter<br/>LLM/JSON output]
         Policy[Policy Engine<br/>Ratchet + exit code]
     end
 
-    Entry --> Disc
+    Entry --> Plug
+    Plug --> Disc
     Disc --> Plan
     Plan --> Run
+    Plan --> Prompt
+    Prompt --> Agent
     Run --> Proc
+    Agent --> Proc
     Proc --> Rep
     Policy --> Plan
     Policy --> Rep
 
     style Entry fill:#85bbf0,color:#000
+    style Plug fill:#85bbf0,color:#000
     style Disc fill:#85bbf0,color:#000
     style Plan fill:#85bbf0,color:#000
     style Run fill:#85bbf0,color:#000
+    style Prompt fill:#85bbf0,color:#000
+    style Agent fill:#85bbf0,color:#000
     style Proc fill:#85bbf0,color:#000
     style Rep fill:#85bbf0,color:#000
     style Policy fill:#85bbf0,color:#000
@@ -154,6 +164,13 @@ graph TB
   - Validate arguments
   - Load config overrides
 - **Implementation Notes**: Minimal dependencies, predictable defaults.
+
+#### Component: Plugin Registry
+- **Purpose**: Load built-in and external plugin manifests.
+- **Responsibilities**:
+  - Validate plugin schema
+  - Expose triggers and checks to discovery
+- **Implementation Notes**: Keep manifests deterministic and cached.
 
 #### Component: Discovery Engine
 - **Purpose**: Detect repo signals and candidate checks.
@@ -175,6 +192,20 @@ graph TB
   - Worker pool
   - Timeouts and cancellation
 - **Implementation Notes**: Capture stdout/stderr per check.
+
+#### Component: Prompt Renderer
+- **Purpose**: Build prompts for agent-based checks.
+- **Responsibilities**:
+  - Render templates with file paths and context
+  - Emit response schema for parsing
+- **Implementation Notes**: Use stable templates and sorted inputs.
+
+#### Component: Agent Runner
+- **Purpose**: Execute prompt checks via configured agent.
+- **Responsibilities**:
+  - Invoke agent command
+  - Parse structured response
+- **Implementation Notes**: Fail on invalid responses to keep determinism.
 
 #### Component: Processor
 - **Purpose**: Summarize check output.
