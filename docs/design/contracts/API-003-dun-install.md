@@ -16,16 +16,11 @@ $ dun install [options]
 ```
 
 ### Command: install
-**Purpose**: Set up Dun in the current repo (AGENTS.md, hooks, plugins).  
+**Purpose**: Set up Dun in the current repo (AGENTS.md snippet).  
 **Usage**: `$ dun install [options]`
 
 **Options**:
 - `--dry-run` : Show planned changes without writing (default `false`)
-- `--agents` : Manage AGENTS.md integration (default `true`)
-- `--hooks` : Manage hooks integration (default `true`)
-- `--plugins` : Create plugin scaffold (default `true`)
-- `--force` : Overwrite on conflict (default `false`)
-- `--uninstall` : Remove Dun-installed artifacts (default `false`)
 
 **Input**:
 - Format: File system + optional config
@@ -44,15 +39,10 @@ $ dun install [options]
 ```bash
 # Preview install
 $ dun install --dry-run
-plan: add AGENTS.md snippet
-plan: add hooks/ or lefthook config
-plan: create .dun/plugins/README.md
+plan: create AGENTS.md
 
 # Apply install
 $ dun install
-
-# Uninstall
-$ dun install --uninstall
 ```
 
 ---
@@ -64,9 +54,7 @@ $ dun install --uninstall
 {
   "version": "1",
   "steps": [
-    { "type": "agents", "path": "AGENTS.md", "action": "insert" },
-    { "type": "hooks", "path": ".lefthook.yml", "action": "update" },
-    { "type": "plugins", "path": ".dun/plugins/README.md", "action": "create" }
+    { "type": "agents", "path": "AGENTS.md", "action": "create" }
   ]
 }
 ```
@@ -78,7 +66,6 @@ $ dun install --uninstall
 ### Error Codes
 | Code | Description | Exit Code | Recovery Action |
 |------|-------------|-----------|-----------------|
-| ERR_CONFLICT | File conflict or marker mismatch | 2 | Use `--force` or edit manually |
 | ERR_NOT_A_REPO | Repo root not found | 4 | Run inside a git repo |
 | ERR_WRITE_FAILED | File write failed | 1 | Check permissions |
 
@@ -88,9 +75,7 @@ $ dun install --uninstall
 
 ### Test Scenarios
 1. **Dry run**: outputs plan without file changes.
-2. **Install**: creates AGENTS snippet and plugin scaffold.
-3. **Uninstall**: removes marker blocks safely.
-4. **Conflict**: exits with ERR_CONFLICT when markers mismatch.
+2. **Install**: creates AGENTS snippet.
 
 ---
 

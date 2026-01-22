@@ -23,6 +23,8 @@ func main() {
 		runList(os.Args[2:])
 	case "explain":
 		runExplain(os.Args[2:])
+	case "install":
+		runInstall(os.Args[2:])
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n", os.Args[1])
 		os.Exit(1)
@@ -139,6 +141,28 @@ func runExplain(args []string) {
 
 	fmt.Fprintf(os.Stderr, "unknown check: %s\n", target)
 	os.Exit(1)
+}
+
+func runInstall(args []string) {
+	fs := flag.NewFlagSet("install", flag.ExitOnError)
+	dryRun := fs.Bool("dry-run", false, "show planned changes without writing")
+	fs.Parse(args)
+
+	result, err := dun.InstallRepo(".", dun.InstallOptions{DryRun: *dryRun})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "dun install failed: %v\n", err)
+		os.Exit(1)
+	}
+
+	for _, step := range result.Steps {
+		if *dryRun {
+			fmt.Printf("plan: %s %s\n", step.Action, step.Path)
+		} else {
+			fmt.Printf("installed: %s %s\n", step.Action, step.Path)
+		}
+	}
+
+	fmt.Println("note: add hooks manually if desired (lefthook/pre-commit)")
 }
 
 func formatRules(rules []dun.Rule) string {

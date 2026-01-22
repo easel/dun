@@ -9,20 +9,17 @@ Map each functional requirement to technical capabilities:
 
 | Requirement | Technical Capability | Component | Priority |
 |------------|---------------------|-----------|----------|
-| FR-I-001 Initialize repo | Detect repo root and write config | Installer | P0 |
+| FR-I-001 Initialize repo | Detect repo root and write AGENTS.md | Installer | P0 |
 | FR-I-002 AGENTS.md helper | Insert Dun tool guidance | Template Writer | P0 |
-| FR-I-003 Hook integration | Create hook entry or script | Hook Installer | P0 |
-| FR-I-004 Plugin dir | Create plugin scaffold | Plugin Scaffold | P0 |
-| FR-I-005 Safe updates | Idempotent edits and backup | File Editor | P0 |
-| FR-I-006 Dry run | Show actions without changes | Planner | P1 |
-| FR-I-007 Uninstall | Remove installed artifacts | Installer | P1 |
+| FR-I-003 Safe updates | Idempotent edits with markers | File Editor | P0 |
+| FR-I-004 Dry run | Show actions without changes | Planner | P1 |
 
 ### Non-Functional Requirements Impact
 How NFRs shape the architecture:
 
 | NFR Category | Requirement | Architectural Impact | Design Decision |
 |--------------|------------|---------------------|-----------------|
-| Safety | Avoid destructive edits | Idempotent edits | Block on conflicts |
+| Safety | Avoid destructive edits | Idempotent edits | Marker-based insertion |
 | Usability | Minimal steps | Single command | `dun install` default |
 | Portability | Works across repos | Avoid hardcoded paths | Use repo root detection |
 | Determinism | Repeatable output | Same edits each run | Insert markers |
@@ -30,7 +27,7 @@ How NFRs shape the architecture:
 ## Solution Approaches
 
 ### Approach 1: One-shot Script
-**Description**: A shell script that edits files and installs hooks.
+**Description**: A shell script that edits AGENTS.md.
 
 **Pros**:
 - Fast to implement
@@ -47,7 +44,7 @@ How NFRs shape the architecture:
 
 **Pros**:
 - Testable, deterministic
-- Can support dry-run and uninstall
+- Can support dry-run and idempotent updates
 
 **Cons**:
 - More code to maintain
@@ -104,25 +101,11 @@ Critical domain logic to implement:
   - Create file if missing
   - Insert snippet under markers
 
-#### Component 3: Hook Installer
-- **Purpose**: Add hook integration (lefthook or git hooks).
-- **Responsibilities**:
-  - Detect existing hook framework
-  - Add hook config or script
-
-#### Component 4: Plugin Scaffold
-- **Purpose**: Create plugin directory and sample manifest.
-- **Responsibilities**:
-  - Create `.dun/plugins/README.md`
-  - Optional sample plugin skeleton
-
 ### Component Interactions
 ```mermaid
 graph TD
     Install[Installer] --> Plan[Plan Builder]
     Plan --> Agents[AGENTS Writer]
-    Plan --> Hooks[Hook Installer]
-    Plan --> Plugins[Plugin Scaffold]
 ```
 
 ## Technology Selection Rationale
@@ -140,15 +123,12 @@ Ensure all requirements are addressed:
 |---------------|-------------|-----------|----------------|---------------|
 | FR-I-001 | Initialize repo | Installer | Repo root detection | Integration tests |
 | FR-I-002 | AGENTS.md helper | Template Writer | Marker edits | Unit tests |
-| FR-I-003 | Hook integration | Hook Installer | Config updates | Integration tests |
-| FR-I-004 | Plugin dir | Plugin Scaffold | Directory creation | Unit tests |
-| FR-I-005 | Safe updates | File Editor | Marker validation | Unit tests |
-| FR-I-006 | Dry run | Installer | Plan-only mode | Unit tests |
-| FR-I-007 | Uninstall | Installer | Marker removal | Integration tests |
+| FR-I-003 | Safe updates | File Editor | Marker validation | Unit tests |
+| FR-I-004 | Dry run | Installer | Plan-only mode | Unit tests |
 
 ### Gap Analysis
 Requirements not fully addressed:
-- [ ] Hook framework detection rules.
+- [ ] Hook framework detection rules (deferred).
 
 ## Constraints and Assumptions
 
@@ -158,37 +138,34 @@ Requirements not fully addressed:
 
 ### Assumptions
 - AGENTS.md is acceptable for tool guidance.
-- Hook frameworks like lefthook may exist.
 
 ## Migration from Current State
 
 ### Current System Analysis (if applicable)
 - **Existing functionality**: No install command.
-- **Integration points**: AGENTS.md, hooks, plugin dirs.
+- **Integration points**: AGENTS.md only.
 
 ### Migration Strategy
 1. Introduce `dun install` with dry-run mode.
-2. Add uninstall to remove markers and configs.
 
 ## Risk Assessment
 
 ### Technical Risks
 | Risk | Probability | Impact | Mitigation |
 |------|------------|--------|------------|
-| Overwriting user files | Low | High | Marker-based edits, backups |
-| Hook conflicts | Med | Med | Detect and request confirmation |
+| Overwriting user files | Low | High | Marker-based edits |
 
 ## Success Criteria
 
 ### Design Validation
 - [ ] Install plan is deterministic and idempotent
 - [ ] AGENTS.md edits are safe
-- [ ] Hooks are added without breaking existing configs
+- [ ] AGENTS.md edits are safe
 
 ### Handoff to Implementation
 This design is ready when:
 - [ ] Install contract is approved
-- [ ] Marker format and templates are finalized
+- [ ] Marker format and template are finalized
 
 ---
 *This design defines how Dun installs itself into a repo safely and repeatably.*
