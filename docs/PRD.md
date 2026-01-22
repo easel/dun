@@ -8,9 +8,11 @@
 ## Executive Summary
 
 Dun is a fast, agent-friendly quality check runner that discovers the right
-checks for a repository and emits deterministic, LLM-friendly summaries. It
-answers the core question in agent workflows: "Is this code working to our
-quality standard?" without requiring heavy configuration or manual wiring.
+checks for a repository and emits deterministic prompt-as-data output by
+default. It answers the core question in agent workflows: "Is this code working
+to our quality standard?" without requiring heavy configuration or manual
+wiring. Prompt envelopes include callbacks so CLI agents can respond with
+structured results.
 
 The product targets developers and agent operators who need reliable feedback
 in tight iteration loops. Dun focuses on one command (`dun check`) that runs
@@ -107,7 +109,8 @@ standards over time without stalling velocity.
 1. Auto-discovery of repo language and tooling.
 2. Stable, ordered check plan with deterministic IDs.
 3. Parallel execution with per-check timeouts and global budget.
-4. LLM-friendly and JSON output formats.
+4. Prompt-as-data output with callback instructions (default).
+5. LLM-friendly and JSON output formats for humans and tooling.
 5. Exit codes aligned with pass/fail outcomes.
 
 ### Should Have (P1)
@@ -125,8 +128,8 @@ standards over time without stalling velocity.
 
 ### Primary Flow
 1. **Entry Point**: User or agent runs `dun check`.
-2. **First Action**: Dun discovers checks and prints a plan summary.
-3. **Core Loop**: Checks run, summaries guide fixes, user re-runs.
+2. **First Action**: Dun discovers checks and emits prompt envelopes as needed.
+3. **Core Loop**: Agent checks return structured results, summaries guide fixes.
 4. **Success State**: All checks pass; Dun emits a clean summary and exit 0.
 5. **Exit**: User commits, pushes, or signals completion in agent loop.
 
@@ -146,7 +149,7 @@ standards over time without stalling velocity.
 ### Assumptions
 - Git is available for changed-file detection.
 - Teams accept minimal config for edge cases.
-- LLM loops require stable, machine-parseable output.
+- Agent loops require stable, machine-parseable prompt envelopes.
 
 ### Dependencies
 - Language toolchains installed locally (Go, Node, Python, etc).

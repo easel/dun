@@ -125,8 +125,9 @@ graph TB
         Disc[Discovery Engine<br/>Signals + checks]
         Plan[Planner<br/>Deterministic plan]
         Run[Runner<br/>Workers + timeouts]
-        Prompt[Prompt Renderer<br/>Agent prompts]
-        Agent[Agent Runner<br/>Response parser]
+        Prompt[Prompt Renderer<br/>Prompt templates]
+        Emit[Prompt Emitter<br/>Prompt envelopes]
+        Agent[Agent Runner (Optional)<br/>Response parser]
         Proc[Processor<br/>Summaries]
         Rep[Reporter<br/>LLM/JSON output]
         Policy[Policy Engine<br/>Ratchet + exit code]
@@ -137,8 +138,10 @@ graph TB
     Disc --> Plan
     Plan --> Run
     Plan --> Prompt
-    Prompt --> Agent
+    Prompt --> Emit
+    Emit --> Agent
     Run --> Proc
+    Emit --> Proc
     Agent --> Proc
     Proc --> Rep
     Policy --> Plan
@@ -200,10 +203,17 @@ graph TB
   - Emit response schema for parsing
 - **Implementation Notes**: Use stable templates and sorted inputs.
 
-#### Component: Agent Runner
-- **Purpose**: Execute prompt checks via configured agent.
+#### Component: Prompt Emitter
+- **Purpose**: Emit prompt envelopes for agent-based checks.
 - **Responsibilities**:
-  - Invoke agent command
+  - Package prompt text, inputs, and callback command
+  - Mark checks as `prompt` when agent input is required
+- **Implementation Notes**: Output is deterministic and machine-readable.
+
+#### Component: Agent Runner (Optional)
+- **Purpose**: Execute prompt checks via a configured agent when requested.
+- **Responsibilities**:
+  - Invoke agent command (opt-in)
   - Parse structured response
 - **Implementation Notes**: Fail on invalid responses to keep determinism.
 

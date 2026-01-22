@@ -12,8 +12,8 @@ Map each functional requirement to technical capabilities:
 | FR-001 Auto-discover repo tooling | Scan files and configs to detect checks | Discovery Engine | P0 |
 | FR-002 Stable check plan | Deterministic ordering and IDs | Planner | P0 |
 | FR-003 Parallel execution | Worker pool with timeouts | Runner | P0 |
-| FR-004 LLM output | Structured summaries per check | Reporter | P0 |
-| FR-005 JSON output | Machine-readable results | Reporter | P0 |
+| FR-004 Prompt-as-data output | Structured prompt envelopes per check | Reporter | P0 |
+| FR-005 LLM/JSON output | Human-readable summaries and JSON results | Reporter | P0 |
 | FR-006 `--changed` scope | Limit checks to affected areas | Planner | P1 |
 | FR-007 Quality ratchet | Baseline compare and regressions | Policy Engine | P1 |
 | FR-008 Config overrides | Minimal config file support | Config Loader | P1 |
@@ -185,6 +185,7 @@ Breaking down the system into manageable parts:
 #### Component 6: Reporter
 - **Purpose**: Render outputs and exit codes.
 - **Responsibilities**:
+  - Prompt envelope output (default)
   - LLM format output
   - JSON output
 - **Requirements Addressed**: FR-004, FR-005
@@ -247,8 +248,8 @@ Ensure all requirements are addressed:
 | FR-001 | Auto-discovery | Discovery Engine | Discoverer registry | Unit tests |
 | FR-002 | Stable plan | Planner | Sorted plan rules | Unit tests |
 | FR-003 | Parallel checks | Runner | Worker pool + timeouts | Integration tests |
-| FR-004 | LLM output | Reporter | LLM formatter | Golden tests |
-| FR-005 | JSON output | Reporter | JSON schema | Golden tests |
+| FR-004 | Prompt-as-data output | Reporter | Prompt envelope format | Golden tests |
+| FR-005 | LLM/JSON output | Reporter | LLM + JSON formatters | Golden tests |
 | FR-006 | `--changed` | Planner | Git diff filter | Integration tests |
 | FR-007 | Ratchet | Policy Engine | Baseline compare | Unit tests |
 | FR-008 | Config | Config Loader | Override merge | Unit tests |

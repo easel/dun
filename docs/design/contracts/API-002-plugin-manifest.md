@@ -147,7 +147,8 @@ checks:
 ```
 
 ### Agent Response Schema (Default)
-Agent checks are expected to return JSON with the following shape:
+Agent responses are optional and expected to return JSON with the following shape
+when `dun respond` or auto mode is used:
 
 ```json
 {
@@ -168,7 +169,16 @@ Agent checks are expected to return JSON with the following shape:
   "status": "fail",
   "signal": "2 required gates missing",
   "detail": "docs/helix/01-frame/prd.md missing",
-  "next": "Create docs/helix/01-frame/prd.md"
+  "next": "Create docs/helix/01-frame/prd.md",
+  "prompt": {
+    "kind": "dun.prompt.v1",
+    "id": "helix-create-architecture",
+    "prompt": "Check-ID: helix-create-architecture\n...",
+    "callback": {
+      "command": "dun respond --id helix-create-architecture --response -",
+      "stdin": true
+    }
+  }
 }
 ```
 
@@ -181,7 +191,6 @@ Agent checks are expected to return JSON with the following shape:
 |------|-------------|-----------|-----------------|
 | ERR_PLUGIN_INVALID | Manifest schema invalid | 4 | Fix plugin manifest |
 | ERR_PLUGIN_TRIGGER | Trigger evaluation failed | 1 | Check repo structure |
-| ERR_AGENT_UNCONFIGURED | Agent not configured | 0 | Set `DUN_AGENT_CMD` |
 | ERR_AGENT_RESPONSE | Agent response invalid | 2 | Fix response schema |
 
 ### Error Response Format (JSON)
@@ -203,7 +212,7 @@ Agent checks are expected to return JSON with the following shape:
 ### Test Scenarios
 1. **Trigger Match**: Plugin loads when sentinel path exists.
 2. **Rule Set**: Missing artifact fails with clear signal.
-3. **Agent Check**: Prompt renders and response parses.
+3. **Prompt Check**: Prompt envelope renders and response parses.
 4. **Unknown Rule**: Invalid rule type is rejected.
 
 ### Backwards Compatibility

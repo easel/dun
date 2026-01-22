@@ -25,7 +25,7 @@ type InstallResult struct {
 const (
 	agentsMarkerStart = "<!-- DUN:BEGIN -->"
 	agentsMarkerEnd   = "<!-- DUN:END -->"
-	agentsToolLine    = "- dun: run `dun check --agent-mode=ask` before summarizing results"
+	agentsToolLine    = "- dun: run `dun check` before summarizing results"
 )
 
 func InstallRepo(start string, opts InstallOptions) (InstallResult, error) {

@@ -12,15 +12,16 @@ type Options struct {
 }
 
 type Result struct {
-	Checks []CheckResult
+	Checks []CheckResult `json:"checks"`
 }
 
 type CheckResult struct {
-	ID     string
-	Status string
-	Signal string
-	Detail string
-	Next   string
+	ID     string          `json:"id"`
+	Status string          `json:"status"`
+	Signal string          `json:"signal"`
+	Detail string          `json:"detail,omitempty"`
+	Next   string          `json:"next,omitempty"`
+	Prompt *PromptEnvelope `json:"prompt,omitempty"`
 }
 
 type Plugin struct {
@@ -63,4 +64,20 @@ type Rule struct {
 	Pattern  string `yaml:"pattern"`
 	Expected int    `yaml:"expected"`
 	Severity string `yaml:"severity"`
+}
+
+type PromptEnvelope struct {
+	Kind           string         `json:"kind"`
+	ID             string         `json:"id"`
+	Title          string         `json:"title,omitempty"`
+	Summary        string         `json:"summary,omitempty"`
+	Prompt         string         `json:"prompt"`
+	Inputs         []string       `json:"inputs,omitempty"`
+	ResponseSchema string         `json:"response_schema,omitempty"`
+	Callback       PromptCallback `json:"callback"`
+}
+
+type PromptCallback struct {
+	Command string `json:"command"`
+	Stdin   bool   `json:"stdin"`
 }

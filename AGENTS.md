@@ -1,4 +1,4 @@
 ## Tools
 <!-- DUN:BEGIN -->
-- dun: run `dun check --agent-mode=ask` before summarizing results
+- dun: run `dun check` before summarizing results
 <!-- DUN:END -->

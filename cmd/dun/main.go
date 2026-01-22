@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -23,6 +24,8 @@ func main() {
 		runList(os.Args[2:])
 	case "explain":
 		runExplain(os.Args[2:])
+	case "respond":
+		runRespond(os.Args[2:])
 	case "install":
 		runInstall(os.Args[2:])
 	default:
@@ -33,10 +36,10 @@ func main() {
 
 func runCheck(args []string) {
 	fs := flag.NewFlagSet("check", flag.ExitOnError)
-	format := fs.String("format", "llm", "output format (llm|json)")
+	format := fs.String("format", "prompt", "output format (prompt|llm|json)")
 	agentCmd := fs.String("agent-cmd", "", "agent command override")
 	agentTimeout := fs.Int("agent-timeout", 300, "agent timeout in seconds")
-	agentMode := fs.String("agent-mode", "ask", "agent mode (ask|auto)")
+	agentMode := fs.String("agent-mode", "prompt", "agent mode (prompt|auto)")
 	fs.Parse(args)
 
 	opts := dun.Options{
@@ -51,13 +54,16 @@ func runCheck(args []string) {
 	}
 
 	switch *format {
-	case "json":
+	case "llm":
+		printLLM(result)
+	case "json", "prompt":
 		if err := json.NewEncoder(os.Stdout).Encode(result); err != nil {
 			fmt.Fprintf(os.Stderr, "encode json: %v\n", err)
 			os.Exit(1)
 		}
 	default:
-		printLLM(result)
+		fmt.Fprintf(os.Stderr, "unknown format: %s\n", *format)
+		os.Exit(1)
 	}
 }
 
@@ -141,6 +147,50 @@ func runExplain(args []string) {
 
 	fmt.Fprintf(os.Stderr, "unknown check: %s\n", target)
 	os.Exit(1)
+}
+
+func runRespond(args []string) {
+	fs := flag.NewFlagSet("respond", flag.ExitOnError)
+	id := fs.String("id", "", "check id from prompt")
+	responsePath := fs.String("response", "-", "response JSON path or - for stdin")
+	format := fs.String("format", "json", "output format (json|llm)")
+	fs.Parse(args)
+
+	if *id == "" {
+		fmt.Fprintln(os.Stderr, "usage: dun respond --id <check-id> --response <path|->")
+		os.Exit(1)
+	}
+
+	var reader io.Reader = os.Stdin
+	if *responsePath != "-" {
+		file, err := os.Open(*responsePath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "open response: %v\n", err)
+			os.Exit(1)
+		}
+		defer file.Close()
+		reader = file
+	}
+
+	check, err := dun.Respond(*id, reader)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "dun respond failed: %v\n", err)
+		os.Exit(1)
+	}
+
+	result := dun.Result{Checks: []dun.CheckResult{check}}
+	switch *format {
+	case "llm":
+		printLLM(result)
+	case "json":
+		if err := json.NewEncoder(os.Stdout).Encode(check); err != nil {
+			fmt.Fprintf(os.Stderr, "encode json: %v\n", err)
+			os.Exit(1)
+		}
+	default:
+		fmt.Fprintf(os.Stderr, "unknown format: %s\n", *format)
+		os.Exit(1)
+	}
 }
 
 func runInstall(args []string) {

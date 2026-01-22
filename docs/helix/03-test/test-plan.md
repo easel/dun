@@ -9,7 +9,7 @@
 ## Executive Summary
 
 This test plan verifies the MVP plugin system and Helix plugin behaviors. The
-focus is on deterministic detection, rule evaluation, agent prompt execution,
+focus is on deterministic detection, rule evaluation, prompt envelope emission,
 and the feedback loop that turns missing artifacts into actionable prompts.
 
 ## Testing Strategy
@@ -19,9 +19,10 @@ and the feedback loop that turns missing artifacts into actionable prompts.
 **Testing Goals**:
 - Validate plugin discovery via repo signals (Helix docs detection).
 - Ensure rule-based checks identify missing artifacts and gate order.
-- Ensure agent checks render prompts and parse structured responses.
+- Ensure prompt envelopes are emitted for agent checks.
+- Ensure `dun respond` parses structured responses.
 - Demonstrate the feedback loop for missing docs and alignment checks.
-- Demonstrate ask vs auto agent modes for workflow progression.
+- Demonstrate prompt-default behavior with optional auto mode.
 - Validate Helix gate files against required evidence paths.
 
 **Out of Scope**:
@@ -92,10 +93,10 @@ internal/
 
 **P0 - Must Have Coverage**:
 1. Helix plugin auto-detection.
-2. Missing architecture prompts agent creation.
-3. Missing feature specs prompts agent creation.
-4. Alignment check triggers when prerequisites exist.
-5. Ask mode defers agent execution until approval.
+2. Missing architecture emits a prompt envelope.
+3. Missing feature specs emit a prompt envelope.
+4. Alignment check emits a prompt when prerequisites exist.
+5. `dun respond` parses structured agent output.
 6. State rules detect missing upstream artifacts.
 7. Gate checks fail when required evidence is missing.
 
@@ -103,7 +104,7 @@ internal/
 
 ### Phase 1: Test Infrastructure (Day 1)
 - [ ] Set up Go module and test structure
-- [ ] Create agent stub
+- [ ] Create agent stub (auto mode)
 - [ ] Create fixture repos
 
 ### Phase 2: Contract + Integration Tests (Day 2)

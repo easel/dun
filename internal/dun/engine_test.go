@@ -9,55 +9,49 @@ import (
 )
 
 func TestHelixMissingArchitecturePromptsAgent(t *testing.T) {
-	result := runFixture(t, "helix-missing-architecture", "auto")
+	result := runFixture(t, "helix-missing-architecture", "")
 
 	check := findCheck(t, result, "helix-create-architecture")
-	if check.Status != "fail" {
-		t.Fatalf("expected fail, got %s", check.Status)
+	if check.Status != "prompt" {
+		t.Fatalf("expected prompt, got %s", check.Status)
 	}
-	if !strings.Contains(check.Detail, "architecture") {
-		t.Fatalf("expected architecture detail, got %q", check.Detail)
+	if check.Prompt == nil {
+		t.Fatalf("expected prompt envelope")
+	}
+	if check.Prompt.Kind != "dun.prompt.v1" {
+		t.Fatalf("expected prompt kind, got %s", check.Prompt.Kind)
+	}
+	if !strings.Contains(check.Prompt.Callback.Command, "dun respond --id helix-create-architecture") {
+		t.Fatalf("expected callback command, got %q", check.Prompt.Callback.Command)
 	}
 }
 
-func TestHelixMissingFeaturesPromptsAgent(t *testing.T) {
-	result := runFixture(t, "helix-missing-features", "auto")
+func TestHelixMissingFeaturesEmitsPrompt(t *testing.T) {
+	result := runFixture(t, "helix-missing-features", "")
 
 	check := findCheck(t, result, "helix-create-feature-specs")
-	if check.Status != "fail" {
-		t.Fatalf("expected fail, got %s", check.Status)
+	if check.Status != "prompt" {
+		t.Fatalf("expected prompt, got %s", check.Status)
 	}
-	if !strings.Contains(check.Detail, "features") {
-		t.Fatalf("expected feature detail, got %q", check.Detail)
+	if check.Prompt == nil {
+		t.Fatalf("expected prompt envelope")
 	}
 }
 
-func TestHelixAlignmentRunsAgent(t *testing.T) {
-	result := runFixture(t, "helix-alignment", "auto")
+func TestHelixAlignmentEmitsPrompt(t *testing.T) {
+	result := runFixture(t, "helix-alignment", "")
 
 	check := findCheck(t, result, "helix-align-specs")
-	if check.Status != "warn" {
-		t.Fatalf("expected warn, got %s", check.Status)
+	if check.Status != "prompt" {
+		t.Fatalf("expected prompt, got %s", check.Status)
 	}
-	if !strings.Contains(check.Signal, "alignment") {
-		t.Fatalf("expected alignment signal, got %q", check.Signal)
-	}
-}
-
-func TestHelixAskModeRequiresApproval(t *testing.T) {
-	result := runFixture(t, "helix-missing-architecture", "ask")
-
-	check := findCheck(t, result, "helix-create-architecture")
-	if check.Status != "warn" {
-		t.Fatalf("expected warn, got %s", check.Status)
-	}
-	if !strings.Contains(check.Signal, "approval") {
-		t.Fatalf("expected approval signal, got %q", check.Signal)
+	if check.Prompt == nil {
+		t.Fatalf("expected prompt envelope")
 	}
 }
 
 func TestHelixStateRulesDetectsMissingStory(t *testing.T) {
-	result := runFixture(t, "helix-inconsistent", "auto")
+	result := runFixture(t, "helix-inconsistent", "")
 
 	check := findCheck(t, result, "helix-state-rules")
 	if check.Status != "fail" {
@@ -72,7 +66,7 @@ func TestHelixStateRulesDetectsMissingStory(t *testing.T) {
 }
 
 func TestHelixGatesDetectMissingEvidence(t *testing.T) {
-	result := runFixture(t, "helix-gates-missing", "auto")
+	result := runFixture(t, "helix-gates-missing", "")
 
 	check := findCheck(t, result, "helix-gates")
 	if check.Status != "fail" {
@@ -83,16 +77,30 @@ func TestHelixGatesDetectMissingEvidence(t *testing.T) {
 	}
 }
 
+func TestHelixAlignmentAutoRunsAgent(t *testing.T) {
+	result := runFixture(t, "helix-alignment", "auto")
+
+	check := findCheck(t, result, "helix-align-specs")
+	if check.Status != "warn" {
+		t.Fatalf("expected warn, got %s", check.Status)
+	}
+	if !strings.Contains(check.Signal, "alignment") {
+		t.Fatalf("expected alignment signal, got %q", check.Signal)
+	}
+}
+
 func runFixture(t *testing.T, name string, mode string) Result {
 	t.Helper()
 
-	agentCmd := fixturePath(t, "../testdata/agent/agent.sh")
 	root := fixturePath(t, "../testdata/repos/"+name)
 
 	opts := Options{
-		AgentCmd:     "bash " + agentCmd,
 		AgentTimeout: 5 * time.Second,
 		AgentMode:    mode,
+	}
+	if mode == "auto" {
+		agentCmd := fixturePath(t, "../testdata/agent/agent.sh")
+		opts.AgentCmd = "bash " + agentCmd
 	}
 	result, err := CheckRepo(root, opts)
 	if err != nil {

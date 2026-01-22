@@ -1,8 +1,8 @@
 # Dun
 
 Dun is an agent-friendly quality check runner for codebases. It focuses on
-fast, automatic discovery of the right checks and produces summarized,
-LLM-friendly output so agents (and humans) can quickly assess whether code works.
+fast, automatic discovery of the right checks and produces prompt-as-data
+output by default so agents (and humans) can quickly assess whether code works.
 
 ## Why
 
@@ -14,7 +14,8 @@ result?" without requiring a long, custom configuration.
 
 - Zero-config entrypoint: `dun check` inspects the repo and runs the right
   checks.
-- LLM-friendly summaries: each check emits a short, structured result.
+- Prompt-as-data output: prompt envelopes are emitted for agent checks.
+- LLM-friendly summaries: each check can emit a short, structured result.
 - Fast and portable: a single Go binary with minimal dependencies.
 - Extensible: easy to add new discoverers, checks, and reporters.
 - Deterministic: stable outputs for the same repo state.
@@ -51,16 +52,38 @@ dun check
 Planned options:
 
 ```bash
+dun check --format=prompt
 dun check --format=llm
 dun check --format=json
 dun check --changed
 dun list
 dun explain <check-id>
+dun respond --id <check-id> --response -
+```
+
+## Prompt-as-Data Output
+
+Dun emits prompt envelopes for agent checks by default. Example:
+
+```json
+{
+  "kind": "dun.prompt.v1",
+  "id": "helix-create-architecture",
+  "title": "Create architecture doc",
+  "summary": "Missing docs/helix/02-design/architecture.md",
+  "prompt": "Check-ID: helix-create-architecture\n...",
+  "inputs": ["docs/helix/01-frame/prd.md"],
+  "callback": {
+    "command": "dun respond --id helix-create-architecture --response -",
+    "stdin": true
+  }
+}
 ```
 
 ## LLM-Friendly Output
 
-Each check should emit a short, structured summary. Example:
+Each check can emit a short, structured summary when using `--format=llm`.
+Example:
 
 ```text
 check:go-test status:fail duration_ms:421
@@ -116,7 +139,7 @@ Agent helper via `AGENTS.md`:
 
 ```text
 ## Tools
-- dun: run `dun check --format=llm` before summarizing results
+- dun: run `dun check` before summarizing results
 ```
 
 Hook usage (lefthook-style):

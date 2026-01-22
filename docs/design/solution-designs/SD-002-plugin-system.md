@@ -11,9 +11,9 @@ Map each functional requirement to technical capabilities:
 |------------|---------------------|-----------|----------|
 | FR-P-001 Auto-detect workflow | Trigger plugins based on repo signals | Plugin Loader | P0 |
 | FR-P-002 Helix docs validation | Parse gates and required artifacts | Rule Engine | P0 |
-| FR-P-003 Cross-validation | Compare specs, design, tests, implementation | Agent Runner | P0 |
+| FR-P-003 Cross-validation | Compare specs, design, tests, implementation | Prompt Emitter | P0 |
 | FR-P-004 Extensible checks | Plugin manifest defines checks and rules | Plugin Registry | P0 |
-| FR-P-005 Prompt-based checks | Response-as-prompt execution | Prompt Renderer | P0 |
+| FR-P-005 Prompt-based checks | Prompt-as-data emission | Prompt Renderer | P0 |
 | FR-P-006 Deterministic plan | Stable check IDs and ordering | Planner | P0 |
 | FR-P-007 Safe defaults | No external network by default | Runner | P1 |
 | FR-P-008 Custom plugins | Load external plugin dirs | Plugin Loader | P1 |
@@ -27,7 +27,7 @@ How NFRs shape the architecture:
 | Performance | Fast discovery | Cached manifests, shallow scans | Detect by sentinel files |
 | Portability | Single binary | Embedded built-in plugins | Packaged plugin assets |
 | Usability | Zero-config | Auto-detect and auto-run | Optional overrides only |
-| Safety | No network by default | Agent runner is opt-in | Explicit agent config required |
+| Safety | No network by default | Prompt emission by default | Agent runner optional |
 
 ## Solution Approaches
 
@@ -121,14 +121,14 @@ erDiagram
 Critical domain logic to implement:
 1. Plugin checks are only enabled when triggers match.
 2. Check IDs must be unique and stable across runs.
-3. Agent checks must return structured responses or fail.
+3. Agent responses must be structured when provided.
 4. Gate checks execute in phase order (frame -> design -> test -> build).
 5. Checks may declare conditions that gate execution.
 
 ### Bounded Contexts (if applicable)
 - **Plugin Discovery**: load manifests and match triggers
 - **Validation**: execute rule checks on files and metadata
-- **Agent Evaluation**: prompt execution and structured response parsing
+- **Prompt Emission**: prompt envelopes and optional response parsing
 
 ## System Decomposition
 
@@ -168,12 +168,20 @@ Breaking down the system into manageable parts:
 - **Requirements Addressed**: FR-P-005
 - **Interfaces**: Template engine
 
-#### Component 5: Agent Runner
-- **Purpose**: Execute prompt-based checks.
+#### Component 5: Prompt Emitter
+- **Purpose**: Emit prompt envelopes for agent checks.
+- **Responsibilities**:
+  - Package prompt text, inputs, and callback command
+  - Mark checks as `prompt` in results
+- **Requirements Addressed**: FR-P-003, FR-P-005
+- **Interfaces**: Reporter
+
+#### Component 6: Agent Runner (Optional)
+- **Purpose**: Execute prompt-based checks when requested.
 - **Responsibilities**:
   - Invoke configured agent command
   - Parse structured response
-- **Requirements Addressed**: FR-P-003, FR-P-005
+- **Requirements Addressed**: FR-P-003
 - **Interfaces**: External agent, JSON parser
 
 ### Component Interactions
@@ -183,17 +191,18 @@ graph TD
     LOAD --> PLAN[Planner]
     PLAN --> RULES[Rule Engine]
     PLAN --> PROMPT[Prompt Renderer]
-    PROMPT --> AGENT[Agent Runner]
+    PROMPT --> EMIT[Prompt Emitter]
+    EMIT --> AGENT[Agent Runner (Optional)]
 ```
 
-## Response-as-Prompt Execution
+## Prompt-as-Data Execution
 
-Agent checks use a response-as-prompt pattern:
+Agent checks use a prompt-as-data pattern:
 1. The plugin defines a prompt template and response schema.
 2. Dun renders the prompt with paths and context.
-3. The agent runs and returns structured JSON.
-4. The response is parsed into status, signal, detail, and next.
-5. Optional follow-on checks can reference the prior response.
+3. Dun emits a prompt envelope with a callback command.
+4. A CLI agent runs the prompt and calls back into Dun with the response.
+5. Optional auto mode executes the agent directly.
 
 This keeps checks deterministic while allowing deep cross-validation that is
 not feasible with simple rules.
@@ -238,7 +247,7 @@ Ensure all requirements are addressed:
 |---------------|-------------|-----------|----------------|---------------|
 | FR-P-001 | Auto-detect workflow | Plugin Loader | Trigger matching | Unit tests |
 | FR-P-002 | Helix validation | Rule Engine | Gate rules | Unit tests |
-| FR-P-003 | Cross-validation | Agent Runner | Prompt execution | Contract tests |
+| FR-P-003 | Cross-validation | Prompt Emitter | Prompt envelopes | Contract tests |
 | FR-P-004 | Extensible checks | Plugin Registry | Manifest schema | Unit tests |
 | FR-P-005 | Prompt-based checks | Prompt Renderer | Templates | Golden tests |
 
@@ -254,11 +263,11 @@ Requirements not fully addressed:
 
 ### Assumptions
 - Repos that use Helix include recognizable docs structure.
-- Agent execution can be configured via env or config.
+- Prompt emission is default; agent execution is optional.
 
 ### Dependencies
 - YAML parser for manifests.
-- JSON parser for agent responses.
+- JSON parser for agent responses (auto mode).
 
 ## Migration from Current State
 
@@ -276,7 +285,7 @@ Requirements not fully addressed:
 ### Technical Risks
 | Risk | Probability | Impact | Mitigation |
 |------|------------|--------|------------|
-| Agent output is inconsistent | Med | High | Strict response schema, parse failure -> fail |
+| Agent responses are inconsistent | Med | High | Strict response schema, parse failure -> fail |
 | Gate rules drift from docs | Med | Med | Derive gates from manifest files |
 | Plugin complexity explodes | Low | Med | Keep validator set small and composable |
 
@@ -290,14 +299,14 @@ Requirements not fully addressed:
 
 ### Design Validation
 - [ ] Helix plugin can be defined without core changes
-- [ ] Agent checks have a clear contract and schema
+- [ ] Prompt envelopes have a clear contract and schema
 - [ ] Deterministic check ordering is preserved
 
 ### Handoff to Implementation
 This design is ready when:
 - [ ] Plugin manifest contract is approved
 - [ ] Helix plugin check list is finalized
-- [ ] Agent runner configuration is defined
+- [ ] Prompt callback and optional agent runner configuration is defined
 
 ---
 *This solution design describes an extensible plugin system that enables Helix and other workflows without hardcoding.*

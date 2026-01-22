@@ -22,15 +22,15 @@ $ dun [command] [options] [arguments]
 **Usage**: `$ dun check [options]`
 
 **Options**:
-- `--format` : Output format (`llm` or `json`, default `llm`)
+- `--format` : Output format (`prompt`, `llm`, or `json`, default `prompt`)
 - `--changed` : Limit checks to changed files (default `false`)
 - `--timeout` : Global timeout in seconds (default `600`)
 - `--check-timeout` : Per-check timeout in seconds (default `120`)
 - `--workers` : Max concurrent checks (default `min(4, CPU)`)
 - `--config` : Path to config file (default `dun.yaml` if present)
-- `--agent-cmd` : Command to run agent checks (default `DUN_AGENT_CMD`)
+- `--agent-cmd` : Command to run agent checks (optional, used with `--agent-mode=auto`)
 - `--agent-timeout` : Agent check timeout in seconds (default `300`)
-- `--agent-mode` : Agent mode (`ask` or `auto`, default `ask`)
+- `--agent-mode` : Agent mode (`prompt` or `auto`, default `prompt`)
 
 **Input**:
 - Format: File system + optional config file
@@ -49,14 +49,18 @@ $ dun [command] [options] [arguments]
 
 **Examples**:
 ```bash
-# Default LLM output
+# Default prompt-as-data output
 $ dun check
+{"checks":[{"id":"helix-create-architecture","status":"prompt","signal":"agent prompt ready","prompt":{"kind":"dun.prompt.v1","id":"helix-create-architecture","prompt":"Check-ID: helix-create-architecture\n...","callback":{"command":"dun respond --id helix-create-architecture --response -","stdin":true}}}]}
+
+# LLM output
+$ dun check --format=llm
 check:go-test status:pass duration_ms:421
 signal: 14 packages passed
 
 # JSON output, changed files only
 $ dun check --format=json --changed
-{"version":"1","summary":{"status":"fail","failed":1,"timed_out":0},"checks":[{"id":"go-test","status":"fail","duration_ms":421,"signal":"1 package failed","detail":"pkg/foo TestFoo panicked at foo_test.go:42","next":"go test ./pkg/foo -run TestFoo"}]}
+{"checks":[{"id":"go-test","status":"fail","signal":"1 package failed","detail":"pkg/foo TestFoo panicked at foo_test.go:42","next":"go test ./pkg/foo -run TestFoo"}]}
 ```
 
 ---
@@ -135,6 +139,37 @@ $ dun explain go-test --format=json
 
 ---
 
+#### Command: respond
+**Purpose**: Parse an agent response for a prompt and emit a check result.  
+**Usage**: `$ dun respond --id <check-id> --response <path|-> [options]`
+
+**Options**:
+- `--id` : Check ID from the prompt envelope (required)
+- `--response` : JSON response path or `-` for stdin (default `-`)
+- `--format` : Output format (`json` or `llm`, default `json`)
+
+**Input**:
+- Format: JSON response from agent
+- Schema: See Data Contracts (agent response schema)
+
+**Output**:
+- Format: JSON or LLM text block
+- Schema: See Data Contracts (check schema)
+
+**Exit Codes**:
+- `0`: Success
+- `1`: Internal error or invalid response
+- `4`: Invalid arguments
+
+**Examples**:
+```bash
+# Respond using stdin
+$ dun respond --id helix-create-architecture --response -
+{"id":"helix-create-architecture","status":"pass","signal":"architecture drafted"}
+```
+
+---
+
 ## REST API Contract (if applicable)
 
 Not applicable for MVP.
@@ -180,7 +215,7 @@ equivalent JSON shape.
         "cmd": { "type": "string" },
         "timeout_ms": { "type": "integer", "minimum": 1000 },
         "response_format": { "type": "string", "enum": ["json"] },
-        "mode": { "type": "string", "enum": ["ask", "auto"] }
+        "mode": { "type": "string", "enum": ["prompt", "auto"] }
       }
     },
     "ratchet": {
@@ -200,35 +235,43 @@ equivalent JSON shape.
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "properties": {
-    "version": { "type": "string" },
-    "summary": {
-      "type": "object",
-      "properties": {
-        "status": { "type": "string", "enum": ["pass", "warn", "fail", "timeout"] },
-        "passed": { "type": "integer" },
-        "failed": { "type": "integer" },
-        "warned": { "type": "integer" },
-        "skipped": { "type": "integer" },
-        "timed_out": { "type": "integer" }
-      }
-    },
     "checks": {
       "type": "array",
       "items": {
         "type": "object",
         "properties": {
           "id": { "type": "string" },
-          "status": { "type": "string", "enum": ["pass", "warn", "fail", "skip", "timeout"] },
-          "duration_ms": { "type": "integer" },
+          "status": { "type": "string", "enum": ["pass", "warn", "fail", "skip", "timeout", "prompt"] },
           "signal": { "type": "string" },
           "detail": { "type": "string" },
-          "next": { "type": "string" }
+          "next": { "type": "string" },
+          "prompt": {
+            "type": "object",
+            "properties": {
+              "kind": { "type": "string" },
+              "id": { "type": "string" },
+              "title": { "type": "string" },
+              "summary": { "type": "string" },
+              "prompt": { "type": "string" },
+              "inputs": { "type": "array", "items": { "type": "string" } },
+              "response_schema": { "type": "string" },
+              "callback": {
+                "type": "object",
+                "properties": {
+                  "command": { "type": "string" },
+                  "stdin": { "type": "boolean" }
+                },
+                "required": ["command"]
+              }
+            },
+            "required": ["kind", "id", "prompt", "callback"]
+          }
         },
-        "required": ["id", "status", "duration_ms"]
+        "required": ["id", "status", "signal"]
       }
     }
   },
-  "required": ["version", "summary", "checks"]
+  "required": ["checks"]
 }
 ```
 
@@ -250,6 +293,19 @@ equivalent JSON shape.
   "discoverer": "go.mod detected",
   "command": "go test ./...",
   "timeout_s": 120
+}
+```
+
+### Input Schema (agent response)
+```json
+{
+  "status": "pass|warn|fail",
+  "signal": "short summary",
+  "detail": "optional detail",
+  "next": "optional next command",
+  "issues": [
+    { "id": "ISSUE-1", "summary": "short issue", "path": "docs/..." }
+  ]
 }
 ```
 

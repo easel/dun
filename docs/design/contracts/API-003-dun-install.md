@@ -26,7 +26,7 @@ $ dun install [options]
 - Format: File system + optional config
 
 **Output**:
-- Format: LLM text or JSON (same as `check`)
+- Format: Prompt JSON or LLM text (same as `check`)
 - Schema: Includes plan steps and results
 
 **Exit Codes**:
