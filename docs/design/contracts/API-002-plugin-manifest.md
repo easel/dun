@@ -57,7 +57,7 @@ by the plugin manifest schema below.
         "properties": {
           "id": { "type": "string" },
           "description": { "type": "string" },
-          "type": { "type": "string", "enum": ["rule-set", "command", "agent", "state-rules", "gates"] },
+          "type": { "type": "string", "enum": ["rule-set", "command", "agent", "state-rules", "gates", "git-status", "hook-check"] },
           "phase": { "type": "string" },
           "state_rules": { "type": "string" },
           "gate_files": { "type": "array", "items": { "type": "string" } },

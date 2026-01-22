@@ -1,0 +1,16 @@
+id: git
+version: "1.0.0"
+description: "Git hygiene checks"
+triggers:
+  - type: path-exists
+    value: .git
+checks:
+  - id: git-status
+    description: "Ensure working tree is clean"
+    type: git-status
+    phase: iterate
+
+  - id: git-hooks
+    description: "Run pre-commit hooks when configured"
+    type: hook-check
+    phase: iterate

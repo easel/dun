@@ -181,6 +181,10 @@ func runCheck(root string, pc plannedCheck, opts Options) (CheckResult, error) {
 		return runStateRules(root, pc.Plugin, pc.Check)
 	case "agent":
 		return runAgentCheck(root, pc.Plugin, pc.Check, opts)
+	case "git-status":
+		return runGitStatusCheck(root, pc.Check)
+	case "hook-check":
+		return runHookCheck(root, pc.Check)
 	case "command":
 		return CheckResult{}, errors.New("command checks not implemented")
 	default:
