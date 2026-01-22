@@ -60,12 +60,24 @@ by the plugin manifest schema below.
           "type": { "type": "string", "enum": ["rule-set", "command", "agent"] },
           "phase": { "type": "string" },
           "inputs": { "type": "array", "items": { "type": "string" } },
+          "conditions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": { "type": "string", "enum": ["path-exists", "path-missing", "glob-min-count", "glob-max-count"] },
+                "path": { "type": "string" },
+                "expected": { "type": "integer" }
+              },
+              "required": ["type"]
+            }
+          },
           "rules": {
             "type": "array",
             "items": {
               "type": "object",
               "properties": {
-                "type": { "type": "string", "enum": ["path-exists", "glob-min-count", "pattern-count", "unique-ids", "cross-reference"] },
+                "type": { "type": "string", "enum": ["path-exists", "path-missing", "glob-min-count", "glob-max-count", "pattern-count", "unique-ids", "cross-reference"] },
                 "path": { "type": "string" },
                 "pattern": { "type": "string" },
                 "expected": { "type": "integer" },
@@ -108,20 +120,15 @@ checks:
         expected: 1
         severity: warn
 
-  - id: helix-crossrefs
-    description: Cross references between artifacts
-    type: rule-set
-    phase: design
-    rules:
-      - type: cross-reference
-        path: docs/helix/02-design/technical-designs/
-        pattern: "TD-"
-        severity: warn
-
   - id: helix-spec-to-design
     description: PRD and design alignment
     type: agent
     phase: design
+    conditions:
+      - type: path-exists
+        path: docs/helix/01-frame/prd.md
+      - type: path-exists
+        path: docs/helix/02-design/architecture.md
     inputs:
       - docs/helix/01-frame/prd.md
       - docs/helix/02-design/architecture.md

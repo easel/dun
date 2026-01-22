@@ -1,0 +1,55 @@
+id: helix
+version: "1.0.0"
+description: "Helix workflow validation and agent checks"
+triggers:
+  - type: path-exists
+    value: docs/helix
+checks:
+  - id: helix-create-architecture
+    description: "Create architecture doc when missing"
+    type: agent
+    phase: design
+    conditions:
+      - type: path-exists
+        path: docs/helix/01-frame/prd.md
+      - type: path-missing
+        path: docs/helix/02-design/architecture.md
+    inputs:
+      - docs/helix/01-frame/prd.md
+    prompt: prompts/create-architecture.md
+    response_schema: responses/agent-default.json
+
+  - id: helix-create-feature-specs
+    description: "Create feature specs when missing"
+    type: agent
+    phase: frame
+    conditions:
+      - type: path-exists
+        path: docs/helix/02-design/architecture.md
+      - type: glob-max-count
+        path: docs/helix/01-frame/features/*.md
+        expected: 0
+    inputs:
+      - docs/helix/01-frame/prd.md
+      - docs/helix/02-design/architecture.md
+    prompt: prompts/create-feature-specs.md
+    response_schema: responses/agent-default.json
+
+  - id: helix-align-specs
+    description: "Compare PRD, architecture, and feature specs"
+    type: agent
+    phase: design
+    conditions:
+      - type: path-exists
+        path: docs/helix/01-frame/prd.md
+      - type: path-exists
+        path: docs/helix/02-design/architecture.md
+      - type: glob-min-count
+        path: docs/helix/01-frame/features/*.md
+        expected: 1
+    inputs:
+      - docs/helix/01-frame/prd.md
+      - docs/helix/02-design/architecture.md
+      - docs/helix/01-frame/features/*.md
+    prompt: prompts/align-specs.md
+    response_schema: responses/agent-default.json

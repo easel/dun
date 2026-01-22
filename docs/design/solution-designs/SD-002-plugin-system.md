@@ -123,6 +123,7 @@ Critical domain logic to implement:
 2. Check IDs must be unique and stable across runs.
 3. Agent checks must return structured responses or fail.
 4. Gate checks execute in phase order (frame -> design -> test -> build).
+5. Checks may declare conditions that gate execution.
 
 ### Bounded Contexts (if applicable)
 - **Plugin Discovery**: load manifests and match triggers
