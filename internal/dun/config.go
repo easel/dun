@@ -75,9 +75,16 @@ func resolveConfigPath(root string, explicitPath string) (string, error) {
 		}
 		return path, nil
 	}
-	candidate := filepath.Join(root, "dun.yaml")
-	if _, err := os.Stat(candidate); err == nil {
-		return candidate, nil
+	primary := filepath.Join(root, ".dun", "config.yaml")
+	if _, err := os.Stat(primary); err == nil {
+		return primary, nil
+	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return "", err
+	}
+
+	legacy := filepath.Join(root, "dun.yaml")
+	if _, err := os.Stat(legacy); err == nil {
+		return legacy, nil
 	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return "", err
 	}

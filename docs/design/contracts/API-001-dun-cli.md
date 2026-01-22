@@ -27,7 +27,7 @@ $ dun [command] [options] [arguments]
 - `--timeout` : Global timeout in seconds (default `600`)
 - `--check-timeout` : Per-check timeout in seconds (default `120`)
 - `--workers` : Max concurrent checks (default `min(4, CPU)`)
-- `--config` : Path to config file (default `dun.yaml` if present)
+- `--config` : Path to config file (default `.dun/config.yaml` if present)
 - `--agent-cmd` : Command to run agent checks (optional, used with `--agent-mode=auto`)
 - `--agent-timeout` : Agent check timeout in seconds (default `300`)
 - `--agent-mode` : Agent mode (`prompt` or `auto`, default `prompt`)
@@ -73,7 +73,7 @@ $ dun check --format=json --changed
 **Options**:
 - `--format` : Output format (`text` or `json`, default `text`)
 - `--changed` : Limit checks to changed files (default `false`)
-- `--config` : Path to config file (default `dun.yaml` if present)
+- `--config` : Path to config file (default `.dun/config.yaml` if present)
 
 **Input**:
 - Format: File system + optional config file
@@ -108,7 +108,7 @@ $ dun list --format=json
 
 **Options**:
 - `--format` : Output format (`text` or `json`, default `text`)
-- `--config` : Path to config file (default `dun.yaml` if present)
+- `--config` : Path to config file (default `.dun/config.yaml` if present)
 
 **Input**:
 - Format: Check ID argument

@@ -47,7 +47,7 @@ func runCheck(args []string) {
 	}
 
 	fs := flag.NewFlagSet("check", flag.ExitOnError)
-	configPath := fs.String("config", explicitConfig, "path to config file (default dun.yaml if present)")
+	configPath := fs.String("config", explicitConfig, "path to config file (default .dun/config.yaml if present)")
 	format := fs.String("format", "prompt", "output format (prompt|llm|json)")
 	agentCmd := fs.String("agent-cmd", opts.AgentCmd, "agent command override")
 	agentTimeout := fs.Int("agent-timeout", int(opts.AgentTimeout/time.Second), "agent timeout in seconds")
@@ -85,7 +85,7 @@ func runCheck(args []string) {
 func runList(args []string) {
 	fs := flag.NewFlagSet("list", flag.ExitOnError)
 	format := fs.String("format", "text", "output format (text|json)")
-	configPath := fs.String("config", "", "path to config file (default dun.yaml if present)")
+	configPath := fs.String("config", "", "path to config file (default .dun/config.yaml if present)")
 	fs.Parse(args)
 
 	if _, _, err := dun.LoadConfig(".", *configPath); err != nil {
@@ -115,7 +115,7 @@ func runList(args []string) {
 func runExplain(args []string) {
 	fs := flag.NewFlagSet("explain", flag.ExitOnError)
 	format := fs.String("format", "text", "output format (text|json)")
-	configPath := fs.String("config", "", "path to config file (default dun.yaml if present)")
+	configPath := fs.String("config", "", "path to config file (default .dun/config.yaml if present)")
 	fs.Parse(args)
 
 	if fs.NArg() < 1 {
