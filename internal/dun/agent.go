@@ -84,6 +84,7 @@ func runAgentCheck(root string, plugin Plugin, check Check, opts Options) (Check
 		Signal: resp.Signal,
 		Detail: resp.Detail,
 		Next:   resp.Next,
+		Issues: resp.Issues,
 	}, nil
 }
 

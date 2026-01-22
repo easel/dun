@@ -6,7 +6,7 @@ import (
 )
 
 func TestRespondParsesAgentResponse(t *testing.T) {
-	input := `{"status":"pass","signal":"ok","detail":"done","next":"none"}`
+	input := `{"status":"pass","signal":"ok","detail":"done","next":"none","issues":[{"id":"ISSUE-1","summary":"fix it","path":"docs/foo.md"}]}`
 	check, err := Respond("helix-create-architecture", strings.NewReader(input))
 	if err != nil {
 		t.Fatalf("respond: %v", err)
@@ -19,5 +19,8 @@ func TestRespondParsesAgentResponse(t *testing.T) {
 	}
 	if check.Signal != "ok" {
 		t.Fatalf("expected signal, got %s", check.Signal)
+	}
+	if len(check.Issues) != 1 {
+		t.Fatalf("expected issues, got %v", check.Issues)
 	}
 }

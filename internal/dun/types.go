@@ -22,6 +22,7 @@ type CheckResult struct {
 	Detail string          `json:"detail,omitempty"`
 	Next   string          `json:"next,omitempty"`
 	Prompt *PromptEnvelope `json:"prompt,omitempty"`
+	Issues []Issue         `json:"issues,omitempty"`
 }
 
 type Plugin struct {

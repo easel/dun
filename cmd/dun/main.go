@@ -240,6 +240,15 @@ func printLLM(result dun.Result) {
 		if check.Detail != "" {
 			fmt.Printf("detail: %s\n", check.Detail)
 		}
+		if len(check.Issues) > 0 {
+			for _, issue := range check.Issues {
+				if issue.Path != "" {
+					fmt.Printf("issue: %s (%s)\n", issue.Summary, issue.Path)
+				} else {
+					fmt.Printf("issue: %s\n", issue.Summary)
+				}
+			}
+		}
 		if check.Next != "" {
 			fmt.Printf("next: %s\n", check.Next)
 		}

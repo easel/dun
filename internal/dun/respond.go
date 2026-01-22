@@ -25,5 +25,6 @@ func Respond(id string, reader io.Reader) (CheckResult, error) {
 		Signal: resp.Signal,
 		Detail: resp.Detail,
 		Next:   resp.Next,
+		Issues: resp.Issues,
 	}, nil
 }

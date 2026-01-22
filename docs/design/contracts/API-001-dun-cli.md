@@ -245,6 +245,17 @@ equivalent JSON shape.
           "signal": { "type": "string" },
           "detail": { "type": "string" },
           "next": { "type": "string" },
+          "issues": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "summary": { "type": "string" },
+                "path": { "type": "string" }
+              }
+            }
+          },
           "prompt": {
             "type": "object",
             "properties": {

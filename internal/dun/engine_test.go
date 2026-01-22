@@ -72,8 +72,11 @@ func TestHelixGatesDetectMissingEvidence(t *testing.T) {
 	if check.Status != "fail" {
 		t.Fatalf("expected fail, got %s", check.Status)
 	}
-	if !strings.Contains(check.Detail, "docs/helix/01-frame/prd.md") {
-		t.Fatalf("expected missing prd detail, got %q", check.Detail)
+	if len(check.Issues) == 0 {
+		t.Fatalf("expected gate issues")
+	}
+	if !hasIssueSummaryContains(check.Issues, "Create docs/helix/01-frame/prd.md", "section 'scope'") {
+		t.Fatalf("expected scope issue, got %+v", check.Issues)
 	}
 }
 
@@ -118,6 +121,22 @@ func findCheck(t *testing.T, result Result, id string) CheckResult {
 	}
 	t.Fatalf("check %s not found", id)
 	return CheckResult{}
+}
+
+func hasIssueSummaryContains(issues []Issue, parts ...string) bool {
+	for _, issue := range issues {
+		match := true
+		for _, part := range parts {
+			if !strings.Contains(issue.Summary, part) {
+				match = false
+				break
+			}
+		}
+		if match {
+			return true
+		}
+	}
+	return false
 }
 
 func fixturePath(t *testing.T, rel string) string {
