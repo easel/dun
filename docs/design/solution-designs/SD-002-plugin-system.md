@@ -209,6 +209,7 @@ not feasible with simple rules.
 - `helix-gates`: phase gates satisfied based on `input-gates.yml` and
   `exit-gates.yml` (rule-set)
 - `helix-crossrefs`: artifact cross-references are present (rule-set)
+- `helix-state-rules`: enforce story progression (state-rules)
 - `helix-spec-to-design`: PRD and feature specs align with solution design
   (agent)
 - `helix-design-to-test`: design artifacts align with test plans (agent)

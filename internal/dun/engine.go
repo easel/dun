@@ -127,6 +127,8 @@ func runCheck(root string, pc plannedCheck, opts Options) (CheckResult, error) {
 	switch pc.Check.Type {
 	case "rule-set":
 		return runRuleSet(root, pc.Check)
+	case "state-rules":
+		return runStateRules(root, pc.Plugin, pc.Check)
 	case "agent":
 		return runAgentCheck(root, pc.Plugin, pc.Check, opts)
 	case "command":

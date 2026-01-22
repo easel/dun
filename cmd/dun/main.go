@@ -29,11 +29,13 @@ func runCheck(args []string) {
 	format := fs.String("format", "llm", "output format (llm|json)")
 	agentCmd := fs.String("agent-cmd", "", "agent command override")
 	agentTimeout := fs.Int("agent-timeout", 300, "agent timeout in seconds")
+	agentMode := fs.String("agent-mode", "ask", "agent mode (ask|auto)")
 	fs.Parse(args)
 
 	opts := dun.Options{
 		AgentCmd:     *agentCmd,
 		AgentTimeout: time.Duration(*agentTimeout) * time.Second,
+		AgentMode:    *agentMode,
 	}
 	result, err := dun.CheckRepo(".", opts)
 	if err != nil {

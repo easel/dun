@@ -42,6 +42,21 @@ type PromptContext struct {
 }
 
 func runAgentCheck(root string, plugin Plugin, check Check, opts Options) (CheckResult, error) {
+	mode := opts.AgentMode
+	if mode == "" {
+		mode = "ask"
+	}
+
+	if mode == "ask" {
+		return CheckResult{
+			ID:     check.ID,
+			Status: "warn",
+			Signal: "agent approval required",
+			Detail: "Rerun with --agent-mode=auto to execute agent checks",
+			Next:   "dun check --agent-mode=auto",
+		}, nil
+	}
+
 	agentCmd := opts.AgentCmd
 	if agentCmd == "" {
 		agentCmd = os.Getenv("DUN_AGENT_CMD")

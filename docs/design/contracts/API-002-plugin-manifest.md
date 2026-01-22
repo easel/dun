@@ -57,8 +57,9 @@ by the plugin manifest schema below.
         "properties": {
           "id": { "type": "string" },
           "description": { "type": "string" },
-          "type": { "type": "string", "enum": ["rule-set", "command", "agent"] },
+          "type": { "type": "string", "enum": ["rule-set", "command", "agent", "state-rules"] },
           "phase": { "type": "string" },
+          "state_rules": { "type": "string" },
           "inputs": { "type": "array", "items": { "type": "string" } },
           "conditions": {
             "type": "array",

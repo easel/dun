@@ -8,6 +8,7 @@ import (
 type Options struct {
 	AgentCmd     string
 	AgentTimeout time.Duration
+	AgentMode    string
 }
 
 type Result struct {
@@ -46,6 +47,7 @@ type Check struct {
 	Description    string   `yaml:"description"`
 	Type           string   `yaml:"type"`
 	Phase          string   `yaml:"phase"`
+	StateRules     string   `yaml:"state_rules"`
 	Inputs         []string `yaml:"inputs"`
 	Rules          []Rule   `yaml:"rules"`
 	Conditions     []Rule   `yaml:"conditions"`

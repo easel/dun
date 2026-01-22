@@ -9,7 +9,7 @@ import (
 )
 
 func TestHelixMissingArchitecturePromptsAgent(t *testing.T) {
-	result := runFixture(t, "helix-missing-architecture")
+	result := runFixture(t, "helix-missing-architecture", "auto")
 
 	check := findCheck(t, result, "helix-create-architecture")
 	if check.Status != "fail" {
@@ -21,7 +21,7 @@ func TestHelixMissingArchitecturePromptsAgent(t *testing.T) {
 }
 
 func TestHelixMissingFeaturesPromptsAgent(t *testing.T) {
-	result := runFixture(t, "helix-missing-features")
+	result := runFixture(t, "helix-missing-features", "auto")
 
 	check := findCheck(t, result, "helix-create-feature-specs")
 	if check.Status != "fail" {
@@ -33,7 +33,7 @@ func TestHelixMissingFeaturesPromptsAgent(t *testing.T) {
 }
 
 func TestHelixAlignmentRunsAgent(t *testing.T) {
-	result := runFixture(t, "helix-alignment")
+	result := runFixture(t, "helix-alignment", "auto")
 
 	check := findCheck(t, result, "helix-align-specs")
 	if check.Status != "warn" {
@@ -44,7 +44,34 @@ func TestHelixAlignmentRunsAgent(t *testing.T) {
 	}
 }
 
-func runFixture(t *testing.T, name string) Result {
+func TestHelixAskModeRequiresApproval(t *testing.T) {
+	result := runFixture(t, "helix-missing-architecture", "ask")
+
+	check := findCheck(t, result, "helix-create-architecture")
+	if check.Status != "warn" {
+		t.Fatalf("expected warn, got %s", check.Status)
+	}
+	if !strings.Contains(check.Signal, "approval") {
+		t.Fatalf("expected approval signal, got %q", check.Signal)
+	}
+}
+
+func TestHelixStateRulesDetectsMissingStory(t *testing.T) {
+	result := runFixture(t, "helix-inconsistent", "auto")
+
+	check := findCheck(t, result, "helix-state-rules")
+	if check.Status != "fail" {
+		t.Fatalf("expected fail, got %s", check.Status)
+	}
+	if !strings.Contains(check.Detail, "US-001") {
+		t.Fatalf("expected missing US detail, got %q", check.Detail)
+	}
+	if check.Next == "" {
+		t.Fatalf("expected next action")
+	}
+}
+
+func runFixture(t *testing.T, name string, mode string) Result {
 	t.Helper()
 
 	agentCmd := fixturePath(t, "../testdata/agent/agent.sh")
@@ -53,6 +80,7 @@ func runFixture(t *testing.T, name string) Result {
 	opts := Options{
 		AgentCmd:     "bash " + agentCmd,
 		AgentTimeout: 5 * time.Second,
+		AgentMode:    mode,
 	}
 	result, err := CheckRepo(root, opts)
 	if err != nil {

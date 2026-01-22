@@ -5,6 +5,12 @@ triggers:
   - type: path-exists
     value: docs/helix
 checks:
+  - id: helix-state-rules
+    description: "Validate Helix workflow progression"
+    type: state-rules
+    phase: frame
+    state_rules: state-rules.yml
+
   - id: helix-create-architecture
     description: "Create architecture doc when missing"
     type: agent

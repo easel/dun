@@ -21,6 +21,7 @@ and the feedback loop that turns missing artifacts into actionable prompts.
 - Ensure rule-based checks identify missing artifacts and gate order.
 - Ensure agent checks render prompts and parse structured responses.
 - Demonstrate the feedback loop for missing docs and alignment checks.
+- Demonstrate ask vs auto agent modes for workflow progression.
 
 **Out of Scope**:
 - Remote plugin registries or sandboxing.
@@ -93,6 +94,8 @@ internal/
 2. Missing architecture prompts agent creation.
 3. Missing feature specs prompts agent creation.
 4. Alignment check triggers when prerequisites exist.
+5. Ask mode defers agent execution until approval.
+6. State rules detect missing upstream artifacts.
 
 ## Implementation Roadmap
 

@@ -30,6 +30,7 @@ $ dun [command] [options] [arguments]
 - `--config` : Path to config file (default `dun.yaml` if present)
 - `--agent-cmd` : Command to run agent checks (default `DUN_AGENT_CMD`)
 - `--agent-timeout` : Agent check timeout in seconds (default `300`)
+- `--agent-mode` : Agent mode (`ask` or `auto`, default `ask`)
 
 **Input**:
 - Format: File system + optional config file
@@ -178,7 +179,8 @@ equivalent JSON shape.
       "properties": {
         "cmd": { "type": "string" },
         "timeout_ms": { "type": "integer", "minimum": 1000 },
-        "response_format": { "type": "string", "enum": ["json"] }
+        "response_format": { "type": "string", "enum": ["json"] },
+        "mode": { "type": "string", "enum": ["ask", "auto"] }
       }
     },
     "ratchet": {
