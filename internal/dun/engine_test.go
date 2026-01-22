@@ -71,6 +71,18 @@ func TestHelixStateRulesDetectsMissingStory(t *testing.T) {
 	}
 }
 
+func TestHelixGatesDetectMissingEvidence(t *testing.T) {
+	result := runFixture(t, "helix-gates-missing", "auto")
+
+	check := findCheck(t, result, "helix-gates")
+	if check.Status != "fail" {
+		t.Fatalf("expected fail, got %s", check.Status)
+	}
+	if !strings.Contains(check.Detail, "docs/helix/01-frame/prd.md") {
+		t.Fatalf("expected missing prd detail, got %q", check.Detail)
+	}
+}
+
 func runFixture(t *testing.T, name string, mode string) Result {
 	t.Helper()
 

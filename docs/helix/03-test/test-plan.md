@@ -22,6 +22,7 @@ and the feedback loop that turns missing artifacts into actionable prompts.
 - Ensure agent checks render prompts and parse structured responses.
 - Demonstrate the feedback loop for missing docs and alignment checks.
 - Demonstrate ask vs auto agent modes for workflow progression.
+- Validate Helix gate files against required evidence paths.
 
 **Out of Scope**:
 - Remote plugin registries or sandboxing.
@@ -96,6 +97,7 @@ internal/
 4. Alignment check triggers when prerequisites exist.
 5. Ask mode defers agent execution until approval.
 6. State rules detect missing upstream artifacts.
+7. Gate checks fail when required evidence is missing.
 
 ## Implementation Roadmap
 

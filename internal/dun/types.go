@@ -48,6 +48,7 @@ type Check struct {
 	Type           string   `yaml:"type"`
 	Phase          string   `yaml:"phase"`
 	StateRules     string   `yaml:"state_rules"`
+	GateFiles      []string `yaml:"gate_files"`
 	Inputs         []string `yaml:"inputs"`
 	Rules          []Rule   `yaml:"rules"`
 	Conditions     []Rule   `yaml:"conditions"`

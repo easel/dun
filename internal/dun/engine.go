@@ -13,19 +13,28 @@ type plannedCheck struct {
 	Check  Check
 }
 
+type Plan struct {
+	Checks []PlannedCheck
+}
+
+type PlannedCheck struct {
+	ID          string
+	Description string
+	Type        string
+	Phase       string
+	PluginID    string
+	Inputs      []string
+	Conditions  []Rule
+	Prompt      string
+	StateRules  string
+	GateFiles   []string
+}
+
 func CheckRepo(root string, opts Options) (Result, error) {
-	plugins, err := LoadBuiltins()
+	plan, err := buildPlanForRoot(root)
 	if err != nil {
 		return Result{}, err
 	}
-
-	active := filterActivePlugins(root, plugins)
-	plan, err := buildPlan(root, active)
-	if err != nil {
-		return Result{}, err
-	}
-
-	sortPlan(plan)
 
 	var results []CheckResult
 	for _, pc := range plan {
@@ -37,6 +46,45 @@ func CheckRepo(root string, opts Options) (Result, error) {
 	}
 
 	return Result{Checks: results}, nil
+}
+
+func PlanRepo(root string) (Plan, error) {
+	plan, err := buildPlanForRoot(root)
+	if err != nil {
+		return Plan{}, err
+	}
+	var out []PlannedCheck
+	for _, pc := range plan {
+		out = append(out, PlannedCheck{
+			ID:          pc.Check.ID,
+			Description: pc.Check.Description,
+			Type:        pc.Check.Type,
+			Phase:       pc.Check.Phase,
+			PluginID:    pc.Plugin.Manifest.ID,
+			Inputs:      pc.Check.Inputs,
+			Conditions:  pc.Check.Conditions,
+			Prompt:      pc.Check.Prompt,
+			StateRules:  pc.Check.StateRules,
+			GateFiles:   pc.Check.GateFiles,
+		})
+	}
+	return Plan{Checks: out}, nil
+}
+
+func buildPlanForRoot(root string) ([]plannedCheck, error) {
+	plugins, err := LoadBuiltins()
+	if err != nil {
+		return nil, err
+	}
+
+	active := filterActivePlugins(root, plugins)
+	plan, err := buildPlan(root, active)
+	if err != nil {
+		return nil, err
+	}
+
+	sortPlan(plan)
+	return plan, nil
 }
 
 func filterActivePlugins(root string, plugins []Plugin) []Plugin {
@@ -127,6 +175,8 @@ func runCheck(root string, pc plannedCheck, opts Options) (CheckResult, error) {
 	switch pc.Check.Type {
 	case "rule-set":
 		return runRuleSet(root, pc.Check)
+	case "gates":
+		return runGateCheck(root, pc.Plugin, pc.Check)
 	case "state-rules":
 		return runStateRules(root, pc.Plugin, pc.Check)
 	case "agent":

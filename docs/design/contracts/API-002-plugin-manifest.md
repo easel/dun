@@ -57,9 +57,10 @@ by the plugin manifest schema below.
         "properties": {
           "id": { "type": "string" },
           "description": { "type": "string" },
-          "type": { "type": "string", "enum": ["rule-set", "command", "agent", "state-rules"] },
+          "type": { "type": "string", "enum": ["rule-set", "command", "agent", "state-rules", "gates"] },
           "phase": { "type": "string" },
           "state_rules": { "type": "string" },
+          "gate_files": { "type": "array", "items": { "type": "string" } },
           "inputs": { "type": "array", "items": { "type": "string" } },
           "conditions": {
             "type": "array",
@@ -135,6 +136,14 @@ checks:
       - docs/helix/02-design/architecture.md
     prompt: prompts/helix/spec-to-design.md
     response_schema: responses/agent-default.json
+
+  - id: helix-gates
+    description: Validate Helix phase gates
+    type: gates
+    phase: frame
+    gate_files:
+      - gates/01-frame/input-gates.yml
+      - gates/01-frame/exit-gates.yml
 ```
 
 ### Agent Response Schema (Default)

@@ -11,6 +11,19 @@ checks:
     phase: frame
     state_rules: state-rules.yml
 
+  - id: helix-gates
+    description: "Validate Helix phase gates"
+    type: gates
+    phase: frame
+    gate_files:
+      - gates/01-frame/input-gates.yml
+      - gates/01-frame/exit-gates.yml
+      - gates/02-design/input-gates.yml
+      - gates/03-test/input-gates.yml
+      - gates/04-build/input-gates.yml
+      - gates/05-deploy/input-gates.yml
+      - gates/06-iterate/input-gates.yml
+
   - id: helix-create-architecture
     description: "Create architecture doc when missing"
     type: agent
