@@ -34,6 +34,12 @@ func InstallRepo(start string, opts InstallOptions) (InstallResult, error) {
 		return InstallResult{}, err
 	}
 
+	configPath := filepath.Join(root, DefaultConfigPath)
+	configAction, err := ensureConfigFile(configPath, opts.DryRun)
+	if err != nil {
+		return InstallResult{}, err
+	}
+
 	agentsPath := filepath.Join(root, "AGENTS.md")
 	action, err := upsertAgentsFile(agentsPath, opts.DryRun)
 	if err != nil {
@@ -42,6 +48,11 @@ func InstallRepo(start string, opts InstallOptions) (InstallResult, error) {
 
 	return InstallResult{
 		Steps: []InstallStep{
+			{
+				Type:   "config",
+				Path:   configPath,
+				Action: configAction,
+			},
 			{
 				Type:   "agents",
 				Path:   agentsPath,
@@ -156,4 +167,22 @@ func insertAfterTools(content string, snippetLines []string) string {
 		}
 	}
 	return content
+}
+
+func ensureConfigFile(path string, dryRun bool) (string, error) {
+	if _, err := os.Stat(path); err == nil {
+		return "noop", nil
+	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return "", err
+	}
+	if dryRun {
+		return "create", nil
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(path, []byte(DefaultConfigYAML), 0644); err != nil {
+		return "", err
+	}
+	return "create", nil
 }

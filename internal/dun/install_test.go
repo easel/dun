@@ -14,11 +14,14 @@ func TestInstallCreatesAgentsFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("install: %v", err)
 	}
-	if len(result.Steps) != 1 {
-		t.Fatalf("expected 1 step, got %d", len(result.Steps))
+	if len(result.Steps) != 2 {
+		t.Fatalf("expected 2 steps, got %d", len(result.Steps))
 	}
-	if result.Steps[0].Action == "noop" {
-		t.Fatalf("expected create action")
+	if step := findStep(result, "config"); step == nil || step.Action == "noop" {
+		t.Fatalf("expected config create action")
+	}
+	if step := findStep(result, "agents"); step == nil || step.Action == "noop" {
+		t.Fatalf("expected agents create action")
 	}
 
 	content := readFile(t, filepath.Join(root, "AGENTS.md"))
@@ -27,6 +30,11 @@ func TestInstallCreatesAgentsFile(t *testing.T) {
 	}
 	if !strings.Contains(content, agentsToolLine) {
 		t.Fatalf("expected tool line")
+	}
+
+	config := readFile(t, filepath.Join(root, DefaultConfigPath))
+	if !strings.Contains(config, "automation: auto") {
+		t.Fatalf("expected automation default in config")
 	}
 }
 
@@ -76,6 +84,9 @@ func TestInstallDryRunDoesNotWrite(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(root, "AGENTS.md")); err == nil {
 		t.Fatalf("expected no AGENTS.md on dry run")
 	}
+	if _, err := os.Stat(filepath.Join(root, DefaultConfigPath)); err == nil {
+		t.Fatalf("expected no config on dry run")
+	}
 }
 
 func tempRepo(t *testing.T) string {
@@ -94,4 +105,13 @@ func readFile(t *testing.T, path string) string {
 		t.Fatalf("read %s: %v", path, err)
 	}
 	return string(content)
+}
+
+func findStep(result InstallResult, stepType string) *InstallStep {
+	for i := range result.Steps {
+		if result.Steps[i].Type == stepType {
+			return &result.Steps[i]
+		}
+	}
+	return nil
 }

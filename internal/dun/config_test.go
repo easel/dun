@@ -9,7 +9,7 @@ import (
 
 func TestLoadConfigDefaultPath(t *testing.T) {
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, ".dun", "config.yaml")
+	cfgPath := filepath.Join(dir, DefaultConfigPath)
 	if err := os.MkdirAll(filepath.Dir(cfgPath), 0755); err != nil {
 		t.Fatalf("mkdir config dir: %v", err)
 	}
@@ -57,27 +57,6 @@ func TestLoadConfigExplicitMissing(t *testing.T) {
 	_, _, err := LoadConfig(dir, "missing.yaml")
 	if err == nil {
 		t.Fatalf("expected missing config error")
-	}
-}
-
-func TestLoadConfigLegacyPath(t *testing.T) {
-	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "dun.yaml")
-	content := "agent:\n  automation: manual\n"
-	if err := os.WriteFile(cfgPath, []byte(content), 0644); err != nil {
-		t.Fatalf("write config: %v", err)
-	}
-
-	cfg, loaded, err := LoadConfig(dir, "")
-	if err != nil {
-		t.Fatalf("load config: %v", err)
-	}
-	if !loaded {
-		t.Fatalf("expected config to load")
-	}
-	opts := ApplyConfig(DefaultOptions(), cfg)
-	if opts.AutomationMode != "manual" {
-		t.Fatalf("expected automation manual, got %q", opts.AutomationMode)
 	}
 }
 

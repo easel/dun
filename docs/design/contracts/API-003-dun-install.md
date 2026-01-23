@@ -16,7 +16,7 @@ $ dun install [options]
 ```
 
 ### Command: install
-**Purpose**: Set up Dun in the current repo (AGENTS.md snippet).  
+**Purpose**: Set up Dun in the current repo (AGENTS.md snippet + config).  
 **Usage**: `$ dun install [options]`
 
 **Options**:
@@ -39,6 +39,7 @@ $ dun install [options]
 ```bash
 # Preview install
 $ dun install --dry-run
+plan: create .dun/config.yaml
 plan: create AGENTS.md
 
 # Apply install
@@ -54,6 +55,7 @@ $ dun install
 {
   "version": "1",
   "steps": [
+    { "type": "config", "path": ".dun/config.yaml", "action": "create" },
     { "type": "agents", "path": "AGENTS.md", "action": "create" }
   ]
 }
@@ -75,7 +77,7 @@ $ dun install
 
 ### Test Scenarios
 1. **Dry run**: outputs plan without file changes.
-2. **Install**: creates AGENTS snippet.
+2. **Install**: creates config and AGENTS snippet.
 
 ---
 

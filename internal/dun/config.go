@@ -21,6 +21,15 @@ type AgentConfig struct {
 	Automation string `yaml:"automation"`
 }
 
+const DefaultConfigPath = ".dun/config.yaml"
+
+const DefaultConfigYAML = `version: "1"
+agent:
+  automation: auto
+  mode: prompt
+  timeout_ms: 300000
+`
+
 func DefaultOptions() Options {
 	return Options{
 		AgentTimeout:   300 * time.Second,
@@ -75,16 +84,9 @@ func resolveConfigPath(root string, explicitPath string) (string, error) {
 		}
 		return path, nil
 	}
-	primary := filepath.Join(root, ".dun", "config.yaml")
+	primary := filepath.Join(root, DefaultConfigPath)
 	if _, err := os.Stat(primary); err == nil {
 		return primary, nil
-	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return "", err
-	}
-
-	legacy := filepath.Join(root, "dun.yaml")
-	if _, err := os.Stat(legacy); err == nil {
-		return legacy, nil
 	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return "", err
 	}

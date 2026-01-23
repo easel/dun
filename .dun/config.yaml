@@ -1,0 +1,5 @@
+version: "1"
+agent:
+  automation: auto
+  mode: prompt
+  timeout_ms: 300000

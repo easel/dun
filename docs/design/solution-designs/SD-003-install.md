@@ -12,6 +12,7 @@ Map each functional requirement to technical capabilities:
 | FR-I-001 Initialize repo | Detect repo root and write AGENTS.md | Installer | P0 |
 | FR-I-002 AGENTS.md helper | Insert Dun tool guidance | Template Writer | P0 |
 | FR-I-003 Safe updates | Idempotent edits with markers | File Editor | P0 |
+| FR-I-005 Config scaffold | Create `.dun/config.yaml` if missing | Config Writer | P0 |
 | FR-I-004 Dry run | Show actions without changes | Planner | P1 |
 
 ### Non-Functional Requirements Impact
@@ -101,11 +102,18 @@ Critical domain logic to implement:
   - Create file if missing
   - Insert snippet under markers
 
+#### Component 3: Config Writer
+- **Purpose**: Create `.dun/config.yaml` with defaults.
+- **Responsibilities**:
+  - Create `.dun/` directory if missing
+  - Write default config only when absent
+
 ### Component Interactions
 ```mermaid
 graph TD
     Install[Installer] --> Plan[Plan Builder]
     Plan --> Agents[AGENTS Writer]
+    Plan --> Config[Config Writer]
 ```
 
 ## Technology Selection Rationale
