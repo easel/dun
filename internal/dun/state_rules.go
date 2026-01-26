@@ -115,9 +115,6 @@ func parseID(base, prefix string) string {
 	}
 	rest := strings.TrimPrefix(name, prefix+"-")
 	parts := strings.SplitN(rest, "-", 2)
-	if len(parts) == 0 {
-		return ""
-	}
 	return parts[0]
 }
 

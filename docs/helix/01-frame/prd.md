@@ -14,6 +14,7 @@ and often too slow for tight iteration loops.
 - Deterministic, agent-friendly output that is easy to parse.
 - Fast local feedback to keep loops moving.
 - Detect documentation drift and propose downstream updates.
+- Enforce baseline Go quality checks (tests, coverage, static analysis).
 
 ## Scope
 

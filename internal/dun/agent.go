@@ -234,7 +234,7 @@ func resolveInputs(root string, inputs []string) ([]PromptInput, error) {
 		if err != nil {
 			return nil, err
 		}
-		rel, err := filepath.Rel(root, path)
+		rel, err := relPath(root, path)
 		if err != nil {
 			rel = path
 		}
@@ -249,6 +249,8 @@ func resolveInputs(root string, inputs []string) ([]PromptInput, error) {
 func hasGlob(path string) bool {
 	return strings.ContainsAny(path, "*?[")
 }
+
+var relPath = filepath.Rel
 
 func execAgent(cmdStr, prompt string, timeout time.Duration) (AgentResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)

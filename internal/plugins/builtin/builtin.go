@@ -5,7 +5,7 @@ import (
 	"io/fs"
 )
 
-//go:embed helix/** git/**
+//go:embed helix/** git/** go/**
 var builtinFS embed.FS
 
 type Entry struct {
@@ -25,6 +25,11 @@ func Plugins() []Entry {
 			ID:   "git",
 			FS:   builtinFS,
 			Base: "git",
+		},
+		{
+			ID:   "go",
+			FS:   builtinFS,
+			Base: "go",
 		},
 	}
 }

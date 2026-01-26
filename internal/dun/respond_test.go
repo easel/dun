@@ -24,3 +24,15 @@ func TestRespondParsesAgentResponse(t *testing.T) {
 		t.Fatalf("expected issues, got %v", check.Issues)
 	}
 }
+
+func TestRespondErrors(t *testing.T) {
+	if _, err := Respond("", strings.NewReader(`{}`)); err == nil {
+		t.Fatalf("expected missing id error")
+	}
+	if _, err := Respond("id", strings.NewReader("not-json")); err == nil {
+		t.Fatalf("expected parse error")
+	}
+	if _, err := Respond("id", strings.NewReader(`{"status":"pass"}`)); err == nil {
+		t.Fatalf("expected missing fields error")
+	}
+}

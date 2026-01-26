@@ -26,7 +26,7 @@ const DefaultConfigPath = ".dun/config.yaml"
 const DefaultConfigYAML = `version: "1"
 agent:
   automation: auto
-  mode: prompt
+  mode: auto
   timeout_ms: 300000
 `
 

@@ -9,9 +9,11 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+var builtinPlugins = builtin.Plugins
+
 func LoadBuiltins() ([]Plugin, error) {
 	var plugins []Plugin
-	for _, entry := range builtin.Plugins() {
+	for _, entry := range builtinPlugins() {
 		p, err := loadPluginFS(entry.FS, entry.Base)
 		if err != nil {
 			return nil, err

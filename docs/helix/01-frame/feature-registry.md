@@ -17,3 +17,4 @@ This registry tracks the core Dun features and their current status.
 | F-011 | Changed-only checks | P1 | Planned | Scope checks to git diff |
 | F-012 | Quality ratchet | P1 | Planned | Baseline compare to prevent regressions |
 | F-013 | External plugin loading | P2 | Planned | Load plugin dirs via config |
+| F-014 | Go quality checks | P0 | In progress | Tests, coverage, vet, staticcheck |

@@ -8,6 +8,8 @@ import (
 	"sort"
 )
 
+var loadBuiltins = LoadBuiltins
+
 type plannedCheck struct {
 	Plugin Plugin
 	Check  Check
@@ -72,7 +74,7 @@ func PlanRepo(root string) (Plan, error) {
 }
 
 func buildPlanForRoot(root string) ([]plannedCheck, error) {
-	plugins, err := LoadBuiltins()
+	plugins, err := loadBuiltins()
 	if err != nil {
 		return nil, err
 	}
@@ -187,6 +189,14 @@ func runCheck(root string, pc plannedCheck, opts Options) (CheckResult, error) {
 		return runHookCheck(root, pc.Check)
 	case "command":
 		return CheckResult{}, errors.New("command checks not implemented")
+	case "go-test":
+		return runGoTestCheck(root, pc.Check)
+	case "go-coverage":
+		return runGoCoverageCheck(root, pc.Check)
+	case "go-vet":
+		return runGoVetCheck(root, pc.Check)
+	case "go-staticcheck":
+		return runGoStaticcheck(root, pc.Check)
 	default:
 		return CheckResult{}, fmt.Errorf("unknown check type: %s", pc.Check.Type)
 	}

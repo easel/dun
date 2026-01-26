@@ -29,7 +29,7 @@ const (
 )
 
 func InstallRepo(start string, opts InstallOptions) (InstallResult, error) {
-	root, err := findRepoRoot(start)
+	root, err := FindRepoRoot(start)
 	if err != nil {
 		return InstallResult{}, err
 	}
@@ -62,7 +62,7 @@ func InstallRepo(start string, opts InstallOptions) (InstallResult, error) {
 	}, nil
 }
 
-func findRepoRoot(start string) (string, error) {
+func FindRepoRoot(start string) (string, error) {
 	dir, err := filepath.Abs(start)
 	if err != nil {
 		return "", err
@@ -121,9 +121,6 @@ func upsertAgentsContent(content string) (string, bool, string, error) {
 
 	if hasToolsHeader(content) {
 		updated := insertAfterTools(content, snippetLines)
-		if updated == content {
-			return content, false, "noop", nil
-		}
 		return updated, true, "update", nil
 	}
 

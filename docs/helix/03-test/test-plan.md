@@ -21,6 +21,7 @@ and the feedback loop that turns missing artifacts into actionable prompts.
 - Ensure rule-based checks identify missing artifacts and gate order.
 - Ensure prompt envelopes are emitted for agent checks.
 - Ensure `dun respond` parses structured responses.
+- Ensure Go checks run tests, coverage, and static analysis.
 - Ensure doc reconciliation emits ordered downstream plans.
 - Ensure automation slider modes alter prompt behavior.
 - Demonstrate the feedback loop for missing docs and alignment checks.
@@ -103,6 +104,7 @@ internal/
 7. Gate checks fail when required evidence is missing.
 8. Reconciliation plan lists downstream artifacts in order.
 9. Automation modes include policy in prompt envelopes.
+10. Go plugin runs test/coverage/vet and reports failures.
 
 ## Implementation Roadmap
 

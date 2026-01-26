@@ -9,7 +9,7 @@ import (
 )
 
 func runGitStatusCheck(root string, check Check) (CheckResult, error) {
-	lines, err := gitStatusLines(root)
+	lines, err := gitStatusFunc(root)
 	if err != nil {
 		return CheckResult{}, err
 	}
@@ -48,8 +48,11 @@ func runGitStatusCheck(root string, check Check) (CheckResult, error) {
 	}, nil
 }
 
+var gitStatusFunc = gitStatusLines
+var detectHookToolFunc = detectHookTool
+
 func runHookCheck(root string, check Check) (CheckResult, error) {
-	hook, err := detectHookTool(root)
+	hook, err := detectHookToolFunc(root)
 	if err != nil {
 		return CheckResult{}, err
 	}
