@@ -1,6 +1,7 @@
 id: go
 version: "1"
 description: "Go quality checks"
+priority: 30
 triggers:
   - type: path-exists
     value: go.mod

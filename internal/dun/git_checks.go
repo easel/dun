@@ -33,7 +33,7 @@ func runGitStatusCheck(root string, check Check) (CheckResult, error) {
 		files = append(files, path)
 		issues = append(issues, Issue{
 			ID:      "git:" + path,
-			Summary: "Include in commit: " + path,
+			Summary: "Changed: " + path,
 			Path:    path,
 		})
 	}
@@ -158,10 +158,26 @@ func parseGitStatusPath(line string) string {
 
 func commitNextInstruction(files []string) string {
 	if len(files) == 0 {
-		return "Create a commit message describing the changes, then run `git add -A && git commit -m \"<message>\"`."
+		return "No changes detected."
 	}
-	list := strings.Join(files, ", ")
-	return fmt.Sprintf("Create a commit message describing changes in: %s. Then run `git add -A && git commit -m \"<message>\"`.", list)
+
+	// For small number of files, list them explicitly
+	if len(files) <= 10 {
+		quotedFiles := make([]string, len(files))
+		for i, f := range files {
+			if strings.ContainsAny(f, " \t") {
+				quotedFiles[i] = fmt.Sprintf("%q", f)
+			} else {
+				quotedFiles[i] = f
+			}
+		}
+		fileList := strings.Join(quotedFiles, " ")
+		return fmt.Sprintf("Review and commit changes:\n  git add %s\n  git commit -m \"<describe changes>\"\n\nNever use --force when pushing.", fileList)
+	}
+
+	// For many files, use a pattern approach
+	list := strings.Join(files[:5], ", ")
+	return fmt.Sprintf("Review %d changed files (including: %s, ...).\nStage reviewed files with `git add <file>` then commit.\nNever use --force when pushing.", len(files), list)
 }
 
 func trimOutput(output []byte) string {

@@ -36,6 +36,7 @@ type Manifest struct {
 	ID          string    `yaml:"id"`
 	Version     string    `yaml:"version"`
 	Description string    `yaml:"description"`
+	Priority    int       `yaml:"priority"`
 	Triggers    []Trigger `yaml:"triggers"`
 	Checks      []Check   `yaml:"checks"`
 }
@@ -50,6 +51,7 @@ type Check struct {
 	Description    string   `yaml:"description"`
 	Type           string   `yaml:"type"`
 	Phase          string   `yaml:"phase"`
+	Priority       int      `yaml:"priority"`
 	StateRules     string   `yaml:"state_rules"`
 	GateFiles      []string `yaml:"gate_files"`
 	Inputs         []string `yaml:"inputs"`

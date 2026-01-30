@@ -64,8 +64,45 @@ func TestParseGitStatusPath(t *testing.T) {
 
 func TestCommitNextInstructionNoFiles(t *testing.T) {
 	msg := commitNextInstruction(nil)
-	if !strings.Contains(msg, "git commit") {
-		t.Fatalf("expected commit instruction, got %q", msg)
+	if msg != "No changes detected." {
+		t.Fatalf("expected no changes message, got %q", msg)
+	}
+}
+
+func TestCommitNextInstructionWithFiles(t *testing.T) {
+	msg := commitNextInstruction([]string{"file1.go", "file2.go"})
+	if !strings.Contains(msg, "git add") {
+		t.Fatalf("expected git add instruction, got %q", msg)
+	}
+	if !strings.Contains(msg, "file1.go") {
+		t.Fatalf("expected file1.go in instruction, got %q", msg)
+	}
+	if strings.Contains(msg, "-A") {
+		t.Fatalf("should not use git add -A, got %q", msg)
+	}
+	if !strings.Contains(msg, "Never use --force") {
+		t.Fatalf("expected force push warning, got %q", msg)
+	}
+}
+
+func TestCommitNextInstructionQuotesSpaces(t *testing.T) {
+	msg := commitNextInstruction([]string{"path with spaces/file.go"})
+	if !strings.Contains(msg, `"path with spaces/file.go"`) {
+		t.Fatalf("expected quoted path, got %q", msg)
+	}
+}
+
+func TestCommitNextInstructionManyFiles(t *testing.T) {
+	files := make([]string, 15)
+	for i := range files {
+		files[i] = "file" + string(rune('a'+i)) + ".go"
+	}
+	msg := commitNextInstruction(files)
+	if !strings.Contains(msg, "15 changed files") {
+		t.Fatalf("expected file count, got %q", msg)
+	}
+	if strings.Contains(msg, "-A") {
+		t.Fatalf("should not use git add -A, got %q", msg)
 	}
 }
 

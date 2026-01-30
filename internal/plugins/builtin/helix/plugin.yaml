@@ -1,6 +1,7 @@
 id: helix
 version: "1.0.0"
 description: "Helix workflow validation and agent checks"
+priority: 50
 triggers:
   - type: path-exists
     value: docs/helix

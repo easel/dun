@@ -164,11 +164,37 @@ func sortPlan(plan []plannedCheck) {
 		"iterate": 6,
 	}
 	sort.Slice(plan, func(i, j int) bool {
-		pi := phaseOrder[plan[i].Check.Phase]
-		pj := phaseOrder[plan[j].Check.Phase]
+		// Plugin priority (default 50)
+		pi := plan[i].Plugin.Manifest.Priority
+		pj := plan[j].Plugin.Manifest.Priority
+		if pi == 0 {
+			pi = 50
+		}
+		if pj == 0 {
+			pj = 50
+		}
 		if pi != pj {
 			return pi < pj
 		}
+		// Check priority (default 50)
+		ci := plan[i].Check.Priority
+		cj := plan[j].Check.Priority
+		if ci == 0 {
+			ci = 50
+		}
+		if cj == 0 {
+			cj = 50
+		}
+		if ci != cj {
+			return ci < cj
+		}
+		// Phase order
+		phi := phaseOrder[plan[i].Check.Phase]
+		phj := phaseOrder[plan[j].Check.Phase]
+		if phi != phj {
+			return phi < phj
+		}
+		// Alphabetical by ID
 		return plan[i].Check.ID < plan[j].Check.ID
 	})
 }

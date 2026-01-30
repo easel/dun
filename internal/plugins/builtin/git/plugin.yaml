@@ -1,6 +1,7 @@
 id: git
 version: "1.0.0"
 description: "Git hygiene checks"
+priority: 10
 triggers:
   - type: path-exists
     value: .git
