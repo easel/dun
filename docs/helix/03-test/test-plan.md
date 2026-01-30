@@ -20,10 +20,14 @@ and the feedback loop that turns missing artifacts into actionable prompts.
 - Validate plugin discovery via repo signals (Helix docs detection).
 - Ensure rule-based checks identify missing artifacts and gate order.
 - Ensure prompt envelopes are emitted for agent checks.
+- Validate `--format=llm` and `--format=json` outputs.
 - Ensure `dun respond` parses structured responses.
 - Ensure Go checks run tests, coverage, and static analysis.
 - Ensure doc reconciliation emits ordered downstream plans.
 - Ensure automation slider modes alter prompt behavior.
+- Validate `dun install` idempotency and dry-run behavior.
+- Validate git hygiene and hook checks (dirty tree, hook runners, missing tools).
+- Validate performance budgets for time to first output and median run time on fixtures.
 - Demonstrate the feedback loop for missing docs and alignment checks.
 - Demonstrate prompt-default behavior with configurable automation mode (default auto).
 - Validate Helix gate files against required evidence paths.
@@ -105,6 +109,10 @@ internal/
 8. Reconciliation plan lists downstream artifacts in order.
 9. Automation modes include policy in prompt envelopes.
 10. Go plugin runs test/coverage/vet and reports failures.
+11. Output formats render prompt/LLM/JSON deterministically.
+12. `dun install` inserts marker blocks and is idempotent.
+13. Git hygiene checks detect dirty trees and run or warn on hooks.
+14. Performance budgets for time to first output and median runtime are verified.
 
 ## Implementation Roadmap
 

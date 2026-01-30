@@ -20,9 +20,12 @@ and often too slow for tight iteration loops.
 
 In scope:
 - Local CLI that discovers checks and emits prompt-as-data output.
+- Multiple output formats (prompt envelopes, LLM summaries, JSON output).
 - Built-in Helix plugin for doc and gate validation.
 - Extensible plugin system for future workflows.
 - Doc-to-code reconciliation with plan and yolo modes.
+- `dun install` to seed AGENTS guidance in repos.
+- Git hygiene and hook checks for clean commits.
 
 Out of scope:
 - Replacing CI/CD.
