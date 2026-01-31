@@ -1,6 +1,9 @@
 package dun
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestPlanRepoIncludesHelixChecks(t *testing.T) {
 	plan, err := PlanRepo(fixturePath(t, "../testdata/repos/helix-missing-architecture"))
@@ -27,4 +30,19 @@ func planHas(plan Plan, id string) bool {
 		}
 	}
 	return false
+}
+
+// Gap-1: Negative test for Helix plugin not activating without docs/helix/
+func TestHelixPluginInactiveWithoutDocsHelix(t *testing.T) {
+	root := tempGitRepo(t)
+	// No docs/helix/ directory - Helix plugin should not activate
+	plan, err := PlanRepo(root)
+	if err != nil {
+		t.Fatalf("plan repo: %v", err)
+	}
+	for _, check := range plan.Checks {
+		if strings.HasPrefix(check.ID, "helix-") {
+			t.Fatalf("helix check %s should not be active without docs/helix/", check.ID)
+		}
+	}
 }

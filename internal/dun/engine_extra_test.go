@@ -321,3 +321,176 @@ func TestCheckRepoEmptyRoot(t *testing.T) {
 		t.Fatalf("check repo: %v", err)
 	}
 }
+
+// TC-001: Go plugin activates when go.mod present
+func TestGoPluginActiveWhenGoModExists(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "go.mod"), "module example.com/test")
+
+	plan, err := PlanRepo(root)
+	if err != nil {
+		t.Fatalf("plan repo: %v", err)
+	}
+
+	// Verify Go checks are included
+	goCheckIDs := []string{"go-test", "go-coverage", "go-vet", "go-staticcheck"}
+	for _, id := range goCheckIDs {
+		if !planHasCheck(plan, id) {
+			t.Errorf("expected check %s when go.mod exists", id)
+		}
+	}
+}
+
+// TC-002: Go plugin deactivates when go.mod absent
+func TestGoPluginInactiveWhenGoModMissing(t *testing.T) {
+	root := t.TempDir()
+	// No go.mod file
+
+	plan, err := PlanRepo(root)
+	if err != nil {
+		t.Fatalf("plan repo: %v", err)
+	}
+
+	goCheckIDs := []string{"go-test", "go-coverage", "go-vet", "go-staticcheck"}
+	for _, id := range goCheckIDs {
+		if planHasCheck(plan, id) {
+			t.Errorf("unexpected check %s when go.mod missing", id)
+		}
+	}
+}
+
+// TC-003: Helix plugin activates when docs/helix present
+func TestHelixPluginActiveWhenDocsHelixExists(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "docs", "helix"), 0755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+
+	plan, err := PlanRepo(root)
+	if err != nil {
+		t.Fatalf("plan repo: %v", err)
+	}
+
+	// Verify Helix checks are included
+	if !planHasCheck(plan, "helix-gates") {
+		t.Error("expected helix-gates check when docs/helix exists")
+	}
+	if !planHasCheck(plan, "helix-state-rules") {
+		t.Error("expected helix-state-rules check when docs/helix exists")
+	}
+}
+
+// TC-003 (inverse): Helix plugin deactivates when docs/helix missing
+func TestHelixPluginInactiveWhenDocsHelixMissing(t *testing.T) {
+	root := t.TempDir()
+	// No docs/helix directory
+
+	plan, err := PlanRepo(root)
+	if err != nil {
+		t.Fatalf("plan repo: %v", err)
+	}
+
+	helixCheckIDs := []string{"helix-gates", "helix-state-rules", "helix-create-architecture"}
+	for _, id := range helixCheckIDs {
+		if planHasCheck(plan, id) {
+			t.Errorf("unexpected check %s when docs/helix missing", id)
+		}
+	}
+}
+
+// TC-004: Deterministic ordering across runs
+func TestDeterministicOrdering(t *testing.T) {
+	root := tempGitRepo(t)
+	writeFile(t, filepath.Join(root, "go.mod"), "module example.com/test")
+	if err := os.MkdirAll(filepath.Join(root, "docs", "helix"), 0755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+
+	// Run PlanRepo multiple times
+	var previousIDs []string
+	for i := 0; i < 5; i++ {
+		plan, err := PlanRepo(root)
+		if err != nil {
+			t.Fatalf("plan repo run %d: %v", i, err)
+		}
+
+		var currentIDs []string
+		for _, check := range plan.Checks {
+			currentIDs = append(currentIDs, check.ID)
+		}
+
+		if previousIDs != nil {
+			if !slicesEqual(previousIDs, currentIDs) {
+				t.Errorf("run %d: check order differs\nprevious: %v\ncurrent: %v",
+					i, previousIDs, currentIDs)
+			}
+		}
+		previousIDs = currentIDs
+	}
+}
+
+// Helper: check if plan contains a check with the given ID
+func planHasCheck(plan Plan, id string) bool {
+	for _, check := range plan.Checks {
+		if check.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
+// Helper: compare two string slices for equality
+func slicesEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// Gap-4: Test for checks with multiple conditions where some pass and some fail
+func TestBuildPlanMultipleConditionsAllMustPass(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "exists.txt"), "ok")
+	// missing.txt does not exist
+
+	plugin := Plugin{
+		Manifest: Manifest{
+			Checks: []Check{
+				{
+					ID: "partial-match",
+					Conditions: []Rule{
+						{Type: "path-exists", Path: "exists.txt"},  // passes
+						{Type: "path-exists", Path: "missing.txt"}, // fails
+					},
+				},
+			},
+		},
+	}
+	plan, err := buildPlan(root, []Plugin{plugin})
+	if err != nil {
+		t.Fatalf("build plan: %v", err)
+	}
+	if len(plan) != 0 {
+		t.Fatalf("expected check to be skipped when any condition fails, got %d checks", len(plan))
+	}
+}
+
+// Gap-6: Test for agent check with missing prompt template (empty prompt path)
+func TestRunCheckAgentMissingPromptTemplate(t *testing.T) {
+	dir := t.TempDir()
+	// No prompt.md file - prompt template path is empty
+	plugin := Plugin{FS: os.DirFS(dir), Base: "."}
+	pc := plannedCheck{
+		Plugin: plugin,
+		Check:  Check{Type: "agent", ID: "agent-missing-prompt", Prompt: "", Description: "test"},
+	}
+	_, err := runCheck(dir, pc, Options{AgentMode: "prompt"})
+	if err == nil {
+		t.Fatalf("expected error for missing prompt template")
+	}
+}

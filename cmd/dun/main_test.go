@@ -1143,3 +1143,238 @@ func TestPrintIteratePromptVariants(t *testing.T) {
 		t.Fatalf("expected status block template")
 	}
 }
+
+// Tests for help command coverage (AC-8)
+
+func TestRunHelpIncludesIterate(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := run([]string{"help"}, &stdout, &stderr)
+	if code != dun.ExitSuccess {
+		t.Fatalf("expected success, got %d", code)
+	}
+	output := stdout.String()
+	if !strings.Contains(output, "iterate") {
+		t.Fatalf("help should document iterate command")
+	}
+	if !strings.Contains(output, "dun iterate") {
+		t.Fatalf("help should show iterate usage")
+	}
+}
+
+func TestRunHelpIncludesLoop(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := run([]string{"help"}, &stdout, &stderr)
+	if code != dun.ExitSuccess {
+		t.Fatalf("expected success, got %d", code)
+	}
+	output := stdout.String()
+	if !strings.Contains(output, "loop") {
+		t.Fatalf("help should document loop command")
+	}
+	if !strings.Contains(output, "--harness") {
+		t.Fatalf("help should document harness option")
+	}
+	if !strings.Contains(output, "--max-iterations") {
+		t.Fatalf("help should document max-iterations option")
+	}
+	if !strings.Contains(output, "claude, gemini, codex") {
+		t.Fatalf("help should list available harnesses")
+	}
+}
+
+func TestRunHelpIncludesExamples(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := run([]string{"help"}, &stdout, &stderr)
+	if code != dun.ExitSuccess {
+		t.Fatalf("expected success, got %d", code)
+	}
+	output := stdout.String()
+	if !strings.Contains(output, "dun loop") {
+		t.Fatalf("help should include loop examples")
+	}
+	if !strings.Contains(output, "--dry-run") {
+		t.Fatalf("help should document dry-run option")
+	}
+}
+
+// Tests for AC-4: Deterministic Output
+
+// TC-006: Deterministic Output - verify same input produces same output
+func TestOutputDeterminism(t *testing.T) {
+	root := setupEmptyRepo(t)
+
+	// Run check multiple times
+	outputs := make([]string, 3)
+	for i := 0; i < 3; i++ {
+		var stdout bytes.Buffer
+		var stderr bytes.Buffer
+		code := runInDirWithWriters(t, root, []string{"check", "--format=json"}, &stdout, &stderr)
+		if code != 0 {
+			t.Fatalf("run %d: expected success, got %d: %s", i, code, stderr.String())
+		}
+		outputs[i] = stdout.String()
+	}
+
+	// All outputs should be identical
+	for i := 1; i < len(outputs); i++ {
+		if outputs[i] != outputs[0] {
+			t.Fatalf("output %d differs from output 0:\n--- output 0 ---\n%s\n--- output %d ---\n%s",
+				i, outputs[0], i, outputs[i])
+		}
+	}
+}
+
+// TC-007: Check Ordering Consistency - verify check order is stable across runs
+func TestCheckOrderingConsistency(t *testing.T) {
+	root := setupEmptyRepo(t)
+
+	// Run multiple times and verify order
+	var prevOrder []string
+	for i := 0; i < 3; i++ {
+		var stdout bytes.Buffer
+		var stderr bytes.Buffer
+		code := runInDirWithWriters(t, root, []string{"check", "--format=json"}, &stdout, &stderr)
+		if code != 0 {
+			t.Fatalf("run %d: expected success, got %d: %s", i, code, stderr.String())
+		}
+
+		var result dun.Result
+		if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+			t.Fatalf("decode run %d: %v", i, err)
+		}
+
+		var order []string
+		for _, check := range result.Checks {
+			order = append(order, check.ID)
+		}
+
+		if prevOrder != nil {
+			if len(order) != len(prevOrder) {
+				t.Fatalf("check count changed: %d vs %d", len(prevOrder), len(order))
+			}
+			for j, id := range order {
+				if prevOrder[j] != id {
+					t.Fatalf("check order changed at position %d: %s vs %s", j, prevOrder[j], id)
+				}
+			}
+		}
+		prevOrder = order
+	}
+}
+
+// TestOutputDeterminismWithFixture tests determinism with a more complex fixture
+func TestOutputDeterminismWithFixture(t *testing.T) {
+	root := setupRepoFromFixture(t, "helix-alignment")
+	agentCmd := "bash " + fixturePath(t, "internal/testdata/agent/agent.sh")
+	writeConfig(t, root, agentCmd)
+
+	// Run check multiple times
+	outputs := make([]string, 3)
+	for i := 0; i < 3; i++ {
+		var stdout bytes.Buffer
+		var stderr bytes.Buffer
+		code := runInDirWithWriters(t, root, []string{"check", "--format=json"}, &stdout, &stderr)
+		if code != 0 {
+			t.Fatalf("run %d: expected success, got %d: %s", i, code, stderr.String())
+		}
+		outputs[i] = stdout.String()
+	}
+
+	// All outputs should be identical
+	for i := 1; i < len(outputs); i++ {
+		if outputs[i] != outputs[0] {
+			t.Fatalf("output %d differs from output 0:\n--- output 0 ---\n%s\n--- output %d ---\n%s",
+				i, outputs[0], i, outputs[i])
+		}
+	}
+}
+
+// TestIssueOrderingConsistency verifies issues within checks maintain stable ordering
+func TestIssueOrderingConsistency(t *testing.T) {
+	orig := checkRepo
+	checkRepo = func(_ string, _ dun.Options) (dun.Result, error) {
+		return dun.Result{
+			Checks: []dun.CheckResult{
+				{
+					ID:     "check-with-issues",
+					Status: "fail",
+					Signal: "failed",
+					Issues: []dun.Issue{
+						{Summary: "Issue A", Path: "a.go"},
+						{Summary: "Issue B", Path: "b.go"},
+						{Summary: "Issue C", Path: "c.go"},
+					},
+				},
+			},
+		}, nil
+	}
+	t.Cleanup(func() { checkRepo = orig })
+
+	root := setupEmptyRepo(t)
+
+	// Run multiple times and verify issue order
+	for i := 0; i < 3; i++ {
+		var stdout bytes.Buffer
+		var stderr bytes.Buffer
+		code := runInDirWithWriters(t, root, []string{"check", "--format=json"}, &stdout, &stderr)
+		if code != 0 {
+			t.Fatalf("run %d: expected success, got %d", i, code)
+		}
+
+		var result dun.Result
+		if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+			t.Fatalf("decode run %d: %v", i, err)
+		}
+
+		if len(result.Checks) != 1 {
+			t.Fatalf("expected 1 check, got %d", len(result.Checks))
+		}
+
+		issues := result.Checks[0].Issues
+		if len(issues) != 3 {
+			t.Fatalf("expected 3 issues, got %d", len(issues))
+		}
+
+		// Verify order is always A, B, C
+		expected := []string{"Issue A", "Issue B", "Issue C"}
+		for j, issue := range issues {
+			if issue.Summary != expected[j] {
+				t.Fatalf("run %d: issue order changed at position %d: expected %q, got %q",
+					i, j, expected[j], issue.Summary)
+			}
+		}
+	}
+}
+
+// TestNoTimestampsInOutput verifies output contains no non-deterministic fields like timestamps
+func TestNoTimestampsInOutput(t *testing.T) {
+	root := setupEmptyRepo(t)
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := runInDirWithWriters(t, root, []string{"check", "--format=json"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("expected success, got %d", code)
+	}
+
+	output := stdout.String()
+
+	// These patterns would indicate non-deterministic fields
+	nonDeterministic := []string{
+		"\"timestamp\"",
+		"\"time\"",
+		"\"duration\"",
+		"\"elapsed\"",
+		"\"created_at\"",
+		"\"updated_at\"",
+	}
+
+	for _, pattern := range nonDeterministic {
+		if strings.Contains(output, pattern) {
+			t.Fatalf("output contains non-deterministic field %q which would break determinism", pattern)
+		}
+	}
+}
