@@ -1,0 +1,143 @@
+# GoReleaser configuration for dun
+# https://goreleaser.com/customization/
+#
+# To build locally without publishing:
+#   goreleaser build --snapshot --clean
+#
+# To create a full release:
+#   goreleaser release --clean
+
+version: 2
+
+project_name: dun
+
+# Build configuration
+builds:
+  - id: dun
+    main: ./cmd/dun
+    binary: dun
+
+    # Version injection via ldflags
+    # Injects into github.com/easel/dun/internal/version package
+    ldflags:
+      - -s -w
+      - -X github.com/easel/dun/internal/version.Version={{.Version}}
+      - -X github.com/easel/dun/internal/version.Commit={{.ShortCommit}}
+      - -X github.com/easel/dun/internal/version.BuildDate={{.Date}}
+
+    # Build environment
+    env:
+      - CGO_ENABLED=0
+
+    # Target platforms
+    goos:
+      - darwin
+      - linux
+
+    goarch:
+      - amd64
+      - arm64
+
+    # Reproducible builds
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+# Archive configuration
+archives:
+  - id: default
+    format: tar.gz
+
+    # Archive naming convention
+    # Results in: dun_1.0.0_darwin_amd64.tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+    # Files to include in archive
+    files:
+      - LICENSE*
+      - README*
+      - CHANGELOG*
+
+# Checksum configuration
+checksum:
+  # Generate checksums.txt with SHA256 hashes
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+# Snapshot configuration (for local builds)
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+# Changelog configuration
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
+      - "^style:"
+      - Merge pull request
+      - Merge branch
+  groups:
+    - title: "New Features"
+      regexp: "^.*feat.*:+.*$"
+      order: 0
+    - title: "Bug Fixes"
+      regexp: "^.*fix.*:+.*$"
+      order: 1
+    - title: "Performance"
+      regexp: "^.*perf.*:+.*$"
+      order: 2
+    - title: "Documentation"
+      regexp: "^.*docs.*:+.*$"
+      order: 3
+    - title: "Other"
+      order: 999
+
+# Release configuration
+release:
+  github:
+    owner: easel
+    name: dun
+
+  # Draft release for review before publishing
+  draft: false
+
+  # Mark as prerelease if version contains alpha/beta/rc
+  prerelease: auto
+
+  # Release name template
+  name_template: "{{.ProjectName}} v{{.Version}}"
+
+  # Release notes header
+  header: |
+    ## Installation
+
+    ### Quick Install (recommended)
+    ```bash
+    curl -fsSL https://raw.githubusercontent.com/easel/dun/main/scripts/install.sh | sh
+    ```
+
+    ### Manual Download
+    Download the appropriate archive for your platform below, extract it, and move the `dun` binary to a directory in your PATH.
+
+    ### Verify Checksums
+    ```bash
+    sha256sum -c checksums.txt
+    ```
+
+    ---
+
+  # Release notes footer
+  footer: |
+    ---
+
+    **Full Changelog**: https://github.com/{{.Env.GITHUB_REPOSITORY}}/compare/{{.PreviousTag}}...{{.Tag}}
+
+# Announce configuration (optional)
+# Uncomment to enable announcements
+# announce:
+#   slack:
+#     enabled: true
+#     channel: "#releases"

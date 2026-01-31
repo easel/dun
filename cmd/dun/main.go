@@ -1,17 +1,26 @@
 package main
 
 import (
-	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/easel/dun/internal/dun"
+	"github.com/easel/dun/internal/update"
+	"github.com/easel/dun/internal/version"
+)
+
+// Quorum-related sentinel errors.
+var (
+	errQuorumConflict = errors.New("quorum conflict")
+	errQuorumAborted  = errors.New("quorum aborted")
 )
 
 var exit = os.Exit
@@ -47,6 +56,10 @@ func run(args []string, stdout io.Writer, stderr io.Writer) int {
 		return runIterate(args[1:], stdout, stderr)
 	case "loop":
 		return runLoop(args[1:], stdout, stderr)
+	case "version":
+		return runVersion(args[1:], stdout, stderr)
+	case "update":
+		return runUpdate(args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "unknown command: %s\n", args[0])
 		return dun.ExitUsageError
@@ -67,6 +80,8 @@ COMMANDS:
   install    Install dun config and agent documentation
   iterate    Output work list as a prompt for an agent
   loop       Run autonomous loop with an agent harness
+  version    Show version information
+  update     Update dun to the latest version
 
 LOOP MODE:
   dun loop [options]
@@ -80,11 +95,35 @@ LOOP MODE:
     --max-iterations  Safety limit (default: 100)
     --dry-run     Show prompt without calling agent
 
+  Quorum Options (multi-agent consensus):
+    --quorum      Strategy: any, majority, unanimous, or number (e.g., 2)
+    --harnesses   Comma-separated list of harnesses (e.g., claude,gemini,codex)
+    --cost-mode   Run harnesses sequentially to minimize cost
+    --escalate    Pause for human review on conflict
+    --prefer      Preferred harness on conflict (e.g., claude)
+    --similarity  Similarity threshold for conflict detection (default: 0.8)
+
   Examples:
     dun loop                              # Run with claude
     dun loop --harness gemini             # Run with gemini
     dun loop --automation yolo            # Allow autonomous edits
     dun loop --dry-run                    # Preview prompt
+    dun loop --quorum majority --harnesses claude,gemini,codex
+    dun loop --quorum 2 --harnesses claude,gemini --prefer claude
+
+VERSION:
+  dun version [options]
+
+  Options:
+    --json        Output version as JSON
+    --check       Check for available updates
+
+UPDATE:
+  dun update [options]
+
+  Options:
+    --dry-run     Show what would be updated without applying
+    --force       Force update even if already on latest version
 
 ITERATE MODE:
   dun iterate [options]
@@ -104,6 +143,9 @@ EXIT CODES:
   2  Configuration error
   3  Runtime error
   4  Usage error
+  5  Update error
+  6  Quorum conflict (no consensus reached)
+  7  Quorum aborted (user intervention)
 `
 	fmt.Fprint(stdout, help)
 	return dun.ExitSuccess
@@ -413,13 +455,39 @@ func runLoop(args []string, stdout io.Writer, stderr io.Writer) int {
 	automation := fs.String("automation", opts.AutomationMode, "automation mode (manual|plan|auto|yolo)")
 	maxIterations := fs.Int("max-iterations", 100, "maximum iterations before stopping")
 	dryRun := fs.Bool("dry-run", false, "print prompt without calling harness")
+
+	// Quorum flags
+	quorumFlag := fs.String("quorum", "", "quorum strategy: any, majority, unanimous, or number")
+	harnessesFlag := fs.String("harnesses", "", "comma-separated list of harnesses for quorum")
+	costMode := fs.Bool("cost-mode", false, "run harnesses sequentially to minimize cost")
+	escalate := fs.Bool("escalate", false, "pause for human review on conflict")
+	prefer := fs.String("prefer", "", "preferred harness on conflict")
+	similarity := fs.Float64("similarity", 0.8, "similarity threshold for conflict detection")
+
 	if err := fs.Parse(args); err != nil {
 		return dun.ExitUsageError
 	}
 	_ = *configPath
+	_ = *similarity // Reserved for future use in conflict detection
 
-	fmt.Fprintf(stdout, "Starting dun loop (harness=%s, automation=%s, max=%d)\n",
-		*harness, *automation, *maxIterations)
+	// Parse quorum configuration if specified
+	var quorumCfg dun.QuorumConfig
+	if *quorumFlag != "" || *harnessesFlag != "" {
+		quorumCfg, err = dun.ParseQuorumFlags(*quorumFlag, *harnessesFlag, *costMode, *escalate, *prefer)
+		if err != nil {
+			fmt.Fprintf(stderr, "dun loop failed: quorum config error: %v\n", err)
+			return dun.ExitUsageError
+		}
+	}
+
+	// Log startup info
+	if quorumCfg.IsActive() {
+		fmt.Fprintf(stdout, "Starting dun loop (quorum=%s, harnesses=%v, automation=%s, max=%d)\n",
+			quorumStrategyName(quorumCfg), quorumCfg.Harnesses, *automation, *maxIterations)
+	} else {
+		fmt.Fprintf(stdout, "Starting dun loop (harness=%s, automation=%s, max=%d)\n",
+			*harness, *automation, *maxIterations)
+	}
 
 	for i := 1; i <= *maxIterations; i++ {
 		fmt.Fprintf(stdout, "\n=== Iteration %d/%d ===\n", i, *maxIterations)
@@ -459,12 +527,30 @@ func runLoop(args []string, stdout io.Writer, stderr io.Writer) int {
 			return dun.ExitSuccess
 		}
 
-		// Call harness
-		response, err := callHarness(*harness, prompt, *automation)
-		if err != nil {
-			fmt.Fprintf(stderr, "harness call failed: %v\n", err)
-			// Don't exit on harness failure - circuit breaker would handle this
-			continue
+		var response string
+		if quorumCfg.IsActive() {
+			// Run quorum-based execution
+			response, err = runQuorum(quorumCfg, prompt, *automation, stdout, stderr)
+			if err != nil {
+				if errors.Is(err, errQuorumAborted) {
+					fmt.Fprintln(stderr, "Quorum aborted by user.")
+					return dun.ExitQuorumAborted
+				}
+				if errors.Is(err, errQuorumConflict) {
+					fmt.Fprintln(stderr, "Quorum conflict: harnesses could not reach consensus.")
+					return dun.ExitQuorumConflict
+				}
+				fmt.Fprintf(stderr, "quorum failed: %v\n", err)
+				continue
+			}
+		} else {
+			// Single harness call
+			response, err = callHarness(*harness, prompt, *automation)
+			if err != nil {
+				fmt.Fprintf(stderr, "harness call failed: %v\n", err)
+				// Don't exit on harness failure - circuit breaker would handle this
+				continue
+			}
 		}
 
 		fmt.Fprintf(stdout, "Harness response:\n%s\n", response)
@@ -487,52 +573,29 @@ func callHarness(harness, prompt, automation string) (string, error) {
 	return callHarnessFn(harness, prompt, automation)
 }
 
-func callHarnessImpl(harness, prompt, automation string) (string, error) {
-	var cmd *exec.Cmd
-
-	switch harness {
-	case "claude":
-		args := []string{"-p", prompt, "--output-format", "text"}
-		// Add yolo-mode permissions if in yolo mode
-		if automation == "yolo" {
-			args = append(args, "--dangerously-skip-permissions")
-		}
-		cmd = exec.Command("claude", args...)
-
-	case "gemini":
-		// Gemini doesn't have a standard CLI, use API via Python
-		script := fmt.Sprintf(`
-import google.generativeai as genai
-import os
-genai.configure(api_key=os.environ.get("GOOGLE_API_KEY", ""))
-model = genai.GenerativeModel("gemini-1.5-flash")
-response = model.generate_content("""%s""")
-print(response.text)
-`, strings.ReplaceAll(prompt, `"""`, `\"\"\"`))
-		cmd = exec.Command("python3", "-c", script)
-
-	case "codex":
-		args := []string{"exec", "-p", prompt}
-		if automation == "yolo" {
-			args = append(args, "--ask-for-approval", "never")
-		}
-		cmd = exec.Command("codex", args...)
-
+func callHarnessImpl(harnessName, prompt, automation string) (string, error) {
+	// Convert automation string to AutomationMode
+	var mode dun.AutomationMode
+	switch automation {
+	case "manual":
+		mode = dun.AutomationManual
+	case "plan":
+		mode = dun.AutomationPlan
+	case "auto", "":
+		mode = dun.AutomationAuto
+	case "yolo":
+		mode = dun.AutomationYolo
 	default:
-		return "", fmt.Errorf("unknown harness: %s", harness)
+		mode = dun.AutomationAuto
 	}
 
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	cmd.Dir = "."
-
-	err := cmd.Run()
+	ctx := context.Background()
+	result, err := dun.ExecuteHarness(ctx, harnessName, prompt, mode, ".")
 	if err != nil {
-		return "", fmt.Errorf("%v: %s", err, stderr.String())
+		return "", err
 	}
 
-	return stdout.String(), nil
+	return result.Response, nil
 }
 
 func printIteratePrompt(w io.Writer, checks []dun.CheckResult, automation string, root string) {
@@ -672,4 +735,228 @@ func printLLM(stdout io.Writer, result dun.Result) {
 		}
 		fmt.Fprintln(stdout)
 	}
+}
+
+func runVersion(args []string, stdout io.Writer, stderr io.Writer) int {
+	fs := flag.NewFlagSet("version", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	jsonOutput := fs.Bool("json", false, "output version as JSON")
+	checkUpdate := fs.Bool("check", false, "check for available updates")
+	if err := fs.Parse(args); err != nil {
+		return dun.ExitUsageError
+	}
+
+	info := version.Get()
+
+	if *jsonOutput {
+		out := map[string]string{
+			"version":    info.Version,
+			"commit":     info.Commit,
+			"build_date": info.BuildDate,
+			"go_version": info.GoVersion,
+			"platform":   info.Platform,
+		}
+		if err := json.NewEncoder(stdout).Encode(out); err != nil {
+			fmt.Fprintf(stderr, "encode json: %v\n", err)
+			return dun.ExitRuntimeError
+		}
+		return dun.ExitSuccess
+	}
+
+	fmt.Fprintln(stdout, info.String())
+
+	if *checkUpdate {
+		fmt.Fprintln(stdout)
+		updater := update.DefaultUpdater(info.Version)
+		release, hasUpdate, err := updater.CheckForUpdate()
+		if err != nil {
+			fmt.Fprintf(stderr, "check for update failed: %v\n", err)
+			return dun.ExitRuntimeError
+		}
+		if hasUpdate {
+			fmt.Fprintf(stdout, "Update available: %s (current: %s)\n", release.TagName, info.Version)
+			fmt.Fprintln(stdout, "Run 'dun update' to install the latest version.")
+		} else {
+			fmt.Fprintln(stdout, "You are running the latest version.")
+		}
+	}
+
+	return dun.ExitSuccess
+}
+
+func runUpdate(args []string, stdout io.Writer, stderr io.Writer) int {
+	fs := flag.NewFlagSet("update", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	dryRun := fs.Bool("dry-run", false, "show what would be updated without applying")
+	force := fs.Bool("force", false, "force update even if already on latest version")
+	if err := fs.Parse(args); err != nil {
+		return dun.ExitUsageError
+	}
+
+	info := version.Get()
+	fmt.Fprintf(stdout, "Current version: %s\n", info.Version)
+
+	updater := update.DefaultUpdater(info.Version)
+	release, hasUpdate, err := updater.CheckForUpdate()
+	if err != nil {
+		fmt.Fprintf(stderr, "check for update failed: %v\n", err)
+		return dun.ExitRuntimeError
+	}
+
+	if !hasUpdate && !*force {
+		fmt.Fprintln(stdout, "Already running the latest version.")
+		return dun.ExitSuccess
+	}
+
+	if release == nil {
+		fmt.Fprintln(stderr, "No releases found.")
+		return dun.ExitRuntimeError
+	}
+
+	fmt.Fprintf(stdout, "Latest version: %s\n", release.TagName)
+
+	if *dryRun {
+		fmt.Fprintln(stdout, "Dry run: would download and install the update.")
+		return dun.ExitSuccess
+	}
+
+	fmt.Fprintln(stdout, "Downloading...")
+	downloadPath, err := updater.DownloadRelease(release)
+	if err != nil {
+		fmt.Fprintf(stderr, "download failed: %v\n", err)
+		return dun.ExitRuntimeError
+	}
+
+	fmt.Fprintln(stdout, "Installing...")
+	if err := updater.ApplyUpdate(downloadPath); err != nil {
+		fmt.Fprintf(stderr, "install failed: %v\n", err)
+		return dun.ExitRuntimeError
+	}
+
+	fmt.Fprintf(stdout, "Successfully updated to %s\n", release.TagName)
+	return dun.ExitSuccess
+}
+
+// quorumStrategyName returns a human-readable name for the quorum strategy.
+func quorumStrategyName(cfg dun.QuorumConfig) string {
+	if cfg.Strategy != "" {
+		return cfg.Strategy
+	}
+	if cfg.Threshold > 0 {
+		return fmt.Sprintf("%d", cfg.Threshold)
+	}
+	return "default"
+}
+
+// harnessResponse holds the result of a single harness call.
+type harnessResponse struct {
+	Harness  string
+	Response string
+	Err      error
+}
+
+// runQuorum executes the prompt against multiple harnesses and resolves consensus.
+func runQuorum(cfg dun.QuorumConfig, prompt, automation string, stdout, stderr io.Writer) (string, error) {
+	if len(cfg.Harnesses) == 0 {
+		return "", errors.New("no harnesses configured for quorum")
+	}
+
+	responses := make([]harnessResponse, len(cfg.Harnesses))
+
+	if cfg.Mode == "sequential" {
+		// Sequential execution (cost mode)
+		fmt.Fprintln(stdout, "Running harnesses sequentially (cost mode)...")
+		for i, h := range cfg.Harnesses {
+			fmt.Fprintf(stdout, "  Calling %s...\n", h)
+			resp, err := callHarness(h, prompt, automation)
+			responses[i] = harnessResponse{Harness: h, Response: resp, Err: err}
+			if err != nil {
+				fmt.Fprintf(stderr, "  %s failed: %v\n", h, err)
+			} else {
+				fmt.Fprintf(stdout, "  %s completed.\n", h)
+			}
+		}
+	} else {
+		// Parallel execution
+		fmt.Fprintln(stdout, "Running harnesses in parallel...")
+		var wg sync.WaitGroup
+		for i, h := range cfg.Harnesses {
+			wg.Add(1)
+			go func(idx int, harness string) {
+				defer wg.Done()
+				resp, err := callHarness(harness, prompt, automation)
+				responses[idx] = harnessResponse{Harness: harness, Response: resp, Err: err}
+			}(i, h)
+		}
+		wg.Wait()
+
+		// Report results
+		for _, r := range responses {
+			if r.Err != nil {
+				fmt.Fprintf(stderr, "  %s failed: %v\n", r.Harness, r.Err)
+			} else {
+				fmt.Fprintf(stdout, "  %s completed.\n", r.Harness)
+			}
+		}
+	}
+
+	// Collect successful responses
+	var successful []harnessResponse
+	for _, r := range responses {
+		if r.Err == nil {
+			successful = append(successful, r)
+		}
+	}
+
+	if len(successful) == 0 {
+		return "", errors.New("all harnesses failed")
+	}
+
+	// Check if quorum is met
+	if !cfg.IsMet(len(successful), len(cfg.Harnesses)) {
+		return "", fmt.Errorf("quorum not met: %d/%d successful", len(successful), len(cfg.Harnesses))
+	}
+
+	// Check for conflicts (simple check: all responses should be similar)
+	// For now, we use a simple check: if all responses contain EXIT_SIGNAL, consider them agreeing
+	exitSignalCount := 0
+	for _, r := range successful {
+		if strings.Contains(r.Response, "EXIT_SIGNAL: true") {
+			exitSignalCount++
+		}
+	}
+
+	// Detect conflict: some say exit, some don't
+	hasConflict := exitSignalCount > 0 && exitSignalCount < len(successful)
+
+	if hasConflict {
+		fmt.Fprintln(stdout, "Conflict detected: harnesses disagree on exit signal.")
+		if cfg.Escalate {
+			fmt.Fprintln(stderr, "Escalating to human review due to conflict.")
+			return "", errQuorumAborted
+		}
+		if cfg.Prefer != "" {
+			// Use preferred harness response
+			for _, r := range successful {
+				if r.Harness == cfg.Prefer {
+					fmt.Fprintf(stdout, "Using preferred harness response: %s\n", cfg.Prefer)
+					return r.Response, nil
+				}
+			}
+		}
+		// No preferred harness found, report conflict
+		return "", errQuorumConflict
+	}
+
+	// No conflict or all agree - use first successful response
+	// Prefer the preferred harness if specified
+	if cfg.Prefer != "" {
+		for _, r := range successful {
+			if r.Harness == cfg.Prefer {
+				return r.Response, nil
+			}
+		}
+	}
+
+	return successful[0].Response, nil
 }
