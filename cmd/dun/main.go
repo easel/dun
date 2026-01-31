@@ -1,11 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -17,6 +19,7 @@ var checkRepo = dun.CheckRepo
 var planRepo = dun.PlanRepo
 var respondFn = dun.Respond
 var installRepo = dun.InstallRepo
+var callHarnessFn = callHarnessImpl
 
 func main() {
 	code := run(os.Args[1:], os.Stdout, os.Stderr)
@@ -28,6 +31,8 @@ func run(args []string, stdout io.Writer, stderr io.Writer) int {
 		return runCheck(args, stdout, stderr)
 	}
 	switch args[0] {
+	case "help", "--help", "-h":
+		return runHelp(stdout)
 	case "check":
 		return runCheck(args[1:], stdout, stderr)
 	case "list":
@@ -38,10 +43,70 @@ func run(args []string, stdout io.Writer, stderr io.Writer) int {
 		return runRespond(args[1:], stdout, stderr)
 	case "install":
 		return runInstall(args[1:], stdout, stderr)
+	case "iterate":
+		return runIterate(args[1:], stdout, stderr)
+	case "loop":
+		return runLoop(args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "unknown command: %s\n", args[0])
 		return dun.ExitUsageError
 	}
+}
+
+func runHelp(stdout io.Writer) int {
+	help := `dun - Development quality checks and autonomous iteration
+
+USAGE:
+  dun [command] [options]
+
+COMMANDS:
+  check      Run all checks and report status (default)
+  list       List available checks
+  explain    Show details for a specific check
+  respond    Process agent response for a check
+  install    Install dun config and agent documentation
+  iterate    Output work list as a prompt for an agent
+  loop       Run autonomous loop with an agent harness
+
+LOOP MODE:
+  dun loop [options]
+
+  The loop command runs checks, generates prompts, calls an agent harness,
+  and repeats until all checks pass or max iterations is reached.
+
+  Options:
+    --harness     Agent to use: claude, gemini, codex (default: claude)
+    --automation  Mode: manual, plan, auto, yolo (default: auto)
+    --max-iterations  Safety limit (default: 100)
+    --dry-run     Show prompt without calling agent
+
+  Examples:
+    dun loop                              # Run with claude
+    dun loop --harness gemini             # Run with gemini
+    dun loop --automation yolo            # Allow autonomous edits
+    dun loop --dry-run                    # Preview prompt
+
+ITERATE MODE:
+  dun iterate [options]
+
+  Outputs a prompt listing available work for an external agent.
+  Use this with a bash loop:
+
+    while :; do dun iterate | claude -p "$(cat -)"; done
+
+AGENT DOCUMENTATION:
+  Run 'dun install' to add AGENTS.md with instructions for AI agents.
+  Agents can then run 'dun iterate' or 'dun loop' to work autonomously.
+
+EXIT CODES:
+  0  Success / all checks pass
+  1  Check failed
+  2  Configuration error
+  3  Runtime error
+  4  Usage error
+`
+	fmt.Fprint(stdout, help)
+	return dun.ExitSuccess
 }
 
 func runCheck(args []string, stdout io.Writer, stderr io.Writer) int {
@@ -272,6 +337,276 @@ func runInstall(args []string, stdout io.Writer, stderr io.Writer) int {
 
 	fmt.Fprintln(stdout, "note: add hooks manually if desired (lefthook/pre-commit)")
 	return dun.ExitSuccess
+}
+
+func runIterate(args []string, stdout io.Writer, stderr io.Writer) int {
+	root := resolveRoot(".")
+	explicitConfig := findConfigFlag(args)
+	opts := dun.DefaultOptions()
+	cfg, loaded, err := dun.LoadConfig(root, explicitConfig)
+	if err != nil {
+		fmt.Fprintf(stderr, "dun iterate failed: config error: %v\n", err)
+		return dun.ExitConfigError
+	}
+	if loaded {
+		opts = dun.ApplyConfig(opts, cfg)
+	}
+
+	fs := flag.NewFlagSet("iterate", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	configPath := fs.String("config", explicitConfig, "path to config file")
+	automation := fs.String("automation", opts.AutomationMode, "automation mode (manual|plan|auto|yolo)")
+	if err := fs.Parse(args); err != nil {
+		return dun.ExitUsageError
+	}
+	explicitConfig = *configPath
+
+	// Force prompt mode for iterate - we detect work, don't execute it
+	opts.AgentMode = "prompt"
+	opts.AutomationMode = *automation
+	result, err := checkRepo(root, opts)
+	if err != nil {
+		fmt.Fprintf(stderr, "dun iterate failed: %v\n", err)
+		return dun.ExitCheckFailed
+	}
+
+	// Filter to actionable items (non-pass checks with prompts or issues)
+	var actionable []dun.CheckResult
+	for _, check := range result.Checks {
+		if check.Status != "pass" {
+			actionable = append(actionable, check)
+		}
+	}
+
+	// Check for exit condition: all checks pass
+	if len(actionable) == 0 {
+		fmt.Fprintln(stdout, "---DUN_ITERATE---")
+		fmt.Fprintln(stdout, "STATUS: ALL_PASS")
+		fmt.Fprintln(stdout, "EXIT_SIGNAL: true")
+		fmt.Fprintln(stdout, "MESSAGE: All checks pass. No work remaining.")
+		fmt.Fprintln(stdout, "---END_DUN_ITERATE---")
+		return dun.ExitSuccess
+	}
+
+	// Generate iteration prompt
+	printIteratePrompt(stdout, actionable, *automation, root)
+	return dun.ExitSuccess
+}
+
+func runLoop(args []string, stdout io.Writer, stderr io.Writer) int {
+	root := resolveRoot(".")
+	explicitConfig := findConfigFlag(args)
+	opts := dun.DefaultOptions()
+	cfg, loaded, err := dun.LoadConfig(root, explicitConfig)
+	if err != nil {
+		fmt.Fprintf(stderr, "dun loop failed: config error: %v\n", err)
+		return dun.ExitConfigError
+	}
+	if loaded {
+		opts = dun.ApplyConfig(opts, cfg)
+	}
+
+	fs := flag.NewFlagSet("loop", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	configPath := fs.String("config", explicitConfig, "path to config file")
+	harness := fs.String("harness", "claude", "agent harness (claude|gemini|codex)")
+	automation := fs.String("automation", opts.AutomationMode, "automation mode (manual|plan|auto|yolo)")
+	maxIterations := fs.Int("max-iterations", 100, "maximum iterations before stopping")
+	dryRun := fs.Bool("dry-run", false, "print prompt without calling harness")
+	if err := fs.Parse(args); err != nil {
+		return dun.ExitUsageError
+	}
+	_ = *configPath
+
+	fmt.Fprintf(stdout, "Starting dun loop (harness=%s, automation=%s, max=%d)\n",
+		*harness, *automation, *maxIterations)
+
+	for i := 1; i <= *maxIterations; i++ {
+		fmt.Fprintf(stdout, "\n=== Iteration %d/%d ===\n", i, *maxIterations)
+
+		// Run iterate to get work list
+		opts.AgentMode = "prompt"
+		opts.AutomationMode = *automation
+		result, err := checkRepo(root, opts)
+		if err != nil {
+			fmt.Fprintf(stderr, "check failed: %v\n", err)
+			return dun.ExitCheckFailed
+		}
+
+		// Filter to actionable items
+		var actionable []dun.CheckResult
+		for _, check := range result.Checks {
+			if check.Status != "pass" {
+				actionable = append(actionable, check)
+			}
+		}
+
+		// Exit condition: all checks pass
+		if len(actionable) == 0 {
+			fmt.Fprintln(stdout, "All checks pass. Loop complete.")
+			return dun.ExitSuccess
+		}
+
+		// Generate prompt
+		var promptBuf strings.Builder
+		printIteratePrompt(&promptBuf, actionable, *automation, root)
+		prompt := promptBuf.String()
+
+		if *dryRun {
+			fmt.Fprintln(stdout, "--- DRY RUN: Would send this prompt ---")
+			fmt.Fprintln(stdout, prompt)
+			fmt.Fprintln(stdout, "--- END DRY RUN ---")
+			return dun.ExitSuccess
+		}
+
+		// Call harness
+		response, err := callHarness(*harness, prompt, *automation)
+		if err != nil {
+			fmt.Fprintf(stderr, "harness call failed: %v\n", err)
+			// Don't exit on harness failure - circuit breaker would handle this
+			continue
+		}
+
+		fmt.Fprintf(stdout, "Harness response:\n%s\n", response)
+
+		// Check for exit signal in response
+		if strings.Contains(response, "EXIT_SIGNAL: true") {
+			fmt.Fprintln(stdout, "Exit signal received. Loop complete.")
+			return dun.ExitSuccess
+		}
+
+		// Brief pause between iterations
+		time.Sleep(2 * time.Second)
+	}
+
+	fmt.Fprintf(stdout, "Max iterations (%d) reached. Stopping.\n", *maxIterations)
+	return dun.ExitSuccess
+}
+
+func callHarness(harness, prompt, automation string) (string, error) {
+	return callHarnessFn(harness, prompt, automation)
+}
+
+func callHarnessImpl(harness, prompt, automation string) (string, error) {
+	var cmd *exec.Cmd
+
+	switch harness {
+	case "claude":
+		args := []string{"-p", prompt, "--output-format", "text"}
+		// Add yolo-mode permissions if in yolo mode
+		if automation == "yolo" {
+			args = append(args, "--dangerously-skip-permissions")
+		}
+		cmd = exec.Command("claude", args...)
+
+	case "gemini":
+		// Gemini doesn't have a standard CLI, use API via Python
+		script := fmt.Sprintf(`
+import google.generativeai as genai
+import os
+genai.configure(api_key=os.environ.get("GOOGLE_API_KEY", ""))
+model = genai.GenerativeModel("gemini-1.5-flash")
+response = model.generate_content("""%s""")
+print(response.text)
+`, strings.ReplaceAll(prompt, `"""`, `\"\"\"`))
+		cmd = exec.Command("python3", "-c", script)
+
+	case "codex":
+		args := []string{"exec", "-p", prompt}
+		if automation == "yolo" {
+			args = append(args, "--ask-for-approval", "never")
+		}
+		cmd = exec.Command("codex", args...)
+
+	default:
+		return "", fmt.Errorf("unknown harness: %s", harness)
+	}
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	cmd.Dir = "."
+
+	err := cmd.Run()
+	if err != nil {
+		return "", fmt.Errorf("%v: %s", err, stderr.String())
+	}
+
+	return stdout.String(), nil
+}
+
+func printIteratePrompt(w io.Writer, checks []dun.CheckResult, automation string, root string) {
+	fmt.Fprintln(w, "# Dun Iteration")
+	fmt.Fprintln(w)
+	fmt.Fprintf(w, "You are working in: %s\n", root)
+	fmt.Fprintf(w, "Automation mode: %s\n", automation)
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "## Available Work")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Pick ONE task from this list. Choose the one with highest impact.")
+	fmt.Fprintln(w)
+
+	for i, check := range checks {
+		priority := "MEDIUM"
+		if check.Status == "error" {
+			priority = "HIGH"
+		} else if check.Status == "skip" {
+			priority = "LOW"
+		}
+
+		fmt.Fprintf(w, "### %d. %s [%s]\n", i+1, check.ID, priority)
+		fmt.Fprintf(w, "**Status:** %s\n", check.Status)
+		if check.Signal != "" {
+			fmt.Fprintf(w, "**Signal:** %s\n", check.Signal)
+		}
+		if check.Detail != "" {
+			fmt.Fprintf(w, "**Detail:** %s\n", check.Detail)
+		}
+		if len(check.Issues) > 0 {
+			fmt.Fprintln(w, "**Issues:**")
+			for _, issue := range check.Issues {
+				if issue.Path != "" {
+					fmt.Fprintf(w, "- %s (%s)\n", issue.Summary, issue.Path)
+				} else {
+					fmt.Fprintf(w, "- %s\n", issue.Summary)
+				}
+			}
+		}
+		if check.Next != "" {
+			fmt.Fprintf(w, "**Action:** %s\n", check.Next)
+		}
+		if check.Prompt != nil {
+			fmt.Fprintf(w, "**Prompt available:** Use `dun explain %s` for details\n", check.ID)
+		}
+		fmt.Fprintln(w)
+	}
+
+	fmt.Fprintln(w, "---")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "## Instructions")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "1. Review the work items above")
+	fmt.Fprintln(w, "2. Pick ONE task (highest priority or biggest impact)")
+	fmt.Fprintln(w, "3. Complete that task fully:")
+	fmt.Fprintln(w, "   - Edit files as needed")
+	fmt.Fprintln(w, "   - Run tests to verify (`go test ./...`)")
+	fmt.Fprintln(w, "   - Fix any issues that arise")
+	fmt.Fprintln(w, "4. When done with that ONE task, EXIT")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Do NOT try to complete multiple tasks. The loop will call you again.")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "## Before You Exit")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Output this status block so the loop knows what happened:")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "```")
+	fmt.Fprintln(w, "---DUN_STATUS---")
+	fmt.Fprintln(w, "TASK_COMPLETED: <check-id>")
+	fmt.Fprintln(w, "STATUS: COMPLETE | IN_PROGRESS | BLOCKED")
+	fmt.Fprintln(w, "FILES_MODIFIED: <count>")
+	fmt.Fprintln(w, "NEXT_RECOMMENDATION: <what to do next>")
+	fmt.Fprintln(w, "---END_DUN_STATUS---")
+	fmt.Fprintln(w, "```")
 }
 
 func formatRules(rules []dun.Rule) string {

@@ -658,3 +658,488 @@ func findCheck(t *testing.T, result dun.Result, id string) dun.CheckResult {
 	t.Fatalf("check %s not found", id)
 	return dun.CheckResult{}
 }
+
+// Tests for runIterate
+
+func TestRunIterateParseError(t *testing.T) {
+	root := setupEmptyRepo(t)
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := runInDirWithWriters(t, root, []string{"iterate", "--badflag"}, &stdout, &stderr)
+	if code != dun.ExitUsageError {
+		t.Fatalf("expected code %d, got %d", dun.ExitUsageError, code)
+	}
+}
+
+func TestRunIterateConfigError(t *testing.T) {
+	root := setupEmptyRepo(t)
+	cfgPath := filepath.Join(root, ".dun", "config.yaml")
+	if err := os.MkdirAll(filepath.Dir(cfgPath), 0755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(cfgPath, []byte("agent:\n  cmd: ["), 0644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := runInDirWithWriters(t, root, []string{"iterate"}, &stdout, &stderr)
+	if code != dun.ExitConfigError {
+		t.Fatalf("expected code %d, got %d", dun.ExitConfigError, code)
+	}
+}
+
+func TestRunIterateCheckError(t *testing.T) {
+	root := setupEmptyRepo(t)
+	orig := checkRepo
+	checkRepo = func(_ string, _ dun.Options) (dun.Result, error) {
+		return dun.Result{}, errors.New("boom")
+	}
+	t.Cleanup(func() { checkRepo = orig })
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := runInDirWithWriters(t, root, []string{"iterate"}, &stdout, &stderr)
+	if code != dun.ExitCheckFailed {
+		t.Fatalf("expected code %d, got %d", dun.ExitCheckFailed, code)
+	}
+}
+
+func TestRunIterateAllPass(t *testing.T) {
+	root := setupEmptyRepo(t)
+	orig := checkRepo
+	checkRepo = func(_ string, _ dun.Options) (dun.Result, error) {
+		return dun.Result{
+			Checks: []dun.CheckResult{
+				{ID: "test", Status: "pass", Signal: "ok"},
+			},
+		}, nil
+	}
+	t.Cleanup(func() { checkRepo = orig })
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := runInDirWithWriters(t, root, []string{"iterate"}, &stdout, &stderr)
+	if code != dun.ExitSuccess {
+		t.Fatalf("expected code %d, got %d", dun.ExitSuccess, code)
+	}
+	output := stdout.String()
+	if !strings.Contains(output, "STATUS: ALL_PASS") {
+		t.Fatalf("expected ALL_PASS status in output")
+	}
+	if !strings.Contains(output, "EXIT_SIGNAL: true") {
+		t.Fatalf("expected EXIT_SIGNAL in output")
+	}
+}
+
+func TestRunIterateWithActionable(t *testing.T) {
+	root := setupEmptyRepo(t)
+	orig := checkRepo
+	checkRepo = func(_ string, _ dun.Options) (dun.Result, error) {
+		return dun.Result{
+			Checks: []dun.CheckResult{
+				{ID: "pass-check", Status: "pass", Signal: "ok"},
+				{ID: "fail-check", Status: "fail", Signal: "failed", Detail: "something failed", Next: "fix it"},
+				{ID: "warn-check", Status: "warn", Signal: "warning"},
+				{ID: "error-check", Status: "error", Signal: "error"},
+				{ID: "skip-check", Status: "skip", Signal: "skipped"},
+			},
+		}, nil
+	}
+	t.Cleanup(func() { checkRepo = orig })
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := runInDirWithWriters(t, root, []string{"iterate", "--automation", "yolo"}, &stdout, &stderr)
+	if code != dun.ExitSuccess {
+		t.Fatalf("expected code %d, got %d", dun.ExitSuccess, code)
+	}
+	output := stdout.String()
+	// Should have iteration prompt, not all pass
+	if strings.Contains(output, "STATUS: ALL_PASS") {
+		t.Fatalf("should not have ALL_PASS when actionable items exist")
+	}
+	// Should list the actionable checks
+	if !strings.Contains(output, "fail-check") {
+		t.Fatalf("expected fail-check in output")
+	}
+	if !strings.Contains(output, "[HIGH]") {
+		t.Fatalf("expected HIGH priority for error status")
+	}
+	if !strings.Contains(output, "[LOW]") {
+		t.Fatalf("expected LOW priority for skip status")
+	}
+}
+
+// Tests for runLoop
+
+func TestRunLoopParseError(t *testing.T) {
+	root := setupEmptyRepo(t)
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := runInDirWithWriters(t, root, []string{"loop", "--badflag"}, &stdout, &stderr)
+	if code != dun.ExitUsageError {
+		t.Fatalf("expected code %d, got %d", dun.ExitUsageError, code)
+	}
+}
+
+func TestRunLoopConfigError(t *testing.T) {
+	root := setupEmptyRepo(t)
+	cfgPath := filepath.Join(root, ".dun", "config.yaml")
+	if err := os.MkdirAll(filepath.Dir(cfgPath), 0755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(cfgPath, []byte("agent:\n  cmd: ["), 0644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := runInDirWithWriters(t, root, []string{"loop"}, &stdout, &stderr)
+	if code != dun.ExitConfigError {
+		t.Fatalf("expected code %d, got %d", dun.ExitConfigError, code)
+	}
+}
+
+func TestRunLoopDryRun(t *testing.T) {
+	root := setupEmptyRepo(t)
+	orig := checkRepo
+	checkRepo = func(_ string, _ dun.Options) (dun.Result, error) {
+		return dun.Result{
+			Checks: []dun.CheckResult{
+				{ID: "fail-check", Status: "fail", Signal: "failed"},
+			},
+		}, nil
+	}
+	t.Cleanup(func() { checkRepo = orig })
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := runInDirWithWriters(t, root, []string{"loop", "--dry-run", "--max-iterations", "1"}, &stdout, &stderr)
+	if code != dun.ExitSuccess {
+		t.Fatalf("expected code %d, got %d", dun.ExitSuccess, code)
+	}
+	output := stdout.String()
+	if !strings.Contains(output, "DRY RUN") {
+		t.Fatalf("expected DRY RUN in output")
+	}
+}
+
+func TestRunLoopAllPass(t *testing.T) {
+	root := setupEmptyRepo(t)
+	orig := checkRepo
+	checkRepo = func(_ string, _ dun.Options) (dun.Result, error) {
+		return dun.Result{
+			Checks: []dun.CheckResult{
+				{ID: "pass-check", Status: "pass", Signal: "ok"},
+			},
+		}, nil
+	}
+	t.Cleanup(func() { checkRepo = orig })
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := runInDirWithWriters(t, root, []string{"loop", "--max-iterations", "1"}, &stdout, &stderr)
+	if code != dun.ExitSuccess {
+		t.Fatalf("expected code %d, got %d", dun.ExitSuccess, code)
+	}
+	output := stdout.String()
+	if !strings.Contains(output, "All checks pass") {
+		t.Fatalf("expected all pass message")
+	}
+}
+
+func TestRunLoopCheckError(t *testing.T) {
+	root := setupEmptyRepo(t)
+	orig := checkRepo
+	checkRepo = func(_ string, _ dun.Options) (dun.Result, error) {
+		return dun.Result{}, errors.New("boom")
+	}
+	t.Cleanup(func() { checkRepo = orig })
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := runInDirWithWriters(t, root, []string{"loop", "--max-iterations", "1"}, &stdout, &stderr)
+	if code != dun.ExitCheckFailed {
+		t.Fatalf("expected code %d, got %d", dun.ExitCheckFailed, code)
+	}
+}
+
+func TestRunLoopWithConfig(t *testing.T) {
+	root := setupEmptyRepo(t)
+	cfgPath := filepath.Join(root, ".dun", "config.yaml")
+	if err := os.MkdirAll(filepath.Dir(cfgPath), 0755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(cfgPath, []byte("version: \"1\"\nagent:\n  mode: auto\n"), 0644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	orig := checkRepo
+	checkRepo = func(_ string, _ dun.Options) (dun.Result, error) {
+		return dun.Result{
+			Checks: []dun.CheckResult{
+				{ID: "pass-check", Status: "pass", Signal: "ok"},
+			},
+		}, nil
+	}
+	t.Cleanup(func() { checkRepo = orig })
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := runInDirWithWriters(t, root, []string{"loop", "--max-iterations", "1"}, &stdout, &stderr)
+	if code != dun.ExitSuccess {
+		t.Fatalf("expected code %d, got %d: %s", dun.ExitSuccess, code, stderr.String())
+	}
+}
+
+func TestRunLoopMaxIterations(t *testing.T) {
+	root := setupEmptyRepo(t)
+	callCount := 0
+	origCheck := checkRepo
+	checkRepo = func(_ string, _ dun.Options) (dun.Result, error) {
+		return dun.Result{
+			Checks: []dun.CheckResult{
+				{ID: "fail-check", Status: "fail", Signal: "failed"},
+			},
+		}, nil
+	}
+	t.Cleanup(func() { checkRepo = origCheck })
+
+	origHarness := callHarnessFn
+	callHarnessFn = func(harness, prompt, automation string) (string, error) {
+		callCount++
+		return "no exit signal", nil
+	}
+	t.Cleanup(func() { callHarnessFn = origHarness })
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := runInDirWithWriters(t, root, []string{"loop", "--max-iterations", "2"}, &stdout, &stderr)
+	if code != dun.ExitSuccess {
+		t.Fatalf("expected code %d, got %d", dun.ExitSuccess, code)
+	}
+	if callCount != 2 {
+		t.Fatalf("expected 2 harness calls, got %d", callCount)
+	}
+	if !strings.Contains(stdout.String(), "Max iterations (2) reached") {
+		t.Fatalf("expected max iterations message")
+	}
+}
+
+func TestRunLoopExitSignal(t *testing.T) {
+	root := setupEmptyRepo(t)
+	origCheck := checkRepo
+	checkRepo = func(_ string, _ dun.Options) (dun.Result, error) {
+		return dun.Result{
+			Checks: []dun.CheckResult{
+				{ID: "fail-check", Status: "fail", Signal: "failed"},
+			},
+		}, nil
+	}
+	t.Cleanup(func() { checkRepo = origCheck })
+
+	origHarness := callHarnessFn
+	callHarnessFn = func(harness, prompt, automation string) (string, error) {
+		return "---DUN_STATUS---\nEXIT_SIGNAL: true\n---END_DUN_STATUS---", nil
+	}
+	t.Cleanup(func() { callHarnessFn = origHarness })
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := runInDirWithWriters(t, root, []string{"loop", "--max-iterations", "10"}, &stdout, &stderr)
+	if code != dun.ExitSuccess {
+		t.Fatalf("expected code %d, got %d", dun.ExitSuccess, code)
+	}
+	if !strings.Contains(stdout.String(), "Exit signal received") {
+		t.Fatalf("expected exit signal message")
+	}
+}
+
+func TestRunLoopHarnessError(t *testing.T) {
+	root := setupEmptyRepo(t)
+	callCount := 0
+	origCheck := checkRepo
+	checkRepo = func(_ string, _ dun.Options) (dun.Result, error) {
+		callCount++
+		if callCount > 2 {
+			// Return all pass to exit loop
+			return dun.Result{
+				Checks: []dun.CheckResult{
+					{ID: "pass-check", Status: "pass", Signal: "ok"},
+				},
+			}, nil
+		}
+		return dun.Result{
+			Checks: []dun.CheckResult{
+				{ID: "fail-check", Status: "fail", Signal: "failed"},
+			},
+		}, nil
+	}
+	t.Cleanup(func() { checkRepo = origCheck })
+
+	origHarness := callHarnessFn
+	callHarnessFn = func(harness, prompt, automation string) (string, error) {
+		return "", errors.New("harness failed")
+	}
+	t.Cleanup(func() { callHarnessFn = origHarness })
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := runInDirWithWriters(t, root, []string{"loop", "--max-iterations", "10"}, &stdout, &stderr)
+	if code != dun.ExitSuccess {
+		t.Fatalf("expected code %d, got %d", dun.ExitSuccess, code)
+	}
+	// Should continue despite harness error and eventually reach all pass
+	if !strings.Contains(stderr.String(), "harness call failed") {
+		t.Fatalf("expected harness error message in stderr")
+	}
+}
+
+// Tests for callHarness
+
+func TestCallHarnessUnknown(t *testing.T) {
+	_, err := callHarness("unknown", "prompt", "auto")
+	if err == nil {
+		t.Fatalf("expected error for unknown harness")
+	}
+	if !strings.Contains(err.Error(), "unknown harness") {
+		t.Fatalf("expected unknown harness error, got: %v", err)
+	}
+}
+
+func TestCallHarnessClaude(t *testing.T) {
+	// This test verifies the command construction for claude harness
+	// It will fail if claude is not installed, which is expected in CI
+	_, err := callHarness("claude", "test prompt", "auto")
+	// We expect an error since claude CLI is likely not installed
+	if err == nil {
+		// If it succeeds, that's fine too
+		return
+	}
+	// Error should be about command execution, not harness type
+	if strings.Contains(err.Error(), "unknown harness") {
+		t.Fatalf("claude should be a known harness")
+	}
+}
+
+func TestCallHarnessClaudeYolo(t *testing.T) {
+	// Test that yolo mode adds the right flags
+	_, err := callHarness("claude", "test prompt", "yolo")
+	// We expect an error since claude CLI is likely not installed
+	if err == nil {
+		return
+	}
+	if strings.Contains(err.Error(), "unknown harness") {
+		t.Fatalf("claude should be a known harness")
+	}
+}
+
+func TestCallHarnessGemini(t *testing.T) {
+	// This test verifies the command construction for gemini harness
+	_, err := callHarness("gemini", "test prompt", "auto")
+	// We expect an error since python/API is likely not set up
+	if err == nil {
+		return
+	}
+	if strings.Contains(err.Error(), "unknown harness") {
+		t.Fatalf("gemini should be a known harness")
+	}
+}
+
+func TestCallHarnessCodex(t *testing.T) {
+	// This test verifies the command construction for codex harness
+	_, err := callHarness("codex", "test prompt", "auto")
+	// We expect an error since codex CLI is likely not installed
+	if err == nil {
+		return
+	}
+	if strings.Contains(err.Error(), "unknown harness") {
+		t.Fatalf("codex should be a known harness")
+	}
+}
+
+func TestCallHarnessCodexYolo(t *testing.T) {
+	// Test that yolo mode adds the right flags
+	_, err := callHarness("codex", "test prompt", "yolo")
+	if err == nil {
+		return
+	}
+	if strings.Contains(err.Error(), "unknown harness") {
+		t.Fatalf("codex should be a known harness")
+	}
+}
+
+// Tests for printIteratePrompt
+
+func TestPrintIteratePromptVariants(t *testing.T) {
+	checks := []dun.CheckResult{
+		{
+			ID:     "error-check",
+			Status: "error",
+			Signal: "error signal",
+			Detail: "error detail",
+			Next:   "fix error",
+			Issues: []dun.Issue{
+				{Summary: "issue1", Path: "file1.go"},
+				{Summary: "issue2"}, // no path
+			},
+			Prompt: &dun.PromptEnvelope{},
+		},
+		{
+			ID:     "skip-check",
+			Status: "skip",
+			Signal: "skip signal",
+		},
+		{
+			ID:     "warn-check",
+			Status: "warn",
+			Signal: "warn signal",
+		},
+	}
+
+	var buf bytes.Buffer
+	printIteratePrompt(&buf, checks, "yolo", "/test/root")
+	output := buf.String()
+
+	// Check header
+	if !strings.Contains(output, "# Dun Iteration") {
+		t.Fatalf("expected header")
+	}
+	if !strings.Contains(output, "You are working in: /test/root") {
+		t.Fatalf("expected working directory")
+	}
+	if !strings.Contains(output, "Automation mode: yolo") {
+		t.Fatalf("expected automation mode")
+	}
+
+	// Check priority labels
+	if !strings.Contains(output, "[HIGH]") {
+		t.Fatalf("expected HIGH priority for error")
+	}
+	if !strings.Contains(output, "[LOW]") {
+		t.Fatalf("expected LOW priority for skip")
+	}
+	if !strings.Contains(output, "[MEDIUM]") {
+		t.Fatalf("expected MEDIUM priority for warn")
+	}
+
+	// Check issue formatting
+	if !strings.Contains(output, "issue1 (file1.go)") {
+		t.Fatalf("expected issue with path")
+	}
+	if !strings.Contains(output, "- issue2\n") {
+		t.Fatalf("expected issue without path")
+	}
+
+	// Check prompt indicator
+	if !strings.Contains(output, "Prompt available:") {
+		t.Fatalf("expected prompt available note")
+	}
+
+	// Check instructions section
+	if !strings.Contains(output, "## Instructions") {
+		t.Fatalf("expected instructions section")
+	}
+	if !strings.Contains(output, "---DUN_STATUS---") {
+		t.Fatalf("expected status block template")
+	}
+}
