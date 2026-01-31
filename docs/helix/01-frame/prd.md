@@ -23,7 +23,7 @@ In scope:
 - Multiple output formats (prompt envelopes, LLM summaries, JSON output).
 - Built-in Helix plugin for doc and gate validation.
 - Extensible plugin system for future workflows.
-- Doc-to-code reconciliation with plan and autonomous modes.
+- Doc-to-code reconciliation with plan and yolo modes.
 - `dun install` to seed AGENTS guidance in repos.
 - Git hygiene and hook checks for clean commits.
 

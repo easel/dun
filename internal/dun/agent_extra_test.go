@@ -27,7 +27,7 @@ func TestNormalizeAutomationModeVariants(t *testing.T) {
 		"auto":   "auto",
 		"manual": "manual",
 		"plan":       "plan",
-		"autonomous": "autonomous",
+		"yolo": "yolo",
 	}
 	for input, expected := range cases {
 		got, err := normalizeAutomationMode(input)

@@ -64,7 +64,7 @@ func runCheck(args []string, stdout io.Writer, stderr io.Writer) int {
 	agentCmd := fs.String("agent-cmd", opts.AgentCmd, "agent command override")
 	agentTimeout := fs.Int("agent-timeout", int(opts.AgentTimeout/time.Second), "agent timeout in seconds")
 	agentMode := fs.String("agent-mode", opts.AgentMode, "agent mode (prompt|auto)")
-	automation := fs.String("automation", opts.AutomationMode, "automation mode (manual|plan|auto|autonomous)")
+	automation := fs.String("automation", opts.AutomationMode, "automation mode (manual|plan|auto|yolo)")
 	if err := fs.Parse(args); err != nil {
 		return dun.ExitUsageError
 	}

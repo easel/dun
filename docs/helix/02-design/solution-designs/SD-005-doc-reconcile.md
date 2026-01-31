@@ -17,7 +17,7 @@ without updating downstream artifacts.
 2. **Delta detection**: compare current docs vs expected downstream artifacts.
 3. **Impact graph**: map PRD changes to feature specs, stories, design, tests.
 4. **Plan output**: emit issues in dependency order with clear next steps.
-5. **Automation policy**: apply manual/plan/auto/autonomous rules to prompts.
+5. **Automation policy**: apply manual/plan/auto/yolo rules to prompts.
 
 ## Components
 
@@ -31,7 +31,7 @@ without updating downstream artifacts.
 1. Helix plugin triggers reconciliation check.
 2. Drift analyzer builds artifact inventory.
 3. Impact mapper produces ordered issues.
-4. Output is emitted as prompt envelope (plan or autonomous).
+4. Output is emitted as prompt envelope (plan or yolo).
 
 ## Open Questions
 

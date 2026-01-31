@@ -6,7 +6,6 @@ so I can run `dun check` without configuration.
 ## Acceptance Criteria
 
 - Detect Go repositories via `go.mod`.
-- Detect Node repositories via `package.json`.
 - Detect Helix workflow via `docs/helix/`.
 - Check IDs and ordering are deterministic for the same repo state.
 - No user configuration is required for core discovery.

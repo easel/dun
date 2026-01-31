@@ -32,7 +32,7 @@ prompt envelopes by default, with optional auto execution when configured.
 - **Reporter**: renders JSON/LLM output.
 - **Drift Analyzer**: compares docs and code to identify misalignment.
 - **Change Planner**: produces ordered updates across artifacts.
-- **Automation Policy**: enforces manual/plan/auto/autonomous behavior.
+- **Automation Policy**: enforces manual/plan/auto/yolo behavior.
 
 ## Data Flow
 

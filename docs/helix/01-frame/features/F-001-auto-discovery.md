@@ -8,7 +8,6 @@ manual configuration.
 ## Requirements
 
 - Detect Go repositories via `go.mod`.
-- Detect Node repositories via `package.json`.
 - Detect Helix workflow via `docs/helix/`.
 - Produce a deterministic set of checks for the repo state.
 

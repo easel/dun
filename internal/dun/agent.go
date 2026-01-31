@@ -110,7 +110,7 @@ func normalizeAutomationMode(mode string) (string, error) {
 		return "auto", nil
 	case "manual":
 		return "manual", nil
-	case "plan", "autonomous":
+	case "plan", "yolo":
 		return mode, nil
 	default:
 		return "", fmt.Errorf("unknown automation mode: %s", mode)

@@ -7,7 +7,7 @@ selection across repos.
 
 ## Goals
 
-- Detect repo signals (`go.mod`, `package.json`, `docs/helix/`) deterministically.
+- Detect repo signals (`go.mod`, `docs/helix/`) deterministically.
 - Activate the correct plugins without user configuration.
 - Keep discovery fast and local.
 

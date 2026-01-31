@@ -9,7 +9,7 @@ Automation mode: {{ .AutomationMode }}
 Instructions:
 - If mode is `manual` or `plan`, produce a plan only (no edits).
 - If mode is `auto`, propose changes and ask for confirmation where ambiguous.
-- If mode is `autonomous`, you may create/modify artifacts to declare completeness.
+- If mode is `yolo`, you may create/modify artifacts to declare completeness.
 
 Build a structured reconciliation plan:
 1. Summarize PRD changes or deltas.
