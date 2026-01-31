@@ -2,7 +2,7 @@
 
 ## Summary
 
-Allow Dun to operate with varying autonomy, from manual approval to yolo
+Allow Dun to operate with varying autonomy, from manual approval to autonomous
 execution, when reconciling documentation and code.
 
 ## Requirements
@@ -13,11 +13,11 @@ execution, when reconciling documentation and code.
   - `manual`: prompt-only, human approval for each change.
   - `plan`: emit a detailed plan without modifying artifacts.
   - `auto`: agent executes changes but asks when blocked.
-  - `yolo`: agent may create/modify artifacts to declare completeness.
+  - `autonomous`: agent may create/modify artifacts to declare completeness.
 - Automation mode must be included in prompts so agents follow the policy.
 
 ## Acceptance Criteria
 
 - `dun check --automation=plan` emits reconciliation plans only.
-- `dun check --automation=yolo` allows the agent to fill missing artifacts.
+- `dun check --automation=autonomous` allows the agent to fill missing artifacts.
 - Prompt envelopes include the selected automation mode.

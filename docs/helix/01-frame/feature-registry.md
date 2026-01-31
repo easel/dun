@@ -10,7 +10,7 @@ This registry tracks the core Dun features and their current status.
 | F-004 | Install Command | P1 | In progress | Insert AGENTS.md guidance |
 | F-005 | Git Hygiene | P0 | In progress | Ensure clean working tree + hook checks |
 | F-006 | Doc Reconciliation | P0 | In progress | Detect drift and propagate updates |
-| F-007 | Automation Slider | P0 | In progress | Manual <-> yolo execution policy |
+| F-007 | Automation Slider | P0 | In progress | Manual <-> autonomous execution policy |
 | F-008 | Deterministic check plan | P0 | Planned | Stable ordering and IDs (no spec file yet) |
 | F-009 | Helix plugin (docs + gates) | P0 | Planned | Validate Helix artifacts and gates (no spec file yet) |
 | F-010 | Changed-only checks | P1 | Planned | Scope checks to git diff (no spec file yet) |

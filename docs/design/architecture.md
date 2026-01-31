@@ -220,7 +220,7 @@ graph TB
 #### Component: Automation Policy
 - **Purpose**: Control agent autonomy per run.
 - **Responsibilities**:
-  - Enforce manual/plan/auto/yolo modes
+  - Enforce manual/plan/auto/autonomous modes
   - Inject mode into prompt envelopes
 - **Implementation Notes**: Default to auto.
 

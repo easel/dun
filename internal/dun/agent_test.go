@@ -22,11 +22,11 @@ func TestRenderPromptIncludesAutomationMode(t *testing.T) {
 		ID:     "test",
 		Prompt: "prompt.md",
 	}
-	text, _, err := renderPromptText(plugin, check, nil, "yolo")
+	text, _, err := renderPromptText(plugin, check, nil, "autonomous")
 	if err != nil {
 		t.Fatalf("render prompt: %v", err)
 	}
-	if !strings.Contains(text, "mode=yolo") {
+	if !strings.Contains(text, "mode=autonomous") {
 		t.Fatalf("expected automation mode in prompt, got %q", text)
 	}
 }

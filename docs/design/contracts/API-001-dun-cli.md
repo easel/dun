@@ -31,7 +31,7 @@ $ dun [command] [options] [arguments]
 - `--agent-cmd` : Command to run agent checks (optional, used with `--agent-mode=auto`)
 - `--agent-timeout` : Agent check timeout in seconds (default `300`)
 - `--agent-mode` : Agent mode (`prompt` or `auto`, default `prompt`)
-- `--automation` : Automation mode (`manual`, `plan`, `auto`, `yolo`, default `auto`)
+- `--automation` : Automation mode (`manual`, `plan`, `auto`, `autonomous`, default `auto`)
 
 **Input**:
 - Format: File system + optional config file
@@ -217,7 +217,7 @@ equivalent JSON shape.
         "timeout_ms": { "type": "integer", "minimum": 1000 },
         "response_format": { "type": "string", "enum": ["json"] },
         "mode": { "type": "string", "enum": ["prompt", "auto"] },
-        "automation": { "type": "string", "enum": ["manual", "plan", "auto", "yolo"] }
+        "automation": { "type": "string", "enum": ["manual", "plan", "auto", "autonomous"] }
       }
     },
     "ratchet": {

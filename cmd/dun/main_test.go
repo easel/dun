@@ -69,8 +69,8 @@ func TestMainExitCode(t *testing.T) {
 	os.Args = []string{"dun", "unknown"}
 	main()
 
-	if code != 1 {
-		t.Fatalf("expected exit code 1, got %d", code)
+	if code != dun.ExitUsageError {
+		t.Fatalf("expected exit code %d, got %d", dun.ExitUsageError, code)
 	}
 }
 
@@ -78,8 +78,8 @@ func TestRunUnknownCommand(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	code := run([]string{"unknown"}, &stdout, &stderr)
-	if code != 1 {
-		t.Fatalf("expected code 1, got %d", code)
+	if code != dun.ExitUsageError {
+		t.Fatalf("expected code %d, got %d", dun.ExitUsageError, code)
 	}
 	if !strings.Contains(stderr.String(), "unknown command") {
 		t.Fatalf("expected unknown command message")
@@ -101,8 +101,8 @@ func TestRunCheckUnknownFormat(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	code := runInDirWithWriters(t, root, []string{"check", "--format=bad"}, &stdout, &stderr)
-	if code != 1 {
-		t.Fatalf("expected code 1, got %d", code)
+	if code != dun.ExitUsageError {
+		t.Fatalf("expected code %d, got %d", dun.ExitUsageError, code)
 	}
 }
 
@@ -157,8 +157,8 @@ func TestRunCheckConfigError(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	code := runInDirWithWriters(t, root, []string{"check"}, &stdout, &stderr)
-	if code != 4 {
-		t.Fatalf("expected code 4, got %d", code)
+	if code != dun.ExitConfigError {
+		t.Fatalf("expected code %d, got %d", dun.ExitConfigError, code)
 	}
 }
 
@@ -239,8 +239,8 @@ func TestRunListConfigError(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	code := runInDirWithWriters(t, root, []string{"list", "--config", "bad.yaml"}, &stdout, &stderr)
-	if code != 4 {
-		t.Fatalf("expected code 4, got %d", code)
+	if code != dun.ExitConfigError {
+		t.Fatalf("expected code %d, got %d", dun.ExitConfigError, code)
 	}
 }
 
@@ -263,8 +263,8 @@ func TestRunExplainConfigError(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	code := runInDirWithWriters(t, root, []string{"explain", "--config", "bad.yaml", "git-status"}, &stdout, &stderr)
-	if code != 4 {
-		t.Fatalf("expected code 4, got %d", code)
+	if code != dun.ExitConfigError {
+		t.Fatalf("expected code %d, got %d", dun.ExitConfigError, code)
 	}
 }
 
@@ -384,8 +384,8 @@ func TestRunRespondVariants(t *testing.T) {
 
 	stdout.Reset()
 	code = runInDirWithWriters(t, root, []string{"respond", "--id", "check", "--response", response, "--format=bad"}, &stdout, &stderr)
-	if code != 1 {
-		t.Fatalf("expected code 1, got %d", code)
+	if code != dun.ExitUsageError {
+		t.Fatalf("expected code %d, got %d", dun.ExitUsageError, code)
 	}
 }
 
@@ -440,8 +440,8 @@ func TestRunRespondErrors(t *testing.T) {
 		t.Fatalf("expected code 4, got %d", code)
 	}
 	code = runInDirWithWriters(t, root, []string{"respond", "--id", "x", "--response", "missing.json"}, &stdout, &stderr)
-	if code != 1 {
-		t.Fatalf("expected code 1, got %d", code)
+	if code != dun.ExitRuntimeError {
+		t.Fatalf("expected code %d, got %d", dun.ExitRuntimeError, code)
 	}
 }
 
@@ -482,8 +482,8 @@ func TestRunInstallDryRunAndError(t *testing.T) {
 
 	badDir := t.TempDir()
 	code = runInDirWithWriters(t, badDir, []string{"install"}, &stdout, &stderr)
-	if code != 1 {
-		t.Fatalf("expected code 1, got %d", code)
+	if code != dun.ExitRuntimeError {
+		t.Fatalf("expected code %d, got %d", dun.ExitRuntimeError, code)
 	}
 }
 

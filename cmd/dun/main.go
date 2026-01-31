@@ -40,7 +40,7 @@ func run(args []string, stdout io.Writer, stderr io.Writer) int {
 		return runInstall(args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "unknown command: %s\n", args[0])
-		return 1
+		return dun.ExitUsageError
 	}
 }
 
@@ -51,7 +51,7 @@ func runCheck(args []string, stdout io.Writer, stderr io.Writer) int {
 	cfg, loaded, err := dun.LoadConfig(root, explicitConfig)
 	if err != nil {
 		fmt.Fprintf(stderr, "dun check failed: config error: %v\n", err)
-		return 4
+		return dun.ExitConfigError
 	}
 	if loaded {
 		opts = dun.ApplyConfig(opts, cfg)
@@ -64,9 +64,9 @@ func runCheck(args []string, stdout io.Writer, stderr io.Writer) int {
 	agentCmd := fs.String("agent-cmd", opts.AgentCmd, "agent command override")
 	agentTimeout := fs.Int("agent-timeout", int(opts.AgentTimeout/time.Second), "agent timeout in seconds")
 	agentMode := fs.String("agent-mode", opts.AgentMode, "agent mode (prompt|auto)")
-	automation := fs.String("automation", opts.AutomationMode, "automation mode (manual|plan|auto|yolo)")
+	automation := fs.String("automation", opts.AutomationMode, "automation mode (manual|plan|auto|autonomous)")
 	if err := fs.Parse(args); err != nil {
-		return 4
+		return dun.ExitUsageError
 	}
 	explicitConfig = *configPath
 
@@ -79,7 +79,7 @@ func runCheck(args []string, stdout io.Writer, stderr io.Writer) int {
 	result, err := checkRepo(root, opts)
 	if err != nil {
 		fmt.Fprintf(stderr, "dun check failed: %v\n", err)
-		return 1
+		return dun.ExitCheckFailed
 	}
 
 	switch *format {
@@ -88,13 +88,13 @@ func runCheck(args []string, stdout io.Writer, stderr io.Writer) int {
 	case "json", "prompt":
 		if err := json.NewEncoder(stdout).Encode(result); err != nil {
 			fmt.Fprintf(stderr, "encode json: %v\n", err)
-			return 1
+			return dun.ExitCheckFailed
 		}
 	default:
 		fmt.Fprintf(stderr, "unknown format: %s\n", *format)
-		return 1
+		return dun.ExitUsageError
 	}
-	return 0
+	return dun.ExitSuccess
 }
 
 func runList(args []string, stdout io.Writer, stderr io.Writer) int {
@@ -104,32 +104,32 @@ func runList(args []string, stdout io.Writer, stderr io.Writer) int {
 	format := fs.String("format", "text", "output format (text|json)")
 	configPath := fs.String("config", "", "path to config file (default .dun/config.yaml if present)")
 	if err := fs.Parse(args); err != nil {
-		return 4
+		return dun.ExitUsageError
 	}
 
 	if _, _, err := dun.LoadConfig(root, *configPath); err != nil {
 		fmt.Fprintf(stderr, "dun list failed: config error: %v\n", err)
-		return 4
+		return dun.ExitConfigError
 	}
 
 	plan, err := planRepo(root)
 	if err != nil {
 		fmt.Fprintf(stderr, "dun list failed: %v\n", err)
-		return 1
+		return dun.ExitCheckFailed
 	}
 
 	switch *format {
 	case "json":
 		if err := json.NewEncoder(stdout).Encode(plan); err != nil {
 			fmt.Fprintf(stderr, "encode json: %v\n", err)
-			return 1
+			return dun.ExitCheckFailed
 		}
 	default:
 		for _, check := range plan.Checks {
 			fmt.Fprintf(stdout, "%s\t%s\n", check.ID, check.Description)
 		}
 	}
-	return 0
+	return dun.ExitSuccess
 }
 
 func runExplain(args []string, stdout io.Writer, stderr io.Writer) int {
@@ -139,24 +139,24 @@ func runExplain(args []string, stdout io.Writer, stderr io.Writer) int {
 	format := fs.String("format", "text", "output format (text|json)")
 	configPath := fs.String("config", "", "path to config file (default .dun/config.yaml if present)")
 	if err := fs.Parse(args); err != nil {
-		return 4
+		return dun.ExitUsageError
 	}
 
 	if fs.NArg() < 1 {
 		fmt.Fprintln(stderr, "usage: dun explain <check-id>")
-		return 4
+		return dun.ExitUsageError
 	}
 	target := fs.Arg(0)
 
 	if _, _, err := dun.LoadConfig(root, *configPath); err != nil {
 		fmt.Fprintf(stderr, "dun explain failed: config error: %v\n", err)
-		return 4
+		return dun.ExitConfigError
 	}
 
 	plan, err := planRepo(root)
 	if err != nil {
 		fmt.Fprintf(stderr, "dun explain failed: %v\n", err)
-		return 1
+		return dun.ExitCheckFailed
 	}
 
 	for _, check := range plan.Checks {
@@ -167,7 +167,7 @@ func runExplain(args []string, stdout io.Writer, stderr io.Writer) int {
 		case "json":
 			if err := json.NewEncoder(stdout).Encode(check); err != nil {
 				fmt.Fprintf(stderr, "encode json: %v\n", err)
-				return 1
+				return dun.ExitCheckFailed
 			}
 		default:
 			fmt.Fprintf(stdout, "id: %s\n", check.ID)
@@ -193,11 +193,11 @@ func runExplain(args []string, stdout io.Writer, stderr io.Writer) int {
 				fmt.Fprintf(stdout, "prompt: %s\n", check.Prompt)
 			}
 		}
-		return 0
+		return dun.ExitSuccess
 	}
 
 	fmt.Fprintf(stderr, "unknown check: %s\n", target)
-	return 1
+	return dun.ExitCheckFailed
 }
 
 func runRespond(args []string, stdout io.Writer, stderr io.Writer) int {
@@ -207,12 +207,12 @@ func runRespond(args []string, stdout io.Writer, stderr io.Writer) int {
 	responsePath := fs.String("response", "-", "response JSON path or - for stdin")
 	format := fs.String("format", "json", "output format (json|llm)")
 	if err := fs.Parse(args); err != nil {
-		return 4
+		return dun.ExitUsageError
 	}
 
 	if *id == "" {
 		fmt.Fprintln(stderr, "usage: dun respond --id <check-id> --response <path|->")
-		return 4
+		return dun.ExitUsageError
 	}
 
 	var reader io.Reader = os.Stdin
@@ -220,7 +220,7 @@ func runRespond(args []string, stdout io.Writer, stderr io.Writer) int {
 		file, err := os.Open(*responsePath)
 		if err != nil {
 			fmt.Fprintf(stderr, "open response: %v\n", err)
-			return 1
+			return dun.ExitRuntimeError
 		}
 		defer file.Close()
 		reader = file
@@ -229,7 +229,7 @@ func runRespond(args []string, stdout io.Writer, stderr io.Writer) int {
 	check, err := respondFn(*id, reader)
 	if err != nil {
 		fmt.Fprintf(stderr, "dun respond failed: %v\n", err)
-		return 1
+		return dun.ExitCheckFailed
 	}
 
 	result := dun.Result{Checks: []dun.CheckResult{check}}
@@ -239,13 +239,13 @@ func runRespond(args []string, stdout io.Writer, stderr io.Writer) int {
 	case "json":
 		if err := json.NewEncoder(stdout).Encode(check); err != nil {
 			fmt.Fprintf(stderr, "encode json: %v\n", err)
-			return 1
+			return dun.ExitCheckFailed
 		}
 	default:
 		fmt.Fprintf(stderr, "unknown format: %s\n", *format)
-		return 1
+		return dun.ExitUsageError
 	}
-	return 0
+	return dun.ExitSuccess
 }
 
 func runInstall(args []string, stdout io.Writer, stderr io.Writer) int {
@@ -253,13 +253,13 @@ func runInstall(args []string, stdout io.Writer, stderr io.Writer) int {
 	fs.SetOutput(stderr)
 	dryRun := fs.Bool("dry-run", false, "show planned changes without writing")
 	if err := fs.Parse(args); err != nil {
-		return 4
+		return dun.ExitUsageError
 	}
 
 	result, err := installRepo(".", dun.InstallOptions{DryRun: *dryRun})
 	if err != nil {
 		fmt.Fprintf(stderr, "dun install failed: %v\n", err)
-		return 1
+		return dun.ExitRuntimeError
 	}
 
 	for _, step := range result.Steps {
@@ -271,7 +271,7 @@ func runInstall(args []string, stdout io.Writer, stderr io.Writer) int {
 	}
 
 	fmt.Fprintln(stdout, "note: add hooks manually if desired (lefthook/pre-commit)")
-	return 0
+	return dun.ExitSuccess
 }
 
 func formatRules(rules []dun.Rule) string {

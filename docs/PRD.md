@@ -112,7 +112,7 @@ standards over time without stalling velocity.
 4. Prompt-as-data output with callback instructions (default).
 5. LLM-friendly and JSON output formats for humans and tooling.
 6. Documentation drift detection with downstream impact plans.
-7. Automation slider (manual/plan/auto/yolo) for agent autonomy.
+7. Automation slider (manual/plan/auto/autonomous) for agent autonomy.
 8. Exit codes aligned with pass/fail outcomes.
 
 ### Should Have (P1)
