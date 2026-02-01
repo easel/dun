@@ -1,0 +1,14 @@
+id: security
+version: "1"
+description: "Security vulnerability scanning"
+priority: 20
+triggers:
+  - type: path-exists
+    value: go.mod
+checks:
+  - id: govulncheck
+    description: "Check for known Go vulnerabilities"
+    type: command
+    command: govulncheck ./...
+    phase: security
+    timeout: 10m

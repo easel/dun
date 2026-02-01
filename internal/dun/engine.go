@@ -1,7 +1,6 @@
 package dun
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -214,7 +213,7 @@ func runCheck(root string, pc plannedCheck, opts Options) (CheckResult, error) {
 	case "hook-check":
 		return runHookCheck(root, pc.Check)
 	case "command":
-		return CheckResult{}, errors.New("command checks not implemented")
+		return runCommandCheck(root, pc.Check)
 	case "go-test":
 		return runGoTestCheck(root, pc.Check)
 	case "go-coverage":

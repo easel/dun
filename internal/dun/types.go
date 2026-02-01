@@ -60,6 +60,17 @@ type Check struct {
 	Command        string   `yaml:"command"`
 	Prompt         string   `yaml:"prompt"`
 	ResponseSchema string   `yaml:"response_schema"`
+
+	// Command check fields (US-012)
+	Parser       string            `yaml:"parser"`        // text|lines|json|json-lines|regex
+	SuccessExit  int               `yaml:"success_exit"`  // Exit code for pass (default 0)
+	WarnExits    []int             `yaml:"warn_exits"`    // Exit codes for warn
+	Timeout      string            `yaml:"timeout"`       // Duration string (default "5m")
+	Shell        string            `yaml:"shell"`         // Shell command (default "sh -c")
+	Env          map[string]string `yaml:"env"`           // Additional env vars
+	IssuePath    string            `yaml:"issue_path"`    // JSONPath for issues
+	IssuePattern string            `yaml:"issue_pattern"` // Regex pattern for issues
+	IssueFields  IssueFieldMap     `yaml:"issue_fields"`  // Field mapping for JSON
 }
 
 type Rule struct {
@@ -67,6 +78,14 @@ type Rule struct {
 	Path     string `yaml:"path"`
 	Pattern  string `yaml:"pattern"`
 	Expected int    `yaml:"expected"`
+	Severity string `yaml:"severity"`
+}
+
+// IssueFieldMap maps JSON paths to issue fields for command check output parsing.
+type IssueFieldMap struct {
+	File     string `yaml:"file"`
+	Line     string `yaml:"line"`
+	Message  string `yaml:"message"`
 	Severity string `yaml:"severity"`
 }
 

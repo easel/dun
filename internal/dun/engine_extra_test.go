@@ -29,11 +29,14 @@ func TestRunCheckUnknownType(t *testing.T) {
 	}
 }
 
-func TestRunCheckCommandNotImplemented(t *testing.T) {
-	pc := plannedCheck{Check: Check{Type: "command"}}
-	_, err := runCheck(".", pc, Options{})
-	if err == nil {
-		t.Fatalf("expected command not implemented error")
+func TestRunCheckCommandEchoHello(t *testing.T) {
+	pc := plannedCheck{Check: Check{Type: "command", ID: "echo-test", Command: "echo hello"}}
+	res, err := runCheck(t.TempDir(), pc, Options{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.Status != "pass" {
+		t.Fatalf("expected pass, got %s", res.Status)
 	}
 }
 
@@ -104,7 +107,7 @@ func TestCheckRepoRunCheckError(t *testing.T) {
 					ID:      "p",
 					Version: "1",
 					Checks: []Check{
-						{ID: "bad", Type: "command"},
+						{ID: "bad", Type: "unknown-type"},
 					},
 				},
 			},

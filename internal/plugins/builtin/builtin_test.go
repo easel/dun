@@ -4,7 +4,7 @@ import "testing"
 
 func TestPluginsIncludesBuiltins(t *testing.T) {
 	plugins := Plugins()
-	if len(plugins) < 3 {
+	if len(plugins) < 5 {
 		t.Fatalf("expected builtin plugins")
 	}
 	found := map[string]bool{}
@@ -14,7 +14,7 @@ func TestPluginsIncludesBuiltins(t *testing.T) {
 			t.Fatalf("expected base for plugin %s", plugin.ID)
 		}
 	}
-	for _, id := range []string{"helix", "git", "go"} {
+	for _, id := range []string{"helix", "git", "go", "beads", "security"} {
 		if !found[id] {
 			t.Fatalf("expected plugin %s", id)
 		}
