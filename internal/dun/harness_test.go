@@ -222,26 +222,22 @@ func TestGeminiHarnessName(t *testing.T) {
 	}
 }
 
-// TestGeminiHarnessSupportsAutomation verifies gemini harness supports expected modes.
+// TestGeminiHarnessSupportsAutomation verifies gemini harness supports all modes.
+// The gemini CLI (Google's agentic coding tool) supports --yolo flag for autonomous execution.
 func TestGeminiHarnessSupportsAutomation(t *testing.T) {
 	harness := NewGeminiHarness(HarnessConfig{})
 
-	// Gemini supports manual, plan, auto but not yolo
-	supportedModes := []AutomationMode{
+	modes := []AutomationMode{
 		AutomationManual,
 		AutomationPlan,
 		AutomationAuto,
+		AutomationYolo,
 	}
 
-	for _, mode := range supportedModes {
+	for _, mode := range modes {
 		if !harness.SupportsAutomation(mode) {
 			t.Fatalf("gemini harness should support mode %s", mode)
 		}
-	}
-
-	// Gemini does not support yolo
-	if harness.SupportsAutomation(AutomationYolo) {
-		t.Fatal("gemini harness should not support yolo mode")
 	}
 }
 
@@ -360,10 +356,10 @@ func TestHarnessConfigDefaults(t *testing.T) {
 		t.Fatalf("expected default command 'claude', got %q", claudeHarness.config.Command)
 	}
 
-	// Gemini harness should default to "python3" command
+	// Gemini harness should default to "gemini" command (Google's agentic CLI)
 	geminiHarness := NewGeminiHarness(HarnessConfig{}).(*GeminiHarness)
-	if geminiHarness.config.Command != "python3" {
-		t.Fatalf("expected default command 'python3', got %q", geminiHarness.config.Command)
+	if geminiHarness.config.Command != "gemini" {
+		t.Fatalf("expected default command 'gemini', got %q", geminiHarness.config.Command)
 	}
 
 	// Codex harness should default to "codex" command
@@ -568,6 +564,8 @@ func TestClaudeHarnessYoloArgs(t *testing.T) {
 }
 
 // TestCodexHarnessYoloArgs tests that yolo mode adds correct arguments.
+// Codex uses "exec --full-auto" for autonomous execution.
+// Reference: ralph-orchestrator/crates/ralph-adapters/src/cli_backend.rs
 func TestCodexHarnessYoloArgs(t *testing.T) {
 	harness := NewCodexHarness(HarnessConfig{
 		Command:        "echo",
@@ -579,9 +577,9 @@ func TestCodexHarnessYoloArgs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	// In yolo mode, should include --ask-for-approval never
-	if !strings.Contains(response, "--ask-for-approval") {
-		t.Fatalf("expected yolo args in output, got %q", response)
+	// In yolo mode, should include --full-auto
+	if !strings.Contains(response, "--full-auto") {
+		t.Fatalf("expected --full-auto in output, got %q", response)
 	}
 }
 
@@ -634,5 +632,558 @@ func TestGeminiHarnessPromptEscaping(t *testing.T) {
 	// Error should be about command execution, not panic
 	if strings.Contains(err.Error(), "unknown harness") {
 		t.Fatalf("gemini should be a known harness")
+	}
+}
+
+// =============================================================================
+// Integration Tests for Multi-Step Agent Behavior
+// =============================================================================
+// These tests verify that harnesses construct the correct command-line arguments
+// for autonomous, multi-step agent execution. Reference: ralph-orchestrator.
+
+// TestClaudeHarnessAutonomousArgs verifies Claude harness uses correct autonomous flags.
+// Claude requires --dangerously-skip-permissions for multi-step execution.
+func TestClaudeHarnessAutonomousArgs(t *testing.T) {
+	harness := NewClaudeHarness(HarnessConfig{
+		Command: "echo",
+	})
+
+	ctx := context.Background()
+	response, err := harness.Execute(ctx, "multi-step task")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Verify all required autonomous mode flags are present
+	required := []string{
+		"--dangerously-skip-permissions", // Required for multi-step execution
+		"--output-format",                // Needed for parseable output
+		"text",                           // Text output format
+		"-p",                             // Prompt flag
+		"multi-step task",                // The actual prompt
+	}
+
+	for _, flag := range required {
+		if !strings.Contains(response, flag) {
+			t.Errorf("missing required flag %q in command: %s", flag, response)
+		}
+	}
+}
+
+// TestGeminiHarnessAutonomousArgs verifies Gemini harness uses correct autonomous flags.
+// The gemini CLI uses --yolo for autonomous tool approval.
+func TestGeminiHarnessAutonomousArgs(t *testing.T) {
+	harness := NewGeminiHarness(HarnessConfig{
+		Command: "echo",
+	})
+
+	ctx := context.Background()
+	response, err := harness.Execute(ctx, "multi-step task")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Verify all required autonomous mode flags are present
+	required := []string{
+		"--yolo",          // Required for autonomous tool approval
+		"-p",              // Prompt flag
+		"multi-step task", // The actual prompt
+	}
+
+	for _, flag := range required {
+		if !strings.Contains(response, flag) {
+			t.Errorf("missing required flag %q in command: %s", flag, response)
+		}
+	}
+}
+
+// TestCodexHarnessAutonomousArgs verifies Codex harness uses correct autonomous flags.
+// Codex uses "exec --full-auto" for autonomous execution with positional prompt.
+func TestCodexHarnessAutonomousArgs(t *testing.T) {
+	harness := NewCodexHarness(HarnessConfig{
+		Command: "echo",
+	})
+
+	ctx := context.Background()
+	response, err := harness.Execute(ctx, "multi-step task")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Verify all required autonomous mode flags are present
+	required := []string{
+		"exec",            // Codex subcommand
+		"--full-auto",     // Required for autonomous execution
+		"multi-step task", // Positional prompt argument (not -p)
+	}
+
+	for _, flag := range required {
+		if !strings.Contains(response, flag) {
+			t.Errorf("missing required flag %q in command: %s", flag, response)
+		}
+	}
+
+	// Codex should NOT use -p flag (uses positional argument)
+	if strings.Contains(response, " -p ") {
+		t.Errorf("codex should not use -p flag, uses positional argument: %s", response)
+	}
+}
+
+// TestAllHarnessesHaveAutonomousMode verifies all harnesses support autonomous execution.
+func TestAllHarnessesHaveAutonomousMode(t *testing.T) {
+	harnesses := []struct {
+		name    string
+		harness Harness
+	}{
+		{"claude", NewClaudeHarness(HarnessConfig{})},
+		{"gemini", NewGeminiHarness(HarnessConfig{})},
+		{"codex", NewCodexHarness(HarnessConfig{})},
+		{"mock", NewMockHarness(HarnessConfig{})},
+	}
+
+	for _, h := range harnesses {
+		t.Run(h.name, func(t *testing.T) {
+			// All harnesses should support all automation modes for multi-step execution
+			modes := []AutomationMode{
+				AutomationManual,
+				AutomationPlan,
+				AutomationAuto,
+				AutomationYolo,
+			}
+
+			for _, mode := range modes {
+				if !h.harness.SupportsAutomation(mode) {
+					t.Errorf("%s harness should support %s mode for multi-step execution", h.name, mode)
+				}
+			}
+		})
+	}
+}
+
+// TestHarnessExecutePreservesPromptContent tests that complex prompts are passed through correctly.
+func TestHarnessExecutePreservesPromptContent(t *testing.T) {
+	complexPrompt := `Step 1: Read the file config.yaml
+Step 2: Parse the YAML content
+Step 3: Validate the schema
+Step 4: Apply the changes`
+
+	harnesses := []struct {
+		name    string
+		harness Harness
+	}{
+		{"claude", NewClaudeHarness(HarnessConfig{Command: "echo"})},
+		{"gemini", NewGeminiHarness(HarnessConfig{Command: "echo"})},
+		{"codex", NewCodexHarness(HarnessConfig{Command: "echo"})},
+	}
+
+	ctx := context.Background()
+	for _, h := range harnesses {
+		t.Run(h.name, func(t *testing.T) {
+			response, err := h.harness.Execute(ctx, complexPrompt)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			// The multi-line prompt should be preserved in the command
+			if !strings.Contains(response, "Step 1") {
+				t.Errorf("prompt content not preserved: %s", response)
+			}
+		})
+	}
+}
+
+// TestHarnessConsistentInterface ensures all harnesses implement the interface consistently.
+func TestHarnessConsistentInterface(t *testing.T) {
+	configs := []HarnessConfig{
+		{}, // Empty config
+		{WorkDir: "/tmp"},
+		{Timeout: 30 * time.Second},
+		{AutomationMode: AutomationYolo},
+	}
+
+	factories := []struct {
+		name    string
+		factory HarnessFactory
+	}{
+		{"claude", NewClaudeHarness},
+		{"gemini", NewGeminiHarness},
+		{"codex", NewCodexHarness},
+		{"mock", NewMockHarness},
+	}
+
+	for _, f := range factories {
+		for _, cfg := range configs {
+			t.Run(f.name, func(t *testing.T) {
+				harness := f.factory(cfg)
+
+				// All harnesses must implement Harness interface
+				var _ Harness = harness
+
+				// Name must not be empty
+				if harness.Name() == "" {
+					t.Error("harness name should not be empty")
+				}
+
+				// SupportsAutomation must not panic
+				_ = harness.SupportsAutomation(AutomationYolo)
+			})
+		}
+	}
+}
+
+// TestCrossAgentExecutionConsistency tests that all agents produce consistent execution patterns.
+func TestCrossAgentExecutionConsistency(t *testing.T) {
+	prompt := "analyze the codebase and suggest improvements"
+
+	harnesses := map[string]Harness{
+		"claude": NewClaudeHarness(HarnessConfig{Command: "echo"}),
+		"gemini": NewGeminiHarness(HarnessConfig{Command: "echo"}),
+		"codex":  NewCodexHarness(HarnessConfig{Command: "echo"}),
+	}
+
+	ctx := context.Background()
+	results := make(map[string]string)
+
+	for name, harness := range harnesses {
+		response, err := harness.Execute(ctx, prompt)
+		if err != nil {
+			t.Fatalf("%s: unexpected error: %v", name, err)
+		}
+		results[name] = response
+	}
+
+	// All harnesses should include the prompt in their output
+	for name, result := range results {
+		if !strings.Contains(result, "analyze") {
+			t.Errorf("%s: prompt not found in command output: %s", name, result)
+		}
+	}
+}
+
+// TestHarnessErrorHandlingConsistency ensures error handling is consistent across harnesses.
+func TestHarnessErrorHandlingConsistency(t *testing.T) {
+	harnesses := []struct {
+		name    string
+		harness Harness
+	}{
+		{"claude", NewClaudeHarness(HarnessConfig{Command: "false"})}, // "false" command always fails
+		{"gemini", NewGeminiHarness(HarnessConfig{Command: "false"})},
+		{"codex", NewCodexHarness(HarnessConfig{Command: "false"})},
+	}
+
+	ctx := context.Background()
+	for _, h := range harnesses {
+		t.Run(h.name, func(t *testing.T) {
+			_, err := h.harness.Execute(ctx, "test")
+			// All harnesses should return an error when the command fails
+			if err == nil {
+				t.Errorf("%s: expected error for failed command", h.name)
+			}
+		})
+	}
+}
+
+// TestHarnessTimeoutConsistency tests timeout behavior across harnesses.
+func TestHarnessTimeoutConsistency(t *testing.T) {
+	timeout := 50 * time.Millisecond
+
+	harnesses := []struct {
+		name    string
+		harness Harness
+	}{
+		{"claude", NewClaudeHarness(HarnessConfig{Command: "sleep", Timeout: timeout})},
+		{"gemini", NewGeminiHarness(HarnessConfig{Command: "sleep", Timeout: timeout})},
+		{"codex", NewCodexHarness(HarnessConfig{Command: "sleep", Timeout: timeout})},
+	}
+
+	ctx := context.Background()
+	for _, h := range harnesses {
+		t.Run(h.name, func(t *testing.T) {
+			start := time.Now()
+			_, err := h.harness.Execute(ctx, "10") // Sleep 10 seconds
+			elapsed := time.Since(start)
+
+			// Should timeout quickly, not wait full 10 seconds
+			if err == nil {
+				t.Errorf("%s: expected timeout error", h.name)
+			}
+			if elapsed > 5*time.Second {
+				t.Errorf("%s: timeout not respected, took %v", h.name, elapsed)
+			}
+		})
+	}
+}
+
+// =============================================================================
+// Cross-Agent Consistency Regression Tests
+// =============================================================================
+// These tests prevent regressions in harness behavior across agent types.
+// If any test fails, it indicates a breaking change in agent invocation.
+
+// TestRegressionClaudeFlags guards against changes to Claude autonomous mode flags.
+// These exact flags are required for multi-step execution:
+// - --dangerously-skip-permissions: Required for autonomous tool execution
+// - --output-format text: Parseable output format
+// - -p: Prompt flag
+func TestRegressionClaudeFlags(t *testing.T) {
+	harness := NewClaudeHarness(HarnessConfig{Command: "echo"})
+	ctx := context.Background()
+
+	response, _ := harness.Execute(ctx, "test")
+
+	// These flags MUST NOT change without explicit decision
+	requiredFlags := map[string]string{
+		"--dangerously-skip-permissions": "required for autonomous tool execution",
+		"--output-format":                "required for parseable output",
+		"text":                           "text output format",
+		"-p":                             "prompt flag",
+	}
+
+	for flag, reason := range requiredFlags {
+		if !strings.Contains(response, flag) {
+			t.Errorf("REGRESSION: Claude missing required flag %q (%s)", flag, reason)
+		}
+	}
+}
+
+// TestRegressionGeminiFlags guards against changes to Gemini autonomous mode flags.
+// These exact flags are required for multi-step execution:
+// - --yolo: Required for autonomous tool approval
+// - -p: Prompt flag
+func TestRegressionGeminiFlags(t *testing.T) {
+	harness := NewGeminiHarness(HarnessConfig{Command: "echo"})
+	ctx := context.Background()
+
+	response, _ := harness.Execute(ctx, "test")
+
+	// These flags MUST NOT change without explicit decision
+	requiredFlags := map[string]string{
+		"--yolo": "required for autonomous tool approval",
+		"-p":     "prompt flag",
+	}
+
+	for flag, reason := range requiredFlags {
+		if !strings.Contains(response, flag) {
+			t.Errorf("REGRESSION: Gemini missing required flag %q (%s)", flag, reason)
+		}
+	}
+}
+
+// TestRegressionCodexFlags guards against changes to Codex autonomous mode flags.
+// These exact flags are required for multi-step execution:
+// - exec: Codex subcommand
+// - --full-auto: Required for autonomous execution
+// - Positional prompt (NOT -p flag)
+func TestRegressionCodexFlags(t *testing.T) {
+	harness := NewCodexHarness(HarnessConfig{Command: "echo"})
+	ctx := context.Background()
+
+	response, _ := harness.Execute(ctx, "test")
+
+	// These flags MUST NOT change without explicit decision
+	requiredFlags := map[string]string{
+		"exec":       "codex subcommand",
+		"--full-auto": "required for autonomous execution",
+	}
+
+	for flag, reason := range requiredFlags {
+		if !strings.Contains(response, flag) {
+			t.Errorf("REGRESSION: Codex missing required flag %q (%s)", flag, reason)
+		}
+	}
+
+	// Codex uses positional argument, NOT -p flag
+	if strings.Contains(response, " -p ") {
+		t.Error("REGRESSION: Codex should use positional prompt, not -p flag")
+	}
+}
+
+// TestRegressionDefaultCommands guards against changes to default commands.
+func TestRegressionDefaultCommands(t *testing.T) {
+	tests := []struct {
+		name            string
+		factory         HarnessFactory
+		expectedCommand string
+	}{
+		{"claude", NewClaudeHarness, "claude"},
+		{"gemini", NewGeminiHarness, "gemini"}, // Changed from python3 to gemini CLI
+		{"codex", NewCodexHarness, "codex"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			harness := tc.factory(HarnessConfig{})
+
+			// Use type assertion to access config
+			var command string
+			switch h := harness.(type) {
+			case *ClaudeHarness:
+				command = h.config.Command
+			case *GeminiHarness:
+				command = h.config.Command
+			case *CodexHarness:
+				command = h.config.Command
+			}
+
+			if command != tc.expectedCommand {
+				t.Errorf("REGRESSION: %s default command changed from %q to %q",
+					tc.name, tc.expectedCommand, command)
+			}
+		})
+	}
+}
+
+// TestRegressionHarnessNames guards against changes to harness names.
+func TestRegressionHarnessNames(t *testing.T) {
+	tests := []struct {
+		factory      HarnessFactory
+		expectedName string
+	}{
+		{NewClaudeHarness, "claude"},
+		{NewGeminiHarness, "gemini"},
+		{NewCodexHarness, "codex"},
+		{NewMockHarness, "mock"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.expectedName, func(t *testing.T) {
+			harness := tc.factory(HarnessConfig{})
+			if harness.Name() != tc.expectedName {
+				t.Errorf("REGRESSION: harness name changed from %q to %q",
+					tc.expectedName, harness.Name())
+			}
+		})
+	}
+}
+
+// TestRegressionRegistryHarnesses guards against removal of default harnesses.
+func TestRegressionRegistryHarnesses(t *testing.T) {
+	registry := NewHarnessRegistry()
+
+	// These harnesses MUST be registered by default
+	requiredHarnesses := []string{"claude", "gemini", "codex", "mock"}
+
+	for _, name := range requiredHarnesses {
+		if !registry.Has(name) {
+			t.Errorf("REGRESSION: %q harness not registered in default registry", name)
+		}
+	}
+}
+
+// TestRegressionAllHarnessesAutonomous guards against removal of automation support.
+func TestRegressionAllHarnessesAutonomous(t *testing.T) {
+	harnesses := []struct {
+		name    string
+		harness Harness
+	}{
+		{"claude", NewClaudeHarness(HarnessConfig{})},
+		{"gemini", NewGeminiHarness(HarnessConfig{})},
+		{"codex", NewCodexHarness(HarnessConfig{})},
+	}
+
+	// All real harnesses MUST support all automation modes
+	modes := []AutomationMode{
+		AutomationManual,
+		AutomationPlan,
+		AutomationAuto,
+		AutomationYolo,
+	}
+
+	for _, h := range harnesses {
+		for _, mode := range modes {
+			if !h.harness.SupportsAutomation(mode) {
+				t.Errorf("REGRESSION: %s harness no longer supports %s mode", h.name, mode)
+			}
+		}
+	}
+}
+
+// TestRegressionAutomationModeValues guards against changes to automation mode string values.
+func TestRegressionAutomationModeValues(t *testing.T) {
+	// These string values are used in configuration and MUST NOT change
+	expected := map[AutomationMode]string{
+		AutomationManual: "manual",
+		AutomationPlan:   "plan",
+		AutomationAuto:   "auto",
+		AutomationYolo:   "yolo",
+	}
+
+	for mode, expectedValue := range expected {
+		if string(mode) != expectedValue {
+			t.Errorf("REGRESSION: AutomationMode %s value changed from %q to %q",
+				mode, expectedValue, string(mode))
+		}
+	}
+}
+
+// TestRegressionHarnessResultFields guards against changes to HarnessResult structure.
+func TestRegressionHarnessResultFields(t *testing.T) {
+	result := HarnessResult{
+		Harness:   "test",
+		Response:  "response",
+		Error:     errors.New("error"),
+		Duration:  time.Second,
+		Timestamp: time.Now(),
+	}
+
+	// All these fields MUST exist and be accessible
+	if result.Harness == "" {
+		t.Error("REGRESSION: HarnessResult.Harness field removed or renamed")
+	}
+	if result.Response == "" {
+		t.Error("REGRESSION: HarnessResult.Response field removed or renamed")
+	}
+	if result.Error == nil {
+		t.Error("REGRESSION: HarnessResult.Error field removed or renamed")
+	}
+	if result.Duration == 0 {
+		t.Error("REGRESSION: HarnessResult.Duration field removed or renamed")
+	}
+	if result.Timestamp.IsZero() {
+		t.Error("REGRESSION: HarnessResult.Timestamp field removed or renamed")
+	}
+}
+
+// TestRegressionHarnessConfigFields guards against changes to HarnessConfig structure.
+func TestRegressionHarnessConfigFields(t *testing.T) {
+	config := HarnessConfig{
+		Name:           "test",
+		Command:        "cmd",
+		WorkDir:        "/tmp",
+		Timeout:        time.Second,
+		AutomationMode: AutomationYolo,
+		Env:            map[string]string{"KEY": "value"},
+		MockResponse:   "response",
+		MockError:      errors.New("error"),
+		MockDelay:      time.Millisecond,
+	}
+
+	// All these fields MUST exist and be accessible
+	if config.Name == "" {
+		t.Error("REGRESSION: HarnessConfig.Name field removed or renamed")
+	}
+	if config.Command == "" {
+		t.Error("REGRESSION: HarnessConfig.Command field removed or renamed")
+	}
+	if config.WorkDir == "" {
+		t.Error("REGRESSION: HarnessConfig.WorkDir field removed or renamed")
+	}
+	if config.Timeout == 0 {
+		t.Error("REGRESSION: HarnessConfig.Timeout field removed or renamed")
+	}
+	if config.AutomationMode == "" {
+		t.Error("REGRESSION: HarnessConfig.AutomationMode field removed or renamed")
+	}
+	if config.Env == nil {
+		t.Error("REGRESSION: HarnessConfig.Env field removed or renamed")
+	}
+	if config.MockResponse == "" {
+		t.Error("REGRESSION: HarnessConfig.MockResponse field removed or renamed")
+	}
+	if config.MockError == nil {
+		t.Error("REGRESSION: HarnessConfig.MockError field removed or renamed")
+	}
+	if config.MockDelay == 0 {
+		t.Error("REGRESSION: HarnessConfig.MockDelay field removed or renamed")
 	}
 }

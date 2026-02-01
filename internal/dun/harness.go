@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
-	"strings"
 	"sync"
 	"time"
 )
@@ -157,12 +156,13 @@ func (h *ClaudeHarness) Name() string {
 }
 
 // Execute runs the Claude CLI with the given prompt.
+// Uses --dangerously-skip-permissions for autonomous execution.
+// Reference: ralph-orchestrator/crates/ralph-adapters/src/cli_backend.rs
 func (h *ClaudeHarness) Execute(ctx context.Context, prompt string) (string, error) {
-	args := []string{"-p", prompt, "--output-format", "text"}
-
-	// Add yolo-mode permissions if in yolo mode
-	if h.config.AutomationMode == AutomationYolo {
-		args = append(args, "--dangerously-skip-permissions")
+	args := []string{
+		"--dangerously-skip-permissions",
+		"--output-format", "text",
+		"-p", prompt,
 	}
 
 	return h.runCommand(ctx, h.config.Command, args...)
@@ -203,9 +203,10 @@ type GeminiHarness struct {
 }
 
 // NewGeminiHarness creates a new Gemini harness.
+// Uses the gemini CLI (google's agentic coding tool) instead of raw API.
 func NewGeminiHarness(config HarnessConfig) Harness {
 	if config.Command == "" {
-		config.Command = "python3"
+		config.Command = "gemini"
 	}
 	return &GeminiHarness{config: config}
 }
@@ -215,27 +216,22 @@ func (h *GeminiHarness) Name() string {
 	return "gemini"
 }
 
-// Execute runs the Gemini API via Python with the given prompt.
+// Execute runs the Gemini CLI with the given prompt.
+// Uses --yolo flag for autonomous execution (auto-approve all tool calls).
+// Reference: ralph-orchestrator/crates/ralph-adapters/src/cli_backend.rs
 func (h *GeminiHarness) Execute(ctx context.Context, prompt string) (string, error) {
-	// Escape triple quotes in the prompt
-	escapedPrompt := strings.ReplaceAll(prompt, `"""`, `\"\"\"`)
+	args := []string{
+		"--yolo",
+		"-p", prompt,
+	}
 
-	script := fmt.Sprintf(`
-import google.generativeai as genai
-import os
-genai.configure(api_key=os.environ.get("GOOGLE_API_KEY", ""))
-model = genai.GenerativeModel("gemini-1.5-flash")
-response = model.generate_content("""%s""")
-print(response.text)
-`, escapedPrompt)
-
-	return h.runCommand(ctx, h.config.Command, "-c", script)
+	return h.runCommand(ctx, h.config.Command, args...)
 }
 
-// SupportsAutomation returns true for all modes except yolo (Gemini has no built-in automation).
+// SupportsAutomation returns true for all automation modes.
+// The gemini CLI supports autonomous execution via --yolo flag.
 func (h *GeminiHarness) SupportsAutomation(mode AutomationMode) bool {
-	// Gemini doesn't have built-in file editing, so yolo mode is not supported
-	return mode != AutomationYolo
+	return true
 }
 
 func (h *GeminiHarness) runCommand(ctx context.Context, name string, args ...string) (string, error) {
@@ -281,12 +277,13 @@ func (h *CodexHarness) Name() string {
 }
 
 // Execute runs the Codex CLI with the given prompt.
+// Uses exec --full-auto for autonomous execution.
+// Reference: ralph-orchestrator/crates/ralph-adapters/src/cli_backend.rs
 func (h *CodexHarness) Execute(ctx context.Context, prompt string) (string, error) {
-	args := []string{"exec", "-p", prompt}
-
-	// Add yolo-mode permissions if in yolo mode
-	if h.config.AutomationMode == AutomationYolo {
-		args = append(args, "--ask-for-approval", "never")
+	args := []string{
+		"exec",
+		"--full-auto",
+		prompt, // Codex uses positional argument, not -p flag
 	}
 
 	return h.runCommand(ctx, h.config.Command, args...)

@@ -589,7 +589,10 @@ func callHarnessImpl(harnessName, prompt, automation string) (string, error) {
 		mode = dun.AutomationAuto
 	}
 
-	ctx := context.Background()
+	// Use a timeout context to prevent hanging on unresponsive harnesses
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
 	result, err := dun.ExecuteHarness(ctx, harnessName, prompt, mode, ".")
 	if err != nil {
 		return "", err

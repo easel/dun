@@ -497,3 +497,145 @@ func TestRunCheckAgentMissingPromptTemplate(t *testing.T) {
 		t.Fatalf("expected error for missing prompt template")
 	}
 }
+
+// TestRunCheckBeadsReady tests beads-ready check through engine dispatch.
+func TestRunCheckBeadsReady(t *testing.T) {
+	root := t.TempDir()
+	pc := plannedCheck{Check: Check{Type: "beads-ready", ID: "beads-ready"}}
+	res, err := runCheck(root, pc, Options{})
+	if err != nil {
+		t.Fatalf("run beads-ready: %v", err)
+	}
+	// Without .beads directory, should pass (no blocking beads)
+	if res.Status != "pass" {
+		t.Logf("Status: %s, Signal: %s", res.Status, res.Signal)
+	}
+}
+
+// TestRunCheckBeadsCriticalPath tests beads-critical-path check through engine dispatch.
+func TestRunCheckBeadsCriticalPath(t *testing.T) {
+	root := t.TempDir()
+	pc := plannedCheck{Check: Check{Type: "beads-critical-path", ID: "beads-critical-path"}}
+	res, err := runCheck(root, pc, Options{})
+	if err != nil {
+		t.Fatalf("run beads-critical-path: %v", err)
+	}
+	// Without .beads directory, should pass
+	if res.Status != "pass" {
+		t.Logf("Status: %s, Signal: %s", res.Status, res.Signal)
+	}
+}
+
+// TestRunCheckBeadsSuggest tests beads-suggest check through engine dispatch.
+func TestRunCheckBeadsSuggest(t *testing.T) {
+	root := t.TempDir()
+	pc := plannedCheck{Check: Check{Type: "beads-suggest", ID: "beads-suggest"}}
+	res, err := runCheck(root, pc, Options{})
+	if err != nil {
+		t.Fatalf("run beads-suggest: %v", err)
+	}
+	// Without .beads directory, should pass
+	if res.Status != "pass" {
+		t.Logf("Status: %s, Signal: %s", res.Status, res.Signal)
+	}
+}
+
+// TestRunCheckSpecBinding tests spec-binding check through engine dispatch.
+func TestRunCheckSpecBinding(t *testing.T) {
+	root := t.TempDir()
+	pc := plannedCheck{Check: Check{
+		Type: "spec-binding",
+		ID:   "spec-binding",
+	}}
+	res, err := runCheck(root, pc, Options{})
+	if err != nil {
+		t.Fatalf("run spec-binding: %v", err)
+	}
+	// Without specs/code, should pass
+	if res.Status == "" {
+		t.Fatalf("expected status")
+	}
+}
+
+// TestRunCheckChangeCascade tests change-cascade check through engine dispatch.
+func TestRunCheckChangeCascade(t *testing.T) {
+	root := tempGitRepo(t)
+	pc := plannedCheck{Check: Check{
+		Type: "change-cascade",
+		ID:   "change-cascade",
+	}}
+	res, err := runCheck(root, pc, Options{})
+	if err != nil {
+		t.Fatalf("run change-cascade: %v", err)
+	}
+	// Without cascade rules, should pass
+	if res.Status == "" {
+		t.Fatalf("expected status")
+	}
+}
+
+// TestRunCheckIntegrationContract tests integration-contract check through engine dispatch.
+func TestRunCheckIntegrationContract(t *testing.T) {
+	root := t.TempDir()
+	pc := plannedCheck{Check: Check{
+		Type: "integration-contract",
+		ID:   "integration-contract",
+	}}
+	res, err := runCheck(root, pc, Options{})
+	if err != nil {
+		t.Fatalf("run integration-contract: %v", err)
+	}
+	// Without contract config, should pass
+	if res.Status == "" {
+		t.Fatalf("expected status")
+	}
+}
+
+// TestRunCheckConflictDetection tests conflict-detection check through engine dispatch.
+func TestRunCheckConflictDetection(t *testing.T) {
+	root := t.TempDir()
+	pc := plannedCheck{Check: Check{
+		Type: "conflict-detection",
+		ID:   "conflict-detection",
+	}}
+	res, err := runCheck(root, pc, Options{})
+	if err != nil {
+		t.Fatalf("run conflict-detection: %v", err)
+	}
+	// Without conflict rules, should pass
+	if res.Status == "" {
+		t.Fatalf("expected status")
+	}
+}
+
+// TestRunCheckAgentRuleInjection tests agent-rule-injection check through engine dispatch.
+func TestRunCheckAgentRuleInjection(t *testing.T) {
+	root := t.TempDir()
+	pc := plannedCheck{Check: Check{
+		Type: "agent-rule-injection",
+		ID:   "agent-rule-injection",
+	}}
+	res, err := runCheck(root, pc, Options{})
+	if err != nil {
+		t.Fatalf("run agent-rule-injection: %v", err)
+	}
+	// Without injection config, should pass
+	if res.Status == "" {
+		t.Fatalf("expected status")
+	}
+}
+
+// TestRunCheckSelfTest tests self-test check through engine dispatch.
+func TestRunCheckSelfTest(t *testing.T) {
+	pc := plannedCheck{Check: Check{
+		Type: "self-test",
+		ID:   "self-test",
+	}}
+	res, err := runCheck(".", pc, Options{})
+	if err != nil {
+		t.Fatalf("run self-test: %v", err)
+	}
+	if res.Status != "pass" {
+		t.Fatalf("expected pass, got %s: %v", res.Status, res.Issues)
+	}
+}

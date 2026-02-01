@@ -238,6 +238,8 @@ func runCheck(root string, pc plannedCheck, opts Options) (CheckResult, error) {
 		return runConflictDetectionCheck(root, pc.Check)
 	case "agent-rule-injection":
 		return runAgentRuleInjectionCheck(root, pc.Check)
+	case "self-test":
+		return runSelfTestCheck(root, pc.Check)
 	default:
 		return CheckResult{}, fmt.Errorf("unknown check type: %s", pc.Check.Type)
 	}
