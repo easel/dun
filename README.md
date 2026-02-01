@@ -134,6 +134,262 @@ iteration. If all checks pass, output <promise>DONE</promise>."
   --completion-promise "DONE" --max-iterations 20
 ```
 
+## Check Types
+
+Dun supports various check types, each with specific configuration options.
+
+### Built-in Checks
+
+#### Go Quality Checks
+
+```yaml
+checks:
+  - id: go-test
+    type: go-test
+    description: Run Go tests
+
+  - id: go-coverage
+    type: go-coverage
+    description: Check test coverage
+
+  - id: go-vet
+    type: go-vet
+    description: Run go vet
+
+  - id: go-staticcheck
+    type: go-staticcheck
+    description: Run staticcheck
+```
+
+#### Git Hygiene Checks
+
+```yaml
+checks:
+  - id: git-status
+    type: git-status
+    description: Check git working tree status
+
+  - id: git-no-changes
+    type: git-status
+    description: Ensure no uncommitted changes
+```
+
+#### Helix Workflow Checks
+
+```yaml
+checks:
+  - id: helix-gates
+    type: gates
+    description: Verify Helix phase gates
+    gate_files:
+      - docs/helix/01-frame/prd.md
+      - docs/helix/02-design/architecture.md
+
+  - id: helix-state
+    type: state-rules
+    description: Check state transition rules
+    state_rules: docs/helix/state-rules.yaml
+```
+
+#### Beads Integration
+
+```yaml
+checks:
+  - id: beads-ready
+    type: beads-ready
+    description: Check if beads are ready
+
+  - id: beads-suggest
+    type: beads-suggest
+    description: Suggest next bead to work on
+```
+
+### Generic Command Checks
+
+Execute arbitrary shell commands with flexible output parsing.
+
+```yaml
+checks:
+  - id: eslint
+    type: command
+    command: npx eslint src/ --format json
+    parser: json              # text|lines|json|json-lines|regex
+    success_exit: 0           # Exit code for pass
+    warn_exits: [1]           # Exit codes for warn
+    timeout: 5m               # Duration string
+    shell: sh -c              # Default shell
+    env:
+      NODE_ENV: test
+    issue_path: $.errors      # JSONPath for issues array
+    issue_fields:
+      file: filename
+      line: line
+      message: message
+      severity: severity
+```
+
+**Parser Types:**
+
+| Parser | Description | Issue Extraction |
+|--------|-------------|------------------|
+| `text` | Raw output as detail | None |
+| `lines` | Each line becomes an issue | Line text as summary |
+| `json` | Parse JSON output | Via `issue_path` and `issue_fields` |
+| `json-lines` | Newline-delimited JSON | Same as json, per line |
+| `regex` | Regex with named groups | Groups: `file`, `message`, `id` |
+
+**Regex Example:**
+
+```yaml
+checks:
+  - id: grep-todos
+    type: command
+    command: grep -rn TODO src/
+    parser: regex
+    issue_pattern: '(?P<file>[^:]+):(?P<line>\d+):(?P<message>.*)'
+```
+
+### Spec-Enforcement Checks
+
+#### Spec-Binding
+
+Verify bidirectional references between specifications and code.
+
+```yaml
+checks:
+  - id: spec-binding
+    type: spec-binding
+    bindings:
+      specs:
+        - pattern: "docs/specs/*.md"
+          implementation_section: "## Implementation"
+          id_pattern: "FEAT-\\d+"
+      code:
+        - pattern: "internal/**/*.go"
+          spec_comment: "// Implements: FEAT-"
+    binding_rules:
+      - type: bidirectional-coverage
+        min_coverage: 0.8
+      - type: no-orphan-specs
+        warn_only: true
+      - type: no-orphan-code
+```
+
+#### Change-Cascade
+
+Detect when upstream changes require downstream updates.
+
+```yaml
+checks:
+  - id: change-cascade
+    type: change-cascade
+    trigger: git-diff          # git-diff|always
+    baseline: HEAD~1
+    cascade_rules:
+      - upstream: "docs/specs/*.md"
+        downstreams:
+          - path: "internal/**/*.go"
+            sections: ["implementation"]
+            required: true
+          - path: "docs/design/*.md"
+            required: false
+```
+
+#### Integration-Contract
+
+Verify component contracts and dependencies.
+
+```yaml
+checks:
+  - id: integration-contract
+    type: integration-contract
+    contracts:
+      map: docs/integration-map.yaml
+      definitions: "internal/interfaces/*.go"
+    contract_rules:
+      - type: all-providers-implemented
+      - type: all-consumers-satisfied
+      - type: no-circular-dependencies
+```
+
+**Integration Map Format:**
+
+```yaml
+# docs/integration-map.yaml
+components:
+  auth-service:
+    provides:
+      - name: Authenticator
+        definition: internal/interfaces/auth.go
+    consumes:
+      - name: UserStore
+        from: user-service
+  user-service:
+    provides:
+      - name: UserStore
+        definition: internal/interfaces/user.go
+```
+
+#### Conflict-Detection
+
+Detect multi-agent work overlap via claim tracking.
+
+```yaml
+checks:
+  - id: conflict-detection
+    type: conflict-detection
+    tracking:
+      manifest: .dun/work-in-progress.yaml
+      claim_pattern: "// CLAIMED:"
+    conflict_rules:
+      - type: no-overlap
+        scope: function        # file|function|line
+        required: true
+      - type: claim-before-edit
+        required: false
+```
+
+**WIP Manifest Format:**
+
+```yaml
+# .dun/work-in-progress.yaml
+claims:
+  - agent: agent-1
+    claimed_at: 2024-01-15T10:00:00Z
+    files:
+      - path: internal/auth/handler.go
+        scope: file
+  - agent: agent-2
+    claimed_at: 2024-01-15T10:05:00Z
+    files:
+      - path: internal/auth/handler.go
+        scope: function
+        function: ValidateToken
+```
+
+#### Agent-Rule-Injection
+
+Dynamically inject rules into agent prompts.
+
+```yaml
+checks:
+  - id: agent-rule-injection
+    type: agent-rule-injection
+    base_prompt: prompts/code-review.md
+    inject_rules:
+      - source: docs/coding-standards.md
+        section: "## Guidelines"
+      - source: from_registry
+        section: "## Project Rules"
+    enforce_rules:
+      - id: require-tests
+        pattern: "test.*added|coverage.*increased"
+        required: true
+      - id: security-review
+        pattern: "security.*reviewed"
+        required: false
+```
+
 ## Extensibility Model
 
 Dun is designed to be easy to extend. The core types are:

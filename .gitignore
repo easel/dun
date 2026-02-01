@@ -6,7 +6,7 @@
 state.json
 
 # Build artifacts
-dun
+/dun
 coverage.out
 
 # Claude Code config

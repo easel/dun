@@ -302,3 +302,211 @@ func TestLoadPluginsFromDirSkipsFiles(t *testing.T) {
 		t.Fatalf("expected 0 plugins, got %d", len(plugins))
 	}
 }
+
+func TestLoadCachedPlugins(t *testing.T) {
+	// Create temp cache directory structure
+	tmpCache := t.TempDir()
+	libraryDir := filepath.Join(tmpCache, "ddx", "library", "plugins", "helix")
+	if err := os.MkdirAll(libraryDir, 0755); err != nil {
+		t.Fatalf("create library dir: %v", err)
+	}
+
+	manifest := `id: helix
+version: "1"
+description: "Helix workflow template"
+checks:
+  - id: helix-check
+    type: command
+    command: echo helix
+`
+	if err := os.WriteFile(filepath.Join(libraryDir, "plugin.yaml"), []byte(manifest), 0644); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+
+	// Override XDG_CACHE_HOME to use our temp dir
+	origCache := os.Getenv("XDG_CACHE_HOME")
+	os.Setenv("XDG_CACHE_HOME", tmpCache)
+	t.Cleanup(func() { os.Setenv("XDG_CACHE_HOME", origCache) })
+
+	plugins, err := LoadCachedPlugins()
+	if err != nil {
+		t.Fatalf("load cached plugins: %v", err)
+	}
+	if len(plugins) != 1 {
+		t.Fatalf("expected 1 plugin, got %d", len(plugins))
+	}
+	if plugins[0].Manifest.ID != "helix" {
+		t.Fatalf("expected id=helix, got %s", plugins[0].Manifest.ID)
+	}
+}
+
+func TestLoadCachedPluginsMissingCache(t *testing.T) {
+	// Use a non-existent cache directory
+	tmpCache := t.TempDir()
+	origCache := os.Getenv("XDG_CACHE_HOME")
+	os.Setenv("XDG_CACHE_HOME", tmpCache)
+	t.Cleanup(func() { os.Setenv("XDG_CACHE_HOME", origCache) })
+
+	// No ddx/library directory exists - should return empty slice, not error
+	plugins, err := LoadCachedPlugins()
+	if err != nil {
+		t.Fatalf("expected nil error for missing cache, got %v", err)
+	}
+	if len(plugins) != 0 {
+		t.Fatalf("expected 0 plugins for missing cache, got %d", len(plugins))
+	}
+}
+
+func TestCachedPluginPriority(t *testing.T) {
+	// Setup: create cached plugin
+	tmpCache := t.TempDir()
+	cachedPluginDir := filepath.Join(tmpCache, "ddx", "library", "plugins", "shared")
+	if err := os.MkdirAll(cachedPluginDir, 0755); err != nil {
+		t.Fatalf("create cached plugin dir: %v", err)
+	}
+	cachedManifest := `id: shared
+version: "1"
+description: "Cached version"
+checks:
+  - id: cachedcheck
+    type: command
+    command: echo cached
+`
+	if err := os.WriteFile(filepath.Join(cachedPluginDir, "plugin.yaml"), []byte(cachedManifest), 0644); err != nil {
+		t.Fatalf("write cached manifest: %v", err)
+	}
+
+	// Setup: create project plugin with same ID (should override cached)
+	projectDir := t.TempDir()
+	projectPluginDir := filepath.Join(projectDir, ".dun", "plugins", "shared")
+	if err := os.MkdirAll(projectPluginDir, 0755); err != nil {
+		t.Fatalf("create project plugin dir: %v", err)
+	}
+	projectManifest := `id: shared
+version: "2"
+description: "Project version"
+checks:
+  - id: projectcheck
+    type: command
+    command: echo project
+`
+	if err := os.WriteFile(filepath.Join(projectPluginDir, "plugin.yaml"), []byte(projectManifest), 0644); err != nil {
+		t.Fatalf("write project manifest: %v", err)
+	}
+
+	// Override environment
+	origCache := os.Getenv("XDG_CACHE_HOME")
+	os.Setenv("XDG_CACHE_HOME", tmpCache)
+	t.Cleanup(func() { os.Setenv("XDG_CACHE_HOME", origCache) })
+
+	origHome := os.Getenv("HOME")
+	emptyHome := t.TempDir() // Empty home so no user plugins
+	os.Setenv("HOME", emptyHome)
+	t.Cleanup(func() { os.Setenv("HOME", origHome) })
+
+	origDir, _ := os.Getwd()
+	if err := os.Chdir(projectDir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	t.Cleanup(func() { os.Chdir(origDir) })
+
+	// Override builtins to empty
+	origBuiltins := builtinPlugins
+	builtinPlugins = func() []builtin.Entry { return nil }
+	t.Cleanup(func() { builtinPlugins = origBuiltins })
+
+	plugins, err := LoadBuiltins()
+	if err != nil {
+		t.Fatalf("load builtins: %v", err)
+	}
+
+	// Should have 1 plugin (merged)
+	if len(plugins) != 1 {
+		t.Fatalf("expected 1 plugin (merged), got %d", len(plugins))
+	}
+
+	// Project should override cached
+	if plugins[0].Manifest.Version != "2" {
+		t.Fatalf("expected version=2 (project override), got %s", plugins[0].Manifest.Version)
+	}
+	if plugins[0].Manifest.Description != "Project version" {
+		t.Fatalf("expected project description, got %s", plugins[0].Manifest.Description)
+	}
+}
+
+func TestCachedPluginOverridesBuiltin(t *testing.T) {
+	// Setup: create cached plugin
+	tmpCache := t.TempDir()
+	cachedPluginDir := filepath.Join(tmpCache, "ddx", "library", "plugins", "testplugin")
+	if err := os.MkdirAll(cachedPluginDir, 0755); err != nil {
+		t.Fatalf("create cached plugin dir: %v", err)
+	}
+	cachedManifest := `id: testplugin
+version: "2"
+description: "Cached version"
+checks:
+  - id: cachedcheck
+    type: command
+    command: echo cached
+`
+	if err := os.WriteFile(filepath.Join(cachedPluginDir, "plugin.yaml"), []byte(cachedManifest), 0644); err != nil {
+		t.Fatalf("write cached manifest: %v", err)
+	}
+
+	// Override environment
+	origCache := os.Getenv("XDG_CACHE_HOME")
+	os.Setenv("XDG_CACHE_HOME", tmpCache)
+	t.Cleanup(func() { os.Setenv("XDG_CACHE_HOME", origCache) })
+
+	origHome := os.Getenv("HOME")
+	emptyHome := t.TempDir()
+	os.Setenv("HOME", emptyHome)
+	t.Cleanup(func() { os.Setenv("HOME", origHome) })
+
+	emptyProject := t.TempDir()
+	origDir, _ := os.Getwd()
+	if err := os.Chdir(emptyProject); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	t.Cleanup(func() { os.Chdir(origDir) })
+
+	// Create a fake builtin with same ID
+	origBuiltins := builtinPlugins
+	builtinPlugins = func() []builtin.Entry {
+		return []builtin.Entry{
+			{
+				ID:   "testplugin",
+				Base: ".",
+				FS: fstest.MapFS{
+					"plugin.yaml": {Data: []byte(`id: testplugin
+version: "1"
+description: "Builtin version"
+checks:
+  - id: builtincheck
+    type: command
+    command: echo builtin
+`)},
+				},
+			},
+		}
+	}
+	t.Cleanup(func() { builtinPlugins = origBuiltins })
+
+	plugins, err := LoadBuiltins()
+	if err != nil {
+		t.Fatalf("load builtins: %v", err)
+	}
+
+	// Should have 1 plugin
+	if len(plugins) != 1 {
+		t.Fatalf("expected 1 plugin, got %d", len(plugins))
+	}
+
+	// Cached should override builtin
+	if plugins[0].Manifest.Version != "2" {
+		t.Fatalf("expected version=2 (cached override), got %s", plugins[0].Manifest.Version)
+	}
+	if plugins[0].Manifest.Description != "Cached version" {
+		t.Fatalf("expected cached description, got %s", plugins[0].Manifest.Description)
+	}
+}

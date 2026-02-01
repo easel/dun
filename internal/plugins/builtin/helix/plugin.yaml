@@ -1,5 +1,5 @@
 id: helix
-version: "1.0.0"
+version: "2.0.0"
 description: "Helix workflow validation and agent checks"
 priority: 50
 triggers:
@@ -96,3 +96,26 @@ checks:
       - docs/helix/03-test/test-plan.md
     prompt: prompts/reconcile-stack.md
     response_schema: responses/agent-default.json
+
+  - id: helix-spec-binding
+    description: "Verify feature specs have implementations"
+    type: spec-binding
+    phase: build
+    spec_pattern: docs/helix/01-frame/user-stories/US-*.md
+    code_pattern: internal/**/*.go
+    binding_marker: "// Implements: US-"
+
+  - id: helix-change-cascade
+    description: "Verify downstream updates when PRD changes"
+    type: change-cascade
+    phase: iterate
+    upstream: docs/helix/01-frame/prd.md
+    downstreams:
+      - docs/helix/02-design/architecture.md
+      - docs/helix/01-frame/user-stories/*.md
+
+  - id: helix-conflict-detection
+    description: "Detect overlapping agent work"
+    type: conflict-detection
+    phase: build
+    manifest: .dun/work-in-progress.yaml

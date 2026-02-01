@@ -14,25 +14,90 @@ import (
 
 var builtinPlugins = builtin.Plugins
 
-// LoadBuiltins loads all builtin plugins and external plugins.
+// LoadBuiltins loads all builtin plugins, cached plugins, and external plugins.
+// Priority (lowest to highest): builtin < cached < user < project.
 // External plugins from the project directory override user plugins with the same ID.
 func LoadBuiltins() ([]Plugin, error) {
 	var plugins []Plugin
+	seen := make(map[string]int) // ID -> index in plugins slice
+
+	// 1. Load builtin plugins (lowest priority)
 	for _, entry := range builtinPlugins() {
 		p, err := loadPluginFS(entry.FS, entry.Base)
 		if err != nil {
 			return nil, err
 		}
+		seen[p.Manifest.ID] = len(plugins)
 		plugins = append(plugins, p)
 	}
 
+	// 2. Load cached plugins from ~/.cache/ddx/library (overrides builtins)
+	cached, err := LoadCachedPlugins()
+	if err != nil {
+		return nil, err
+	}
+	for _, p := range cached {
+		if idx, ok := seen[p.Manifest.ID]; ok {
+			plugins[idx] = p
+		} else {
+			seen[p.Manifest.ID] = len(plugins)
+			plugins = append(plugins, p)
+		}
+	}
+
+	// 3. Load external plugins (user and project - highest priority)
 	external, err := LoadExternalPlugins()
 	if err != nil {
 		return nil, err
 	}
-	plugins = append(plugins, external...)
+	for _, p := range external {
+		if idx, ok := seen[p.Manifest.ID]; ok {
+			plugins[idx] = p
+		} else {
+			seen[p.Manifest.ID] = len(plugins)
+			plugins = append(plugins, p)
+		}
+	}
 
 	return plugins, nil
+}
+
+// LoadCachedPlugins loads plugins from the ddx library cache.
+// Returns plugins found in ~/.cache/ddx/library/plugins/*/plugin.yaml.
+// Returns an empty slice (not an error) if the cache directory doesn't exist.
+func LoadCachedPlugins() ([]Plugin, error) {
+	cacheDir, err := getCacheDir()
+	if err != nil {
+		// Can't determine cache dir, skip cached plugins
+		return nil, nil
+	}
+
+	libraryDir := filepath.Join(cacheDir, "ddx", "library", "plugins")
+	if _, err := os.Stat(libraryDir); os.IsNotExist(err) {
+		// Cache doesn't exist - log a helpful warning
+		slog.Debug("ddx library cache not found; run 'ddx update' to populate", "path", libraryDir)
+		return nil, nil
+	}
+
+	plugins, err := loadPluginsFromDir(libraryDir)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(plugins) > 0 {
+		slog.Debug("loaded cached plugins from ddx library", "count", len(plugins), "path", libraryDir)
+	}
+
+	return plugins, nil
+}
+
+// getCacheDir returns the user cache directory.
+// It uses os.UserCacheDir() which returns:
+// - $XDG_CACHE_HOME or ~/.cache on Linux
+// - ~/Library/Caches on macOS
+// - %LocalAppData% on Windows
+func getCacheDir() (string, error) {
+	return os.UserCacheDir()
 }
 
 // LoadExternalPlugins loads plugins from user and project directories.
