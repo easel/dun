@@ -1,3 +1,16 @@
+# Beads
 .beads/
+
+# Runtime
 .runtime/
 state.json
+
+# Build artifacts
+dun
+coverage.out
+
+# Claude Code config
+.claude/
+.claude-flow/
+CLAUDE.md
+.mcp.json
