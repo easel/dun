@@ -8,6 +8,11 @@ state.json
 # Build artifacts
 /dun
 coverage.out
+dun-cover-*.out
+
+# Test artifacts
+.dun/
+test_repo/
 
 # Claude Code config
 .claude/
