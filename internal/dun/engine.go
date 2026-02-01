@@ -232,6 +232,12 @@ func runCheck(root string, pc plannedCheck, opts Options) (CheckResult, error) {
 		return runSpecBindingCheck(root, pc.Check)
 	case "change-cascade":
 		return runChangeCascadeCheck(root, pc.Check)
+	case "integration-contract":
+		return runIntegrationContractCheck(root, pc.Check)
+	case "conflict-detection":
+		return runConflictDetectionCheck(root, pc.Check)
+	case "agent-rule-injection":
+		return runAgentRuleInjectionCheck(root, pc.Check)
 	default:
 		return CheckResult{}, fmt.Errorf("unknown check type: %s", pc.Check.Type)
 	}

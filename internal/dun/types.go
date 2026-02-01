@@ -97,6 +97,38 @@ type Check struct {
 	} `yaml:"cascade_rules"`
 	Trigger  string `yaml:"trigger"`  // git-diff|always
 	Baseline string `yaml:"baseline"` // default: HEAD~1
+
+	// Integration-contract fields (spec-enforcement checks)
+	Contracts struct {
+		Map         string `yaml:"map"`         // Path to integration-map.yaml
+		Definitions string `yaml:"definitions"` // Glob for interface definitions
+	} `yaml:"contracts"`
+	ContractRules []struct {
+		Type string `yaml:"type"` // all-providers-implemented, all-consumers-satisfied, no-circular-dependencies
+	} `yaml:"contract_rules"`
+
+	// Conflict-detection fields (spec-enforcement checks)
+	Tracking struct {
+		Manifest     string `yaml:"manifest"`      // Path to WIP manifest
+		ClaimPattern string `yaml:"claim_pattern"` // Pattern in code marking claimed sections
+	} `yaml:"tracking"`
+	ConflictRules []struct {
+		Type     string `yaml:"type"`     // no-overlap, claim-before-edit
+		Scope    string `yaml:"scope"`    // file, function, line
+		Required bool   `yaml:"required"` // If false, warn only
+	} `yaml:"conflict_rules"`
+
+	// Agent-rule-injection fields (spec-enforcement checks)
+	BasePrompt  string `yaml:"base_prompt"` // Path to base prompt template
+	InjectRules []struct {
+		Source  string `yaml:"source"`  // File path or "from_registry"
+		Section string `yaml:"section"` // Where to inject in prompt
+	} `yaml:"inject_rules"`
+	EnforceRules []struct {
+		ID       string `yaml:"id"`
+		Pattern  string `yaml:"pattern"`  // Regex to verify in output
+		Required bool   `yaml:"required"` // Whether pattern is mandatory
+	} `yaml:"enforce_rules"`
 }
 
 type Rule struct {
