@@ -1393,3 +1393,406 @@ func TestNoTimestampsInOutput(t *testing.T) {
 		}
 	}
 }
+
+// Tests for runVersion command
+
+func TestRunVersionBasic(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := run([]string{"version"}, &stdout, &stderr)
+	if code != dun.ExitSuccess {
+		t.Fatalf("expected success, got %d", code)
+	}
+	output := stdout.String()
+	// Should contain version info
+	if !strings.Contains(output, "dun") || !strings.Contains(output, "dev") {
+		t.Fatalf("expected version output, got: %s", output)
+	}
+}
+
+func TestRunVersionJSON(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := run([]string{"version", "--json"}, &stdout, &stderr)
+	if code != dun.ExitSuccess {
+		t.Fatalf("expected success, got %d", code)
+	}
+	output := stdout.String()
+	// Should be valid JSON with version field
+	var result map[string]string
+	if err := json.Unmarshal([]byte(output), &result); err != nil {
+		t.Fatalf("expected valid JSON: %v", err)
+	}
+	if _, ok := result["version"]; !ok {
+		t.Fatalf("expected version field in JSON output")
+	}
+}
+
+func TestRunVersionParseError(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := run([]string{"version", "--badflag"}, &stdout, &stderr)
+	if code != dun.ExitUsageError {
+		t.Fatalf("expected code %d, got %d", dun.ExitUsageError, code)
+	}
+}
+
+func TestRunVersionJSONWriteError(t *testing.T) {
+	errWriter := &failWriter{err: errors.New("write failed")}
+	var stderr bytes.Buffer
+	code := run([]string{"version", "--json"}, errWriter, &stderr)
+	if code != dun.ExitRuntimeError {
+		t.Fatalf("expected code %d, got %d", dun.ExitRuntimeError, code)
+	}
+}
+
+func TestRunVersionCheck(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	// The --check flag tries to check for updates, may fail due to network
+	code := run([]string{"version", "--check"}, &stdout, &stderr)
+	// Either succeeds or fails with runtime error (network issue)
+	if code != dun.ExitSuccess && code != dun.ExitRuntimeError {
+		t.Fatalf("expected success or runtime error, got %d", code)
+	}
+	// Should have version info at least
+	output := stdout.String()
+	if !strings.Contains(output, "dun") {
+		t.Fatalf("expected version output, got: %s", output)
+	}
+}
+
+// Tests for runUpdate command
+
+func TestRunUpdateParseError(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := run([]string{"update", "--badflag"}, &stdout, &stderr)
+	if code != dun.ExitUsageError {
+		t.Fatalf("expected code %d, got %d", dun.ExitUsageError, code)
+	}
+}
+
+func TestRunUpdateDryRun(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	// Dry run mode should output plan without applying
+	code := run([]string{"update", "--dry-run"}, &stdout, &stderr)
+	// May succeed or fail depending on network - just verify it runs
+	if code != dun.ExitSuccess && code != dun.ExitRuntimeError {
+		t.Fatalf("expected success or runtime error, got %d", code)
+	}
+}
+
+// Tests for quorumStrategyName helper
+
+func TestQuorumStrategyName(t *testing.T) {
+	tests := []struct {
+		cfg  dun.QuorumConfig
+		want string
+	}{
+		{dun.QuorumConfig{Strategy: "majority"}, "majority"},
+		{dun.QuorumConfig{Threshold: 3}, "3"},
+		{dun.QuorumConfig{}, "default"},
+		{dun.QuorumConfig{Strategy: "custom", Threshold: 2}, "custom"}, // Strategy takes precedence
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.want, func(t *testing.T) {
+			got := quorumStrategyName(tt.cfg)
+			if got != tt.want {
+				t.Errorf("quorumStrategyName(%+v) = %q, want %q", tt.cfg, got, tt.want)
+			}
+		})
+	}
+}
+
+// Tests for runQuorum function
+
+func TestRunQuorumNoHarnesses(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cfg := dun.QuorumConfig{Harnesses: []string{}}
+	_, err := runQuorum(cfg, "test prompt", "auto", &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error for no harnesses")
+	}
+	if !strings.Contains(err.Error(), "no harnesses configured") {
+		t.Fatalf("expected 'no harnesses' error, got: %v", err)
+	}
+}
+
+func TestRunQuorumSequential(t *testing.T) {
+	// Mock harness calls
+	origHarness := callHarnessFn
+	callCount := 0
+	callHarnessFn = func(harness, prompt, automation string) (string, error) {
+		callCount++
+		return "mock response", nil
+	}
+	defer func() { callHarnessFn = origHarness }()
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cfg := dun.QuorumConfig{
+		Harnesses: []string{"mock1", "mock2"},
+		Mode:      "sequential",
+		Strategy:  "majority",
+	}
+
+	response, err := runQuorum(cfg, "test prompt", "auto", &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("runQuorum failed: %v", err)
+	}
+	if callCount != 2 {
+		t.Fatalf("expected 2 harness calls, got %d", callCount)
+	}
+	if response == "" {
+		t.Fatal("expected non-empty response")
+	}
+	if !strings.Contains(stdout.String(), "sequentially") {
+		t.Fatalf("expected sequential message in output")
+	}
+}
+
+func TestRunQuorumParallel(t *testing.T) {
+	// Mock harness calls
+	origHarness := callHarnessFn
+	callCount := 0
+	callHarnessFn = func(harness, prompt, automation string) (string, error) {
+		callCount++
+		return "mock response", nil
+	}
+	defer func() { callHarnessFn = origHarness }()
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cfg := dun.QuorumConfig{
+		Harnesses: []string{"mock1", "mock2"},
+		Mode:      "parallel",
+		Strategy:  "majority",
+	}
+
+	response, err := runQuorum(cfg, "test prompt", "auto", &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("runQuorum failed: %v", err)
+	}
+	if callCount != 2 {
+		t.Fatalf("expected 2 harness calls, got %d", callCount)
+	}
+	if response == "" {
+		t.Fatal("expected non-empty response")
+	}
+	if !strings.Contains(stdout.String(), "parallel") {
+		t.Fatalf("expected parallel message in output")
+	}
+}
+
+func TestRunQuorumWithErrors(t *testing.T) {
+	// Mock harness calls - first one fails, but quorum still met (2/3 succeed)
+	origHarness := callHarnessFn
+	callCount := 0
+	callHarnessFn = func(harness, prompt, automation string) (string, error) {
+		callCount++
+		if callCount == 1 {
+			return "", errors.New("harness error")
+		}
+		return "success response", nil
+	}
+	defer func() { callHarnessFn = origHarness }()
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cfg := dun.QuorumConfig{
+		Harnesses: []string{"mock1", "mock2", "mock3"}, // 3 harnesses, 2 succeed = majority met
+		Mode:      "sequential",
+		Strategy:  "majority",
+	}
+
+	response, err := runQuorum(cfg, "test prompt", "auto", &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("runQuorum failed: %v", err)
+	}
+	// Should still get a response from the successful harness
+	if response == "" {
+		t.Fatal("expected non-empty response despite one failure")
+	}
+	// Should have error message in stderr
+	if !strings.Contains(stderr.String(), "failed") {
+		t.Fatalf("expected error message in stderr")
+	}
+}
+
+func TestRunQuorumQuorumNotMet(t *testing.T) {
+	// Mock harness calls - only 1/2 succeed, quorum not met
+	origHarness := callHarnessFn
+	callCount := 0
+	callHarnessFn = func(harness, prompt, automation string) (string, error) {
+		callCount++
+		if callCount == 1 {
+			return "", errors.New("harness error")
+		}
+		return "success response", nil
+	}
+	defer func() { callHarnessFn = origHarness }()
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cfg := dun.QuorumConfig{
+		Harnesses: []string{"mock1", "mock2"},
+		Mode:      "sequential",
+		Strategy:  "majority",
+	}
+
+	_, err := runQuorum(cfg, "test prompt", "auto", &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error when quorum not met")
+	}
+	if !strings.Contains(err.Error(), "quorum not met") {
+		t.Fatalf("expected 'quorum not met' error, got: %v", err)
+	}
+}
+
+func TestRunQuorumAllFail(t *testing.T) {
+	// Mock harness calls - all fail
+	origHarness := callHarnessFn
+	callHarnessFn = func(harness, prompt, automation string) (string, error) {
+		return "", errors.New("harness error")
+	}
+	defer func() { callHarnessFn = origHarness }()
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cfg := dun.QuorumConfig{
+		Harnesses: []string{"mock1", "mock2"},
+		Mode:      "sequential",
+		Strategy:  "majority",
+	}
+
+	_, err := runQuorum(cfg, "test prompt", "auto", &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error when all harnesses fail")
+	}
+	if !strings.Contains(err.Error(), "all harnesses failed") {
+		t.Fatalf("expected 'all harnesses failed' error, got: %v", err)
+	}
+}
+
+func TestRunQuorumConflict(t *testing.T) {
+	// Mock harness calls - conflicting exit signals
+	origHarness := callHarnessFn
+	callCount := 0
+	callHarnessFn = func(harness, prompt, automation string) (string, error) {
+		callCount++
+		if callCount == 1 {
+			return "---DUN_STATUS---\nEXIT_SIGNAL: true\n---END_DUN_STATUS---", nil
+		}
+		return "no exit signal", nil // Conflict: different response
+	}
+	defer func() { callHarnessFn = origHarness }()
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cfg := dun.QuorumConfig{
+		Harnesses: []string{"mock1", "mock2"},
+		Mode:      "sequential",
+		Strategy:  "any", // Any is always met
+	}
+
+	_, err := runQuorum(cfg, "test prompt", "auto", &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error when conflict detected")
+	}
+	if !strings.Contains(stdout.String(), "Conflict detected") {
+		t.Fatalf("expected conflict message in stdout")
+	}
+}
+
+func TestRunQuorumConflictWithPrefer(t *testing.T) {
+	// Mock harness calls - conflicting exit signals, but prefer specified
+	origHarness := callHarnessFn
+	callHarnessFn = func(harness, prompt, automation string) (string, error) {
+		if harness == "preferred" {
+			return "preferred response with EXIT_SIGNAL: true", nil
+		}
+		return "no exit signal", nil // Conflict
+	}
+	defer func() { callHarnessFn = origHarness }()
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cfg := dun.QuorumConfig{
+		Harnesses: []string{"other", "preferred"},
+		Mode:      "sequential",
+		Strategy:  "any",
+		Prefer:    "preferred",
+	}
+
+	response, err := runQuorum(cfg, "test prompt", "auto", &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("runQuorum failed: %v", err)
+	}
+	if !strings.Contains(response, "preferred response") {
+		t.Fatalf("expected preferred response, got: %s", response)
+	}
+}
+
+func TestRunQuorumConflictWithEscalate(t *testing.T) {
+	// Mock harness calls - conflicting exit signals, escalate to human
+	origHarness := callHarnessFn
+	callCount := 0
+	callHarnessFn = func(harness, prompt, automation string) (string, error) {
+		callCount++
+		if callCount == 1 {
+			return "---DUN_STATUS---\nEXIT_SIGNAL: true\n---END_DUN_STATUS---", nil
+		}
+		return "no exit signal", nil
+	}
+	defer func() { callHarnessFn = origHarness }()
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cfg := dun.QuorumConfig{
+		Harnesses: []string{"mock1", "mock2"},
+		Mode:      "sequential",
+		Strategy:  "any",
+		Escalate:  true,
+	}
+
+	_, err := runQuorum(cfg, "test prompt", "auto", &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error when escalating")
+	}
+	if !strings.Contains(stderr.String(), "Escalating") {
+		t.Fatalf("expected escalation message in stderr")
+	}
+}
+
+func TestRunQuorumPreferredHarnessNoConflict(t *testing.T) {
+	// Mock harness calls - no conflict, but prefer specified
+	origHarness := callHarnessFn
+	callHarnessFn = func(harness, prompt, automation string) (string, error) {
+		if harness == "preferred" {
+			return "preferred response", nil
+		}
+		return "other response", nil
+	}
+	defer func() { callHarnessFn = origHarness }()
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cfg := dun.QuorumConfig{
+		Harnesses: []string{"other", "preferred"},
+		Mode:      "sequential",
+		Strategy:  "any",
+		Prefer:    "preferred",
+	}
+
+	response, err := runQuorum(cfg, "test prompt", "auto", &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("runQuorum failed: %v", err)
+	}
+	if response != "preferred response" {
+		t.Fatalf("expected preferred response, got: %s", response)
+	}
+}
