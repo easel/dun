@@ -1,0 +1,22 @@
+id: beads
+version: "1.0.0"
+description: "Beads issue tracking integration for agent workflows"
+triggers:
+  - type: path-exists
+    value: .beads
+
+checks:
+  - id: beads-ready
+    description: "Find workable beads (no blockers, not claimed)"
+    type: beads-ready
+    phase: iterate
+
+  - id: beads-critical-path
+    description: "Identify critical path through blocked beads"
+    type: beads-critical-path
+    phase: iterate
+
+  - id: beads-suggest
+    description: "Suggest next bead to work on based on priority and dependencies"
+    type: beads-suggest
+    phase: iterate

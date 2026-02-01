@@ -223,6 +223,12 @@ func runCheck(root string, pc plannedCheck, opts Options) (CheckResult, error) {
 		return runGoVetCheck(root, pc.Check)
 	case "go-staticcheck":
 		return runGoStaticcheck(root, pc.Check)
+	case "beads-ready":
+		return runBeadsReadyCheck(root, pc.Check)
+	case "beads-critical-path":
+		return runBeadsCriticalPathCheck(root, pc.Check)
+	case "beads-suggest":
+		return runBeadsSuggestCheck(root, pc.Check)
 	default:
 		return CheckResult{}, fmt.Errorf("unknown check type: %s", pc.Check.Type)
 	}
