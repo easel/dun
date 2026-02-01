@@ -68,7 +68,7 @@ This test plan covers the `dun iterate` and `dun loop` commands that enable auto
 | Test Case | Existing Test | Status |
 |-----------|---------------|--------|
 | Claude: --dangerously-skip-permissions | `TestCallHarnessClaudeYolo` | Covered |
-| Codex: --ask-for-approval never | `TestCallHarnessCodexYolo` | Covered |
+| Codex: --full-auto | `TestCallHarnessCodexYolo` | Covered |
 | Gemini: appropriate API config | - | **GAP** |
 | Iterate respects automation flag | `TestRunIterateWithActionable` | Covered |
 
