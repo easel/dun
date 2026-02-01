@@ -12,7 +12,7 @@ type beadsIssue struct {
 	ID          string   `json:"id"`
 	Title       string   `json:"title"`
 	Status      string   `json:"status"`
-	Priority    string   `json:"priority"`
+	Priority    int      `json:"priority"`
 	Labels      []string `json:"labels"`
 	BlockedBy   []string `json:"blocked_by"`
 	Blocks      []string `json:"blocks"`
@@ -39,7 +39,7 @@ func toIssues(beads []beadsIssue) []Issue {
 // runBeadsReadyCheck finds workable beads (no blockers, not in progress)
 func runBeadsReadyCheck(root string, check Check) (CheckResult, error) {
 	// Run bd ready to get workable beads
-	cmd := exec.Command("bd", "ready", "--json")
+	cmd := exec.Command("bd", "--json", "ready")
 	cmd.Dir = root
 	output, err := cmd.Output()
 	if err != nil {
@@ -88,7 +88,7 @@ func runBeadsReadyCheck(root string, check Check) (CheckResult, error) {
 // runBeadsCriticalPathCheck identifies the critical path through blocked beads
 func runBeadsCriticalPathCheck(root string, check Check) (CheckResult, error) {
 	// Run bd blocked to get blocked beads
-	cmd := exec.Command("bd", "blocked", "--json")
+	cmd := exec.Command("bd", "--json", "blocked")
 	cmd.Dir = root
 	output, err := cmd.Output()
 	if err != nil {
@@ -130,7 +130,7 @@ func runBeadsCriticalPathCheck(root string, check Check) (CheckResult, error) {
 // runBeadsSuggestCheck suggests the next bead to work on
 func runBeadsSuggestCheck(root string, check Check) (CheckResult, error) {
 	// Get ready beads first
-	cmd := exec.Command("bd", "ready", "--json")
+	cmd := exec.Command("bd", "--json", "ready")
 	cmd.Dir = root
 	output, err := cmd.Output()
 	if err != nil {
@@ -205,17 +205,12 @@ func suggestNextBead(issues []beadsIssue) beadsIssue {
 		return beadsIssue{}
 	}
 
-	// Priority order: P0 > P1 > P2 > P3
-	priorityOrder := map[string]int{"P0": 0, "P1": 1, "P2": 2, "P3": 3, "": 4}
-
+	// Priority: lower number = higher priority (0 is highest)
 	best := issues[0]
-	bestPriority := priorityOrder[best.Priority]
 
 	for _, issue := range issues[1:] {
-		p := priorityOrder[issue.Priority]
-		if p < bestPriority {
+		if issue.Priority < best.Priority {
 			best = issue
-			bestPriority = p
 		}
 	}
 
@@ -251,5 +246,5 @@ func formatSuggestion(issue beadsIssue) string {
 	if issue.ID == "" {
 		return "no suggestion"
 	}
-	return "suggested: " + issue.ID + " [" + issue.Priority + "] " + issue.Title
+	return "suggested: " + issue.ID + " [P" + strconv.Itoa(issue.Priority) + "] " + issue.Title
 }
