@@ -71,6 +71,32 @@ type Check struct {
 	IssuePath    string            `yaml:"issue_path"`    // JSONPath for issues
 	IssuePattern string            `yaml:"issue_pattern"` // Regex pattern for issues
 	IssueFields  IssueFieldMap     `yaml:"issue_fields"`  // Field mapping for JSON
+
+	// Spec-binding fields (spec-enforcement checks)
+	Bindings struct {
+		Specs []struct {
+			Pattern               string `yaml:"pattern"`
+			ImplementationSection string `yaml:"implementation_section"`
+			IDPattern             string `yaml:"id_pattern"`
+		} `yaml:"specs"`
+		Code []struct {
+			Pattern     string `yaml:"pattern"`
+			SpecComment string `yaml:"spec_comment"`
+		} `yaml:"code"`
+	} `yaml:"bindings"`
+	BindingRules []BindingRule `yaml:"binding_rules"`
+
+	// Change-cascade fields (spec-enforcement checks)
+	CascadeRules []struct {
+		Upstream    string `yaml:"upstream"`
+		Downstreams []struct {
+			Path     string   `yaml:"path"`
+			Sections []string `yaml:"sections"`
+			Required bool     `yaml:"required"`
+		} `yaml:"downstreams"`
+	} `yaml:"cascade_rules"`
+	Trigger  string `yaml:"trigger"`  // git-diff|always
+	Baseline string `yaml:"baseline"` // default: HEAD~1
 }
 
 type Rule struct {
@@ -87,6 +113,13 @@ type IssueFieldMap struct {
 	Line     string `yaml:"line"`
 	Message  string `yaml:"message"`
 	Severity string `yaml:"severity"`
+}
+
+// BindingRule defines a rule for spec-binding checks.
+type BindingRule struct {
+	Type        string  `yaml:"type"`         // bidirectional-coverage, no-orphan-code, no-orphan-specs
+	MinCoverage float64 `yaml:"min_coverage"` // 0.0-1.0 for coverage rules
+	WarnOnly    bool    `yaml:"warn_only"`    // If true, warn instead of fail
 }
 
 type PromptEnvelope struct {

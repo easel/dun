@@ -228,6 +228,10 @@ func runCheck(root string, pc plannedCheck, opts Options) (CheckResult, error) {
 		return runBeadsCriticalPathCheck(root, pc.Check)
 	case "beads-suggest":
 		return runBeadsSuggestCheck(root, pc.Check)
+	case "spec-binding":
+		return runSpecBindingCheck(root, pc.Check)
+	case "change-cascade":
+		return runChangeCascadeCheck(root, pc.Check)
 	default:
 		return CheckResult{}, fmt.Errorf("unknown check type: %s", pc.Check.Type)
 	}
