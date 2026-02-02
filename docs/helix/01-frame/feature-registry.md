@@ -18,3 +18,4 @@ This registry tracks the core Dun features and their current status.
 | F-012 | External plugin loading | P2 | Planned | Load plugin dirs via config (no spec file yet) |
 | F-013 | Reserved | - | Planned | (no spec file yet) |
 | F-014 | Go Quality Checks | P0 | In progress | Tests, coverage, vet, staticcheck |
+| F-016 | Doc DAG + Review Stamps | P0 | Planned | Frontmatter DAG, stale detection, stamp command |
