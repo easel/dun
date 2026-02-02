@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-const defaultCoverageThreshold = 100
+const defaultCoverageThreshold = 80
 
 var closeCoverageFile = func(f *os.File) error {
 	return f.Close()
@@ -33,7 +33,7 @@ func runGoTestCheck(root string, check Check) (CheckResult, error) {
 	}, nil
 }
 
-func runGoCoverageCheck(root string, check Check) (CheckResult, error) {
+func runGoCoverageCheck(root string, check Check, opts Options) (CheckResult, error) {
 	coveragePath, err := writeCoverageProfile(root)
 	if err != nil {
 		return CheckResult{}, err
@@ -73,7 +73,7 @@ func runGoCoverageCheck(root string, check Check) (CheckResult, error) {
 		}, nil
 	}
 
-	threshold := coverageThreshold(check)
+	threshold := coverageThreshold(check, opts)
 	if coverage < float64(threshold) {
 		return CheckResult{
 			ID:     check.ID,
@@ -194,7 +194,10 @@ func parseCoveragePercent(output []byte) (float64, error) {
 	return 0, errors.New("coverage summary not found")
 }
 
-func coverageThreshold(check Check) int {
+func coverageThreshold(check Check, opts Options) int {
+	if opts.CoverageThreshold > 0 {
+		return opts.CoverageThreshold
+	}
 	for _, rule := range check.Rules {
 		if rule.Type == "coverage-min" && rule.Expected > 0 {
 			return rule.Expected

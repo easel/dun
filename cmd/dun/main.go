@@ -178,10 +178,8 @@ func runCheck(args []string, stdout io.Writer, stderr io.Writer) int {
 	}
 	explicitConfig = *configPath
 
-	opts = dun.Options{
-		AgentMode:      "prompt",
-		AutomationMode: *automation,
-	}
+	opts.AgentMode = "prompt"
+	opts.AutomationMode = *automation
 	result, err := checkRepo(root, opts)
 	if err != nil {
 		fmt.Fprintf(stderr, "dun check failed: %v\n", err)

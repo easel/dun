@@ -12,6 +12,7 @@ import (
 type Config struct {
 	Version string      `yaml:"version"`
 	Agent   AgentConfig `yaml:"agent"`
+	Go      GoConfig    `yaml:"go"`
 }
 
 type AgentConfig struct {
@@ -21,6 +22,10 @@ type AgentConfig struct {
 	Automation string `yaml:"automation"`
 }
 
+type GoConfig struct {
+	CoverageThreshold int `yaml:"coverage_threshold"`
+}
+
 const DefaultConfigPath = ".dun/config.yaml"
 
 const DefaultConfigYAML = `version: "1"
@@ -28,6 +33,8 @@ agent:
   automation: auto
   mode: auto
   timeout_ms: 300000
+go:
+  coverage_threshold: 80
 `
 
 func DefaultOptions() Options {
@@ -50,6 +57,9 @@ func ApplyConfig(opts Options, cfg Config) Options {
 	}
 	if cfg.Agent.Automation != "" {
 		opts.AutomationMode = cfg.Agent.Automation
+	}
+	if cfg.Go.CoverageThreshold > 0 {
+		opts.CoverageThreshold = cfg.Go.CoverageThreshold
 	}
 	return opts
 }

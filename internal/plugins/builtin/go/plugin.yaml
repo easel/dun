@@ -14,9 +14,6 @@ checks:
     description: "Check total Go test coverage"
     type: go-coverage
     phase: test
-    rules:
-      - type: coverage-min
-        expected: 100
   - id: go-vet
     description: "Run go vet ./..."
     type: go-vet

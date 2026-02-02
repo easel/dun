@@ -13,7 +13,8 @@ func TestLoadConfigDefaultPath(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(cfgPath), 0755); err != nil {
 		t.Fatalf("mkdir config dir: %v", err)
 	}
-	content := "agent:\n  cmd: echo hi\n  timeout_ms: 120000\n  mode: auto\n  automation: plan\n"
+	content := "agent:\n  cmd: echo hi\n  timeout_ms: 120000\n  mode: auto\n  automation: plan\n" +
+		"go:\n  coverage_threshold: 95\n"
 	if err := os.WriteFile(cfgPath, []byte(content), 0644); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
@@ -38,6 +39,9 @@ func TestLoadConfigDefaultPath(t *testing.T) {
 	}
 	if opts.AutomationMode != "plan" {
 		t.Fatalf("expected automation plan, got %q", opts.AutomationMode)
+	}
+	if opts.CoverageThreshold != 95 {
+		t.Fatalf("expected coverage threshold 95, got %d", opts.CoverageThreshold)
 	}
 }
 

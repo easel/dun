@@ -39,5 +39,9 @@ enforce baseline quality in Go repositories.
 ## Acceptance Criteria
 
 - `dun check` runs go checks when `go.mod` exists.
-- Coverage check fails if total coverage is below 100% by default.
+- Coverage check fails if total coverage is below the default threshold (80%) unless overridden in `.dun/config.yaml`:
+  ```yaml
+  go:
+    coverage_threshold: 90
+  ```
 - Staticcheck is skipped or warned when the tool is missing.

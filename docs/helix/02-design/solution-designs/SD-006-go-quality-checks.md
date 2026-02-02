@@ -8,7 +8,7 @@ using a built-in Go plugin.
 ## Scope
 
 - `go test ./...` with clear failure summaries.
-- Coverage computation with a configurable minimum (default 100%).
+- Coverage computation with a configurable minimum (default 80%, overridable via `.dun/config.yaml`).
 - `go vet ./...` analysis.
 - Optional `staticcheck ./...` when installed.
 
@@ -26,9 +26,9 @@ using a built-in Go plugin.
 
 1. Plugin discovery includes Go checks when `go.mod` exists.
 2. Check runner executes commands in repo root.
-3. Coverage parser extracts total percent and compares to threshold.
+3. Coverage parser extracts total percent and compares to threshold from `.dun/config.yaml` (`go.coverage_threshold`) or default.
 4. Reporter summarizes results.
 
 ## Open Questions
 
-- Where should per-repo coverage thresholds live (config vs manifest)?
+- None (thresholds live in `.dun/config.yaml` under `go.coverage_threshold`).

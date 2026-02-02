@@ -217,7 +217,7 @@ func runCheck(root string, pc plannedCheck, opts Options) (CheckResult, error) {
 	case "go-test":
 		return runGoTestCheck(root, pc.Check)
 	case "go-coverage":
-		return runGoCoverageCheck(root, pc.Check)
+		return runGoCoverageCheck(root, pc.Check, opts)
 	case "go-vet":
 		return runGoVetCheck(root, pc.Check)
 	case "go-staticcheck":
