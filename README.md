@@ -134,6 +134,9 @@ iteration. If all checks pass, output <promise>DONE</promise>."
   --completion-promise "DONE" --max-iterations 20
 ```
 
+Tip: `dun loop --verbose` prints the full prompt sent to harnesses and the
+responses returned, which is helpful for debugging agent behavior.
+
 ## Check Types
 
 Dun supports various check types, each with specific configuration options.
