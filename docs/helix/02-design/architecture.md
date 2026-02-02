@@ -26,10 +26,12 @@ prompt envelopes by default, with optional auto execution when configured.
 - **Discovery Engine**: activates plugins via repo signals.
 - **Planner**: builds deterministic check plan.
 - **Rule Engine**: evaluates file-based rules and gates.
+- **Check Library**: built-in check types (Go quality, git hygiene, Helix gates).
 - **Prompt Renderer**: renders agent prompts.
 - **Prompt Emitter**: emits prompt envelopes + callbacks.
 - **Agent Runner (optional)**: executes prompts when configured.
 - **Reporter**: renders JSON/LLM output.
+- **Installer**: writes `AGENTS.md` and optional `.dun/config.yaml` scaffolding.
 - **Drift Analyzer**: compares docs and code to identify misalignment.
 - **Change Planner**: produces ordered updates across artifacts.
 - **Automation Policy**: enforces manual/plan/auto/yolo behavior.
@@ -41,6 +43,21 @@ prompt envelopes by default, with optional auto execution when configured.
 3. Agent checks emit prompt envelopes (default).
 4. Optional auto mode runs the agent and parses responses.
 5. Drift analyzer and planner identify downstream changes when docs shift.
+
+## Command Flows
+
+### `dun check`
+
+- Discover checks via repo signals.
+- Run rule checks and emit prompt envelopes.
+- Optionally execute agent prompts based on automation policy.
+- Emit deterministic output in the selected format.
+
+### `dun install`
+
+- Detect or create `AGENTS.md`.
+- Insert Dun guidance using marker blocks.
+- Optionally scaffold `.dun/config.yaml` when requested.
 
 ## Deployment
 
@@ -54,3 +71,14 @@ prompt envelopes by default, with optional auto execution when configured.
 - **Noisy outputs**: strict output schema and concise summaries.
 - **Plugin drift**: versioned manifests and deterministic checks.
 - **Over-automation**: automation slider gates agent behavior.
+
+## Traceability
+
+- **Goals**: auto-discovery (F-001), prompt/LLM/JSON output (F-002), doc
+  reconciliation (F-006), Go quality checks (F-014).
+- **Scope**: plugin system (F-003), install command (F-004), git hygiene
+  (F-005), automation slider (F-007), exit codes (F-015).
+- **Personas**: agent operators rely on prompt envelopes and fast feedback;
+  engineering leads rely on deterministic gates and exit codes.
+- **Success metrics**: performance budgets and drift resolution tracked in
+  test plan and output formats (see `docs/helix/03-test/test-plan.md`).
