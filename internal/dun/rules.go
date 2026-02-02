@@ -108,6 +108,9 @@ func evalPatternCount(root string, rule Rule) (RuleEval, error) {
 	path := filepath.Join(root, rule.Path)
 	content, err := os.ReadFile(path)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return RuleEval{Passed: false, Message: fmt.Sprintf("missing path: %s", rule.Path)}, nil
+		}
 		return RuleEval{}, err
 	}
 	re, err := regexp.Compile(rule.Pattern)
@@ -125,6 +128,9 @@ func evalUniqueIDs(root string, rule Rule) (RuleEval, error) {
 	path := filepath.Join(root, rule.Path)
 	content, err := os.ReadFile(path)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return RuleEval{Passed: false, Message: fmt.Sprintf("missing path: %s", rule.Path)}, nil
+		}
 		return RuleEval{}, err
 	}
 	re, err := regexp.Compile(rule.Pattern)
@@ -148,6 +154,9 @@ func evalCrossReference(root string, rule Rule) (RuleEval, error) {
 	path := filepath.Join(root, rule.Path)
 	content, err := os.ReadFile(path)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return RuleEval{Passed: false, Message: fmt.Sprintf("missing path: %s", rule.Path)}, nil
+		}
 		return RuleEval{}, err
 	}
 	if strings.Contains(string(content), rule.Pattern) {

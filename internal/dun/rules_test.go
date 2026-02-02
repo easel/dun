@@ -131,9 +131,12 @@ func TestEvalRuleUniqueIDs(t *testing.T) {
 }
 
 func TestEvalRuleUniqueIDsReadError(t *testing.T) {
-	_, err := evalRule(t.TempDir(), Rule{Type: "unique-ids", Path: "missing.txt", Pattern: "ID-[0-9]+"})
-	if err == nil {
-		t.Fatalf("expected read error")
+	res, err := evalRule(t.TempDir(), Rule{Type: "unique-ids", Path: "missing.txt", Pattern: "ID-[0-9]+"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.Passed {
+		t.Fatalf("expected missing file to fail rule")
 	}
 }
 
@@ -214,9 +217,10 @@ func TestRunRuleSetStatuses(t *testing.T) {
 	badCheck := Check{
 		ID: "rules-error",
 		Rules: []Rule{
-			{Type: "pattern-count", Path: "missing.txt", Pattern: "("},
+			{Type: "pattern-count", Path: "pattern.txt", Pattern: "("},
 		},
 	}
+	writeFile(t, filepath.Join(root, "pattern.txt"), "x")
 	if _, err := runRuleSet(root, badCheck); err == nil {
 		t.Fatalf("expected error from bad rule")
 	}
@@ -224,9 +228,12 @@ func TestRunRuleSetStatuses(t *testing.T) {
 
 func TestEvalRulePatternCountErrors(t *testing.T) {
 	root := t.TempDir()
-	_, err := evalPatternCount(root, Rule{Path: "missing.txt", Pattern: "("})
-	if err == nil {
-		t.Fatalf("expected error for missing file")
+	res, err := evalPatternCount(root, Rule{Path: "missing.txt", Pattern: "("})
+	if err != nil {
+		t.Fatalf("unexpected error for missing file: %v", err)
+	}
+	if res.Passed {
+		t.Fatalf("expected missing file to fail rule")
 	}
 
 	writeFile(t, filepath.Join(root, "pattern.txt"), "x")
@@ -247,9 +254,12 @@ func TestEvalRuleUniqueIDsRegexError(t *testing.T) {
 
 func TestEvalRuleCrossReferenceErrors(t *testing.T) {
 	root := t.TempDir()
-	_, err := evalCrossReference(root, Rule{Path: "missing.txt", Pattern: "REF"})
-	if err == nil {
-		t.Fatalf("expected missing file error")
+	res, err := evalCrossReference(root, Rule{Path: "missing.txt", Pattern: "REF"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.Passed {
+		t.Fatalf("expected missing file to fail rule")
 	}
 }
 

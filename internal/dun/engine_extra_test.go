@@ -41,7 +41,9 @@ func TestRunCheckCommandEchoHello(t *testing.T) {
 }
 
 func TestConditionsMetError(t *testing.T) {
-	_, err := conditionsMet(t.TempDir(), []Rule{{Type: "pattern-count", Path: "missing.txt", Pattern: "("}})
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "pattern.txt"), "x")
+	_, err := conditionsMet(root, []Rule{{Type: "pattern-count", Path: "pattern.txt", Pattern: "("}})
 	if err == nil {
 		t.Fatalf("expected error for invalid rule")
 	}
@@ -71,7 +73,7 @@ func TestBuildPlanForRootConditionError(t *testing.T) {
 						{
 							ID: "bad",
 							Conditions: []Rule{
-								{Type: "pattern-count", Path: "missing.txt", Pattern: "("},
+								{Type: "pattern-count", Path: "pattern.txt", Pattern: "("},
 							},
 						},
 					},
@@ -81,7 +83,9 @@ func TestBuildPlanForRootConditionError(t *testing.T) {
 	}
 	t.Cleanup(func() { loadBuiltins = orig })
 
-	if _, err := buildPlanForRoot(t.TempDir()); err == nil {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "pattern.txt"), "x")
+	if _, err := buildPlanForRoot(root); err == nil {
 		t.Fatalf("expected buildPlan error")
 	}
 }
