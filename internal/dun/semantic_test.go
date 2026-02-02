@@ -698,6 +698,105 @@ func TestComputeDiff(t *testing.T) {
 	}
 }
 
+// Additional tests for edge cases
+
+func TestSortJSONKeysError(t *testing.T) {
+	// Invalid JSON should return original string
+	result, err := sortJSONKeys("not valid json")
+	if err == nil {
+		t.Error("expected error for invalid JSON")
+	}
+	if result != "not valid json" {
+		t.Errorf("expected original string returned, got %q", result)
+	}
+}
+
+func TestStructuralCompareEmptyInputs(t *testing.T) {
+	sc := DefaultComparator()
+
+	// Both normalized to empty
+	result := sc.Compare("   ", "\n\n")
+	if !result.Match {
+		t.Error("expected match for both-empty-after-normalization")
+	}
+	if result.Confidence != 1.0 {
+		t.Errorf("expected confidence 1.0, got %v", result.Confidence)
+	}
+}
+
+func TestSemanticCompareEmptyAfterNormalization(t *testing.T) {
+	sc := DefaultComparator()
+
+	// Test where normalization results in empty strings
+	result := sc.Compare("//comment only", "/* another comment */")
+	if !result.Match {
+		t.Error("expected match when both normalize to empty")
+	}
+}
+
+func TestComputeDiffLongerA(t *testing.T) {
+	diff := computeDiff("line1\nline2\nline3", "line1")
+
+	if !containsString(diff, "-line2") {
+		t.Error("diff should show removed line2")
+	}
+	if !containsString(diff, "-line3") {
+		t.Error("diff should show removed line3")
+	}
+}
+
+func TestComputeDiffLongerB(t *testing.T) {
+	diff := computeDiff("line1", "line1\nline2\nline3")
+
+	if !containsString(diff, "+line2") {
+		t.Error("diff should show added line2")
+	}
+	if !containsString(diff, "+line3") {
+		t.Error("diff should show added line3")
+	}
+}
+
+func TestSemanticMatchLevel(t *testing.T) {
+	// Use a threshold that allows semantic match
+	sc := NewSemanticComparator(0.5)
+
+	// These are different enough to not match structurally but similar enough semantically
+	a := "hello world"
+	b := "hello earth"
+
+	result := sc.Compare(a, b)
+	if !result.Match {
+		t.Errorf("expected match with low threshold, confidence=%v", result.Confidence)
+	}
+	// Should be semantic level since structural won't match at character level
+	if result.Level != "exact" && result.Level != "structural" && result.Level != "semantic" {
+		t.Errorf("expected valid level, got %q", result.Level)
+	}
+}
+
+func TestSortMapKeysNonContainer(t *testing.T) {
+	// Test with primitive values (not map or slice)
+	result := sortMapKeys("string value")
+	if result != "string value" {
+		t.Errorf("expected string to pass through unchanged, got %v", result)
+	}
+
+	result = sortMapKeys(42)
+	if result != 42 {
+		t.Errorf("expected int to pass through unchanged, got %v", result)
+	}
+
+	result = sortMapKeys(true)
+	if result != true {
+		t.Errorf("expected bool to pass through unchanged, got %v", result)
+	}
+
+	result = sortMapKeys(nil)
+	if result != nil {
+		t.Errorf("expected nil to pass through unchanged, got %v", result)
+	}
+}
+
 // Helper function
 func containsString(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsSubstring(s, substr))

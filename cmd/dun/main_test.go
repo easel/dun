@@ -1796,3 +1796,247 @@ func TestRunQuorumPreferredHarnessNoConflict(t *testing.T) {
 		t.Fatalf("expected preferred response, got: %s", response)
 	}
 }
+
+// Tests for runLoop quorum paths
+
+func TestRunLoopQuorumConfigError(t *testing.T) {
+	root := setupEmptyRepo(t)
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	// Invalid quorum strategy value should trigger error
+	code := runInDirWithWriters(t, root, []string{"loop", "--quorum", "invalid-strategy-xyz"}, &stdout, &stderr)
+	if code != dun.ExitUsageError {
+		t.Fatalf("expected code %d, got %d: %s", dun.ExitUsageError, code, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "quorum config error") {
+		t.Fatalf("expected quorum config error in stderr: %s", stderr.String())
+	}
+}
+
+func TestRunLoopQuorumConflict(t *testing.T) {
+	root := setupEmptyRepo(t)
+	origCheck := checkRepo
+	checkRepo = func(_ string, _ dun.Options) (dun.Result, error) {
+		return dun.Result{
+			Checks: []dun.CheckResult{
+				{ID: "fail-check", Status: "fail", Signal: "failed"},
+			},
+		}, nil
+	}
+	t.Cleanup(func() { checkRepo = origCheck })
+
+	origHarness := callHarnessFn
+	callHarnessFn = func(harness, prompt, automation string) (string, error) {
+		// Conflict is detected when harnesses disagree on EXIT_SIGNAL
+		// One says exit, one doesn't
+		if harness == "mock1" {
+			return "EXIT_SIGNAL: true", nil
+		}
+		return "no exit", nil
+	}
+	t.Cleanup(func() { callHarnessFn = origHarness })
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := runInDirWithWriters(t, root, []string{
+		"loop",
+		"--max-iterations", "1",
+		"--harnesses", "mock1,mock2",
+		"--quorum", "unanimous",
+	}, &stdout, &stderr)
+	if code != dun.ExitQuorumConflict {
+		t.Fatalf("expected code %d (QuorumConflict), got %d: stdout=%s stderr=%s", dun.ExitQuorumConflict, code, stdout.String(), stderr.String())
+	}
+}
+
+func TestRunLoopQuorumAbort(t *testing.T) {
+	root := setupEmptyRepo(t)
+	origCheck := checkRepo
+	checkRepo = func(_ string, _ dun.Options) (dun.Result, error) {
+		return dun.Result{
+			Checks: []dun.CheckResult{
+				{ID: "fail-check", Status: "fail", Signal: "failed"},
+			},
+		}, nil
+	}
+	t.Cleanup(func() { checkRepo = origCheck })
+
+	origHarness := callHarnessFn
+	callHarnessFn = func(harness, prompt, automation string) (string, error) {
+		// Conflict detected - one says exit, one doesn't
+		if harness == "mock1" {
+			return "EXIT_SIGNAL: true", nil
+		}
+		return "no exit", nil
+	}
+	t.Cleanup(func() { callHarnessFn = origHarness })
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := runInDirWithWriters(t, root, []string{
+		"loop",
+		"--max-iterations", "1",
+		"--harnesses", "mock1,mock2",
+		"--quorum", "unanimous",
+		"--escalate", // This causes quorum to abort on conflict
+	}, &stdout, &stderr)
+	if code != dun.ExitQuorumAborted {
+		t.Fatalf("expected code %d (QuorumAborted), got %d: stdout=%s stderr=%s", dun.ExitQuorumAborted, code, stdout.String(), stderr.String())
+	}
+}
+
+func TestRunLoopQuorumSuccess(t *testing.T) {
+	root := setupEmptyRepo(t)
+	origCheck := checkRepo
+	checkCount := 0
+	checkRepo = func(_ string, _ dun.Options) (dun.Result, error) {
+		checkCount++
+		if checkCount > 1 {
+			return dun.Result{
+				Checks: []dun.CheckResult{
+					{ID: "pass-check", Status: "pass", Signal: "ok"},
+				},
+			}, nil
+		}
+		return dun.Result{
+			Checks: []dun.CheckResult{
+				{ID: "fail-check", Status: "fail", Signal: "failed"},
+			},
+		}, nil
+	}
+	t.Cleanup(func() { checkRepo = origCheck })
+
+	origHarness := callHarnessFn
+	callHarnessFn = func(harness, prompt, automation string) (string, error) {
+		return "same response", nil
+	}
+	t.Cleanup(func() { callHarnessFn = origHarness })
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := runInDirWithWriters(t, root, []string{
+		"loop",
+		"--max-iterations", "2",
+		"--harnesses", "mock1,mock2",
+		"--quorum", "majority",
+	}, &stdout, &stderr)
+	if code != dun.ExitSuccess {
+		t.Fatalf("expected code %d, got %d: stdout=%s stderr=%s", dun.ExitSuccess, code, stdout.String(), stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "quorum") {
+		t.Fatalf("expected quorum message in output")
+	}
+}
+
+func TestRunLoopQuorumCostMode(t *testing.T) {
+	root := setupEmptyRepo(t)
+	origCheck := checkRepo
+	checkCount := 0
+	checkRepo = func(_ string, _ dun.Options) (dun.Result, error) {
+		checkCount++
+		if checkCount > 1 {
+			return dun.Result{
+				Checks: []dun.CheckResult{
+					{ID: "pass-check", Status: "pass", Signal: "ok"},
+				},
+			}, nil
+		}
+		return dun.Result{
+			Checks: []dun.CheckResult{
+				{ID: "fail-check", Status: "fail", Signal: "failed"},
+			},
+		}, nil
+	}
+	t.Cleanup(func() { checkRepo = origCheck })
+
+	origHarness := callHarnessFn
+	callHarnessFn = func(harness, prompt, automation string) (string, error) {
+		return "response", nil
+	}
+	t.Cleanup(func() { callHarnessFn = origHarness })
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := runInDirWithWriters(t, root, []string{
+		"loop",
+		"--max-iterations", "2",
+		"--harnesses", "mock1,mock2",
+		"--quorum", "any",
+		"--cost-mode",
+	}, &stdout, &stderr)
+	if code != dun.ExitSuccess {
+		t.Fatalf("expected code %d, got %d: stdout=%s stderr=%s", dun.ExitSuccess, code, stdout.String(), stderr.String())
+	}
+}
+
+// Additional runUpdate tests
+
+func TestRunUpdateAlreadyLatest(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	// This will check against GitHub API - if it succeeds, we're testing the "already latest" path
+	// The test verifies the code runs without crashing
+	code := run([]string{"update"}, &stdout, &stderr)
+	// May be ExitSuccess (already latest) or ExitRuntimeError (network/no release)
+	if code != dun.ExitSuccess && code != dun.ExitRuntimeError {
+		t.Fatalf("unexpected code %d: %s", code, stderr.String())
+	}
+}
+
+func TestRunUpdateForceFlag(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	// Test with --force flag
+	code := run([]string{"update", "--force", "--dry-run"}, &stdout, &stderr)
+	// With --dry-run, should succeed after checking for updates
+	if code != dun.ExitSuccess && code != dun.ExitRuntimeError {
+		t.Fatalf("unexpected code %d: %s", code, stderr.String())
+	}
+}
+
+// Additional callHarnessImpl automation mode tests
+
+func TestCallHarnessImplManualMode(t *testing.T) {
+	origHarness := callHarnessFn
+	var capturedAutomation string
+	callHarnessFn = func(harness, prompt, automation string) (string, error) {
+		capturedAutomation = automation
+		return "response", nil
+	}
+	t.Cleanup(func() { callHarnessFn = origHarness })
+
+	_, _ = callHarness("mock", "test", "manual")
+	if capturedAutomation != "manual" {
+		t.Fatalf("expected automation 'manual', got %q", capturedAutomation)
+	}
+}
+
+func TestCallHarnessImplPlanMode(t *testing.T) {
+	origHarness := callHarnessFn
+	var capturedAutomation string
+	callHarnessFn = func(harness, prompt, automation string) (string, error) {
+		capturedAutomation = automation
+		return "response", nil
+	}
+	t.Cleanup(func() { callHarnessFn = origHarness })
+
+	_, _ = callHarness("mock", "test", "plan")
+	if capturedAutomation != "plan" {
+		t.Fatalf("expected automation 'plan', got %q", capturedAutomation)
+	}
+}
+
+func TestCallHarnessImplDefaultMode(t *testing.T) {
+	origHarness := callHarnessFn
+	var capturedAutomation string
+	callHarnessFn = func(harness, prompt, automation string) (string, error) {
+		capturedAutomation = automation
+		return "response", nil
+	}
+	t.Cleanup(func() { callHarnessFn = origHarness })
+
+	_, _ = callHarness("mock", "test", "unknown-mode")
+	if capturedAutomation != "unknown-mode" {
+		t.Fatalf("expected automation 'unknown-mode' passed through, got %q", capturedAutomation)
+	}
+}

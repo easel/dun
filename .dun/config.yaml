@@ -1,9 +1,0 @@
-version: "1"
-agent:
-  automation: auto
-  mode: auto
-  timeout_ms: 300000
-  cmd: >-
-    tmp="$(mktemp)" &&
-    codex exec --ask-for-approval never --sandbox workspace-write --output-schema internal/plugins/builtin/helix/responses/agent-default.json --output-last-message "$tmp" - >/dev/null &&
-    cat "$tmp"

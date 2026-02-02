@@ -9,6 +9,9 @@ state.json
 /dun
 coverage.out
 dun-cover-*.out
+*.out
+coverage.html
+*_coverage.html
 
 # Test artifacts
 .dun/
