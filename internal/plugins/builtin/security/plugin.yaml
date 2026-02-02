@@ -10,5 +10,7 @@ checks:
     description: "Check for known Go vulnerabilities"
     type: command
     command: govulncheck ./...
+    warn_exits:
+      - 127
     phase: security
     timeout: 10m
