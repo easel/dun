@@ -74,11 +74,14 @@ prompt envelopes by default, with optional auto execution when configured.
 
 ## Traceability
 
+- **Problem Statement**: deterministic, fast local checks directly address inconsistent validation and slow feedback loops.
 - **Goals**: auto-discovery (F-001), prompt/LLM/JSON output (F-002), doc
   reconciliation (F-006), Go quality checks (F-014).
 - **Scope**: plugin system (F-003), install command (F-004), git hygiene
   (F-005), automation slider (F-007), exit codes (F-015).
 - **Personas**: agent operators rely on prompt envelopes and fast feedback;
   engineering leads rely on deterministic gates and exit codes.
-- **Success metrics**: performance budgets and drift resolution tracked in
-  test plan and output formats (see `docs/helix/03-test/test-plan.md`).
+- **Success metrics**: time to first output <2s and median runtime <30s validated
+  in the test plan; adoption target (5 active repos) tracked operationally;
+  drift resolution supported by reconciliation checks (see
+  `docs/helix/03-test/test-plan.md`).
