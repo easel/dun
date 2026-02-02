@@ -13,7 +13,15 @@ stamps.
   - `depends_on` relationships
   - `prompt` and `inputs`
   - `review` stamps
-- Support an optional graph file for required roots and default prompts.
+- Support an optional graph file for required roots, ID mappings, and default
+  prompts.
+- Resolve dynamic inputs deterministically with the following selectors:
+  - `node:<id>` (explicit node reference)
+  - `refs:<id>` (IDs extracted from a referenced document)
+  - `code_refs:<id>` (ID references in code paths)
+  - `paths:<glob>` (explicit path globs)
+- Provide an ID map for `refs` and `node` resolution (e.g. `US-{id}` to
+  `docs/helix/01-frame/user-stories/US-{id}-*.md`).
 - Compute deterministic content hashes that include frontmatter (excluding
   `dun.review`).
 - Determine stale documents when parent hashes differ from `review.deps`.
@@ -23,6 +31,8 @@ stamps.
   prompt settings or graph defaults.
 - Provide `dun stamp` to update `dun.review` fields in docs.
 - Keep output deterministic for a given repo state.
+- Prompt templates must require a "Gaps & Conflicts" section and instruct the
+  agent to flag unresolved conflicts before proceeding.
 
 ## Inputs
 
@@ -37,6 +47,8 @@ stamps.
   to create it.
 - `dun stamp` updates `dun.review.self_hash` and `dun.review.deps`.
 - Prompt envelopes include parent context inputs by default.
+- Prompt envelopes include resolved requirements, ADRs, and code references
+  when selectors are configured.
 - Results are stable across repeated runs with the same repo state.
 
 ## Traceability
