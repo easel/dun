@@ -193,7 +193,7 @@ consensus before applying changes.
 |------|-----------|----------|
 | TC-011-16a | `dun loop --quorum 2` with tasks | Each task goes through quorum |
 | TC-011-16b | Quorum with `--dry-run` | Shows what would happen |
-| TC-011-16c | Quorum with `--verbose` | Detailed quorum logging |
+| TC-011-16c | Quorum with `--verbose` | Detailed quorum logging (prompts + responses) |
 | TC-011-16d | Quorum with automation modes | Modes apply per-harness |
 
 ## Test Data Requirements

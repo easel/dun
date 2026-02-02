@@ -823,6 +823,48 @@ func TestRunLoopDryRun(t *testing.T) {
 	}
 }
 
+func TestRunLoopVerboseLogsPromptAndResponse(t *testing.T) {
+	root := setupEmptyRepo(t)
+	origCheck := checkRepo
+	checkRepo = func(_ string, _ dun.Options) (dun.Result, error) {
+		return dun.Result{
+			Checks: []dun.CheckResult{
+				{ID: "fail-check", Status: "fail", Signal: "failed"},
+			},
+		}, nil
+	}
+	t.Cleanup(func() { checkRepo = origCheck })
+
+	origHarness := callHarnessFn
+	callHarnessFn = func(harness, prompt, automation string) (string, error) {
+		if !strings.Contains(prompt, "fail-check") {
+			t.Fatalf("expected prompt to include fail-check, got %q", prompt)
+		}
+		return "---DUN_STATUS---\nEXIT_SIGNAL: true\n---END_DUN_STATUS---", nil
+	}
+	t.Cleanup(func() { callHarnessFn = origHarness })
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := runInDirWithWriters(t, root, []string{"loop", "--max-iterations", "1", "--verbose"}, &stdout, &stderr)
+	if code != dun.ExitSuccess {
+		t.Fatalf("expected code %d, got %d", dun.ExitSuccess, code)
+	}
+	output := stdout.String()
+	if !strings.Contains(output, "--- PROMPT (to harnesses) ---") {
+		t.Fatalf("expected verbose prompt block in output")
+	}
+	if !strings.Contains(output, "fail-check") {
+		t.Fatalf("expected prompt content in output")
+	}
+	if !strings.Contains(output, "--- RESPONSE (claude) ---") {
+		t.Fatalf("expected verbose response block in output")
+	}
+	if !strings.Contains(output, "EXIT_SIGNAL: true") {
+		t.Fatalf("expected response content in output")
+	}
+}
+
 func TestRunLoopAllPass(t *testing.T) {
 	root := setupEmptyRepo(t)
 	orig := checkRepo
@@ -1213,6 +1255,9 @@ func TestRunHelpIncludesExamples(t *testing.T) {
 	if !strings.Contains(output, "--dry-run") {
 		t.Fatalf("help should document dry-run option")
 	}
+	if !strings.Contains(output, "--verbose") {
+		t.Fatalf("help should document verbose option")
+	}
 }
 
 // Tests for AC-4: Deterministic Output
@@ -1513,7 +1558,7 @@ func TestRunQuorumNoHarnesses(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	cfg := dun.QuorumConfig{Harnesses: []string{}}
-	_, err := runQuorum(cfg, "test prompt", "auto", &stdout, &stderr)
+	_, err := runQuorum(cfg, "test prompt", "auto", &stdout, &stderr, false)
 	if err == nil {
 		t.Fatal("expected error for no harnesses")
 	}
@@ -1540,7 +1585,7 @@ func TestRunQuorumSequential(t *testing.T) {
 		Strategy:  "majority",
 	}
 
-	response, err := runQuorum(cfg, "test prompt", "auto", &stdout, &stderr)
+	response, err := runQuorum(cfg, "test prompt", "auto", &stdout, &stderr, false)
 	if err != nil {
 		t.Fatalf("runQuorum failed: %v", err)
 	}
@@ -1573,7 +1618,7 @@ func TestRunQuorumParallel(t *testing.T) {
 		Strategy:  "majority",
 	}
 
-	response, err := runQuorum(cfg, "test prompt", "auto", &stdout, &stderr)
+	response, err := runQuorum(cfg, "test prompt", "auto", &stdout, &stderr, false)
 	if err != nil {
 		t.Fatalf("runQuorum failed: %v", err)
 	}
@@ -1609,7 +1654,7 @@ func TestRunQuorumWithErrors(t *testing.T) {
 		Strategy:  "majority",
 	}
 
-	response, err := runQuorum(cfg, "test prompt", "auto", &stdout, &stderr)
+	response, err := runQuorum(cfg, "test prompt", "auto", &stdout, &stderr, false)
 	if err != nil {
 		t.Fatalf("runQuorum failed: %v", err)
 	}
@@ -1644,7 +1689,7 @@ func TestRunQuorumQuorumNotMet(t *testing.T) {
 		Strategy:  "majority",
 	}
 
-	_, err := runQuorum(cfg, "test prompt", "auto", &stdout, &stderr)
+	_, err := runQuorum(cfg, "test prompt", "auto", &stdout, &stderr, false)
 	if err == nil {
 		t.Fatal("expected error when quorum not met")
 	}
@@ -1669,7 +1714,7 @@ func TestRunQuorumAllFail(t *testing.T) {
 		Strategy:  "majority",
 	}
 
-	_, err := runQuorum(cfg, "test prompt", "auto", &stdout, &stderr)
+	_, err := runQuorum(cfg, "test prompt", "auto", &stdout, &stderr, false)
 	if err == nil {
 		t.Fatal("expected error when all harnesses fail")
 	}
@@ -1699,7 +1744,7 @@ func TestRunQuorumConflict(t *testing.T) {
 		Strategy:  "any", // Any is always met
 	}
 
-	_, err := runQuorum(cfg, "test prompt", "auto", &stdout, &stderr)
+	_, err := runQuorum(cfg, "test prompt", "auto", &stdout, &stderr, false)
 	if err == nil {
 		t.Fatal("expected error when conflict detected")
 	}
@@ -1728,7 +1773,7 @@ func TestRunQuorumConflictWithPrefer(t *testing.T) {
 		Prefer:    "preferred",
 	}
 
-	response, err := runQuorum(cfg, "test prompt", "auto", &stdout, &stderr)
+	response, err := runQuorum(cfg, "test prompt", "auto", &stdout, &stderr, false)
 	if err != nil {
 		t.Fatalf("runQuorum failed: %v", err)
 	}
@@ -1759,7 +1804,7 @@ func TestRunQuorumConflictWithEscalate(t *testing.T) {
 		Escalate:  true,
 	}
 
-	_, err := runQuorum(cfg, "test prompt", "auto", &stdout, &stderr)
+	_, err := runQuorum(cfg, "test prompt", "auto", &stdout, &stderr, false)
 	if err == nil {
 		t.Fatal("expected error when escalating")
 	}
@@ -1788,7 +1833,7 @@ func TestRunQuorumPreferredHarnessNoConflict(t *testing.T) {
 		Prefer:    "preferred",
 	}
 
-	response, err := runQuorum(cfg, "test prompt", "auto", &stdout, &stderr)
+	response, err := runQuorum(cfg, "test prompt", "auto", &stdout, &stderr, false)
 	if err != nil {
 		t.Fatalf("runQuorum failed: %v", err)
 	}

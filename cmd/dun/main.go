@@ -95,6 +95,7 @@ LOOP MODE:
     --automation  Mode: manual, plan, auto, yolo (default: auto)
     --max-iterations  Safety limit (default: 100)
     --dry-run     Show prompt without calling agent
+    --verbose     Print prompts sent to harnesses and responses received
 
   Quorum Options (multi-agent consensus):
     --quorum      Strategy: any, majority, unanimous, or number (e.g., 2)
@@ -109,6 +110,7 @@ LOOP MODE:
     dun loop --harness gemini             # Run with gemini
     dun loop --automation yolo            # Allow autonomous edits
     dun loop --dry-run                    # Preview prompt
+    dun loop --verbose                    # Show prompt and responses
     dun loop --quorum majority --harnesses claude,gemini,codex
     dun loop --quorum 2 --harnesses claude,gemini --prefer claude
 
@@ -456,6 +458,7 @@ func runLoop(args []string, stdout io.Writer, stderr io.Writer) int {
 	automation := fs.String("automation", opts.AutomationMode, "automation mode (manual|plan|auto|yolo)")
 	maxIterations := fs.Int("max-iterations", 100, "maximum iterations before stopping")
 	dryRun := fs.Bool("dry-run", false, "print prompt without calling harness")
+	verbose := fs.Bool("verbose", false, "print prompts and harness responses")
 
 	// Quorum flags
 	quorumFlag := fs.String("quorum", "", "quorum strategy: any, majority, unanimous, or number")
@@ -528,10 +531,16 @@ func runLoop(args []string, stdout io.Writer, stderr io.Writer) int {
 			return dun.ExitSuccess
 		}
 
+		if *verbose {
+			fmt.Fprintln(stdout, "--- PROMPT (to harnesses) ---")
+			fmt.Fprintln(stdout, prompt)
+			fmt.Fprintln(stdout, "--- END PROMPT ---")
+		}
+
 		var response string
 		if quorumCfg.IsActive() {
 			// Run quorum-based execution
-			response, err = runQuorum(quorumCfg, prompt, *automation, stdout, stderr)
+			response, err = runQuorum(quorumCfg, prompt, *automation, stdout, stderr, *verbose)
 			if err != nil {
 				if errors.Is(err, errQuorumAborted) {
 					fmt.Fprintln(stderr, "Quorum aborted by user.")
@@ -554,7 +563,15 @@ func runLoop(args []string, stdout io.Writer, stderr io.Writer) int {
 			}
 		}
 
-		fmt.Fprintf(stdout, "Harness response:\n%s\n", response)
+		if *verbose {
+			if !quorumCfg.IsActive() {
+				fmt.Fprintf(stdout, "--- RESPONSE (%s) ---\n", *harness)
+				fmt.Fprintln(stdout, response)
+				fmt.Fprintln(stdout, "--- END RESPONSE ---")
+			}
+		} else {
+			fmt.Fprintf(stdout, "Harness response:\n%s\n", response)
+		}
 
 		// Check for exit signal in response
 		if strings.Contains(response, "EXIT_SIGNAL: true") {
@@ -860,7 +877,7 @@ type harnessResponse struct {
 }
 
 // runQuorum executes the prompt against multiple harnesses and resolves consensus.
-func runQuorum(cfg dun.QuorumConfig, prompt, automation string, stdout, stderr io.Writer) (string, error) {
+func runQuorum(cfg dun.QuorumConfig, prompt, automation string, stdout, stderr io.Writer, verbose bool) (string, error) {
 	if len(cfg.Harnesses) == 0 {
 		return "", errors.New("no harnesses configured for quorum")
 	}
@@ -901,6 +918,17 @@ func runQuorum(cfg dun.QuorumConfig, prompt, automation string, stdout, stderr i
 			} else {
 				fmt.Fprintf(stdout, "  %s completed.\n", r.Harness)
 			}
+		}
+	}
+
+	if verbose {
+		for _, r := range responses {
+			if r.Err != nil {
+				continue
+			}
+			fmt.Fprintf(stdout, "--- RESPONSE (%s) ---\n", r.Harness)
+			fmt.Fprintln(stdout, r.Response)
+			fmt.Fprintln(stdout, "--- END RESPONSE ---")
 		}
 	}
 

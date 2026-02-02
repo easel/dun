@@ -171,6 +171,84 @@ $ dun respond --id helix-create-architecture --response -
 
 ---
 
+#### Command: iterate
+**Purpose**: Emit a work list prompt for an external agent (no execution).  
+**Usage**: `$ dun iterate [options]`
+
+**Options**:
+- `--config` : Path to config file (default `.dun/config.yaml` if present)
+- `--automation` : Automation mode (`manual`, `plan`, `auto`, `yolo`, default `auto`)
+
+**Input**:
+- Format: File system + optional config file
+- Schema: See Data Contracts (config schema)
+
+**Output**:
+- Format: Prompt text for a single iteration
+- Schema: See Data Contracts (prompt envelope schema for agent checks)
+
+**Exit Codes**:
+- `0`: Success (includes all-pass status)
+- `1`: Internal error (discovery or execution failure)
+- `4`: Invalid arguments or config
+
+**Examples**:
+```bash
+# Emit a single-iteration prompt
+$ dun iterate
+# (prompt text emitted)
+```
+
+---
+
+#### Command: loop
+**Purpose**: Run autonomous iterations with an agent harness until all checks pass.  
+**Usage**: `$ dun loop [options]`
+
+**Options**:
+- `--config` : Path to config file (default `.dun/config.yaml` if present)
+- `--harness` : Agent harness (`claude`, `gemini`, `codex`, default `claude`)
+- `--automation` : Automation mode (`manual`, `plan`, `auto`, `yolo`, default `auto`)
+- `--max-iterations` : Maximum iterations before stopping (default `100`)
+- `--dry-run` : Print prompt without calling harness
+- `--verbose` : Print prompts sent to harnesses and responses received
+- `--quorum` : Quorum strategy (`any`, `majority`, `unanimous`, or number)
+- `--harnesses` : Comma-separated harness list for quorum
+- `--cost-mode` : Run harnesses sequentially to minimize cost
+- `--escalate` : Pause for human review on conflict
+- `--prefer` : Preferred harness on conflict
+- `--similarity` : Similarity threshold for conflict detection (default `0.8`)
+
+**Input**:
+- Format: File system + optional config file
+- Schema: See Data Contracts (config schema)
+
+**Output**:
+- Format: Console logs + harness responses (when verbose)
+- Schema: N/A (human-oriented)
+
+**Exit Codes**:
+- `0`: Success (all checks pass or exit signal received)
+- `1`: Internal error (discovery or execution failure)
+- `2`: One or more checks failed
+- `4`: Invalid arguments or config
+- `6`: Quorum conflict (no consensus reached)
+- `7`: Quorum aborted (user intervention)
+
+**Examples**:
+```bash
+# Run loop with default harness
+$ dun loop
+
+# Preview prompt only
+$ dun loop --dry-run
+
+# Verbose prompt/response logging
+$ dun loop --verbose
+```
+
+---
+
 ## REST API Contract (if applicable)
 
 Not applicable for MVP.
