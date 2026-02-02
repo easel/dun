@@ -1,6 +1,7 @@
 package dun
 
 import (
+	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -113,19 +114,32 @@ func TestResolveInputsBadGlob(t *testing.T) {
 }
 
 func TestExecAgentErrorsAndSuccess(t *testing.T) {
-	_, err := execAgent("sh -c 'exit 1'", "prompt", 1*time.Second)
+	orig := execAgentOutput
+	execAgentOutput = func(cmdStr, prompt string, timeout time.Duration) ([]byte, error) {
+		switch cmdStr {
+		case "fail":
+			return nil, errors.New("command failed")
+		case "badjson":
+			return []byte("not-json"), nil
+		case "ok":
+			return []byte(`{"status":"pass","signal":"ok"}`), nil
+		default:
+			return nil, errors.New("unexpected cmd")
+		}
+	}
+	t.Cleanup(func() { execAgentOutput = orig })
+
+	_, err := execAgent("fail", "prompt", 1*time.Second)
 	if err == nil {
 		t.Fatalf("expected command error")
 	}
 
-	_, err = execAgent("printf 'not-json'", "prompt", 1*time.Second)
+	_, err = execAgent("badjson", "prompt", 1*time.Second)
 	if err == nil {
 		t.Fatalf("expected json error")
 	}
 
-	resp := `{"status":"pass","signal":"ok"}`
-	cmd := "printf '" + strings.ReplaceAll(resp, "'", "'\\''") + "'"
-	parsed, err := execAgent(cmd, "prompt", 1*time.Second)
+	parsed, err := execAgent("ok", "prompt", 1*time.Second)
 	if err != nil {
 		t.Fatalf("exec agent: %v", err)
 	}
@@ -168,7 +182,16 @@ func TestRunAgentCheckUsesEnvCmd(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "prompt.md"), "hi")
 	plugin := Plugin{FS: os.DirFS(dir), Base: "."}
 	check := Check{ID: "test", Prompt: "prompt.md", Description: "desc"}
-	t.Setenv("DUN_AGENT_CMD", "printf '{\"status\":\"pass\",\"signal\":\"ok\"}'")
+	orig := execAgentOutput
+	execAgentOutput = func(cmdStr, prompt string, timeout time.Duration) ([]byte, error) {
+		if cmdStr != "ok" {
+			return nil, errors.New("unexpected cmd")
+		}
+		return []byte(`{"status":"pass","signal":"ok"}`), nil
+	}
+	t.Cleanup(func() { execAgentOutput = orig })
+
+	t.Setenv("DUN_AGENT_CMD", "ok")
 	opts := Options{AgentMode: "auto", AutomationMode: "auto", AgentTimeout: time.Second}
 	res, err := runAgentCheck(".", plugin, check, opts)
 	if err != nil {
@@ -184,10 +207,18 @@ func TestRunAgentCheckDefaultTimeout(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "prompt.md"), "hi")
 	plugin := Plugin{FS: os.DirFS(dir), Base: "."}
 	check := Check{ID: "test", Prompt: "prompt.md", Description: "desc"}
+	orig := execAgentOutput
+	execAgentOutput = func(cmdStr, prompt string, timeout time.Duration) ([]byte, error) {
+		if cmdStr != "ok" {
+			return nil, errors.New("unexpected cmd")
+		}
+		return []byte(`{"status":"pass","signal":"ok"}`), nil
+	}
+	t.Cleanup(func() { execAgentOutput = orig })
 	opts := Options{
 		AgentMode:      "auto",
 		AutomationMode: "auto",
-		AgentCmd:       "printf '{\"status\":\"pass\",\"signal\":\"ok\"}'",
+		AgentCmd:       "ok",
 	}
 	res, err := runAgentCheck(".", plugin, check, opts)
 	if err != nil {
@@ -233,10 +264,23 @@ func TestRunAgentCheckAutoSuccessAndInvalidResponse(t *testing.T) {
 	plugin := Plugin{FS: os.DirFS(dir), Base: "."}
 	check := Check{ID: "test", Prompt: "prompt.md", Description: "desc"}
 
+	orig := execAgentOutput
+	execAgentOutput = func(cmdStr, prompt string, timeout time.Duration) ([]byte, error) {
+		switch cmdStr {
+		case "ok":
+			return []byte(`{"status":"pass","signal":"ok"}`), nil
+		case "missing-signal":
+			return []byte(`{"status":"pass"}`), nil
+		default:
+			return nil, errors.New("unexpected cmd")
+		}
+	}
+	t.Cleanup(func() { execAgentOutput = orig })
+
 	opts := Options{
 		AgentMode:      "auto",
 		AutomationMode: "auto",
-		AgentCmd:       "printf '{\"status\":\"pass\",\"signal\":\"ok\"}'",
+		AgentCmd:       "ok",
 		AgentTimeout:   time.Second,
 	}
 	res, err := runAgentCheck(".", plugin, check, opts)
@@ -247,7 +291,7 @@ func TestRunAgentCheckAutoSuccessAndInvalidResponse(t *testing.T) {
 		t.Fatalf("expected pass, got %s", res.Status)
 	}
 
-	opts.AgentCmd = "printf '{\"status\":\"pass\"}'"
+	opts.AgentCmd = "missing-signal"
 	_, err = runAgentCheck(".", plugin, check, opts)
 	if err == nil {
 		t.Fatalf("expected error for missing signal")
@@ -270,10 +314,15 @@ func TestRunAgentCheckExecAgentError(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "prompt.md"), "hi")
 	plugin := Plugin{FS: os.DirFS(dir), Base: "."}
 	check := Check{ID: "test", Prompt: "prompt.md", Description: "desc"}
+	orig := execAgentOutput
+	execAgentOutput = func(cmdStr, prompt string, timeout time.Duration) ([]byte, error) {
+		return nil, errors.New("boom")
+	}
+	t.Cleanup(func() { execAgentOutput = orig })
 	opts := Options{
 		AgentMode:      "auto",
 		AutomationMode: "auto",
-		AgentCmd:       "exit 1",
+		AgentCmd:       "fail",
 		AgentTimeout:   time.Second,
 	}
 	if _, err := runAgentCheck(dir, plugin, check, opts); err == nil {

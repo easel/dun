@@ -105,7 +105,7 @@ For autonomous loops, prioritize:
 2. **Minimal overhead** (direct API or CLI over Claude Code)
 3. **Large context models** (Gemini 1M+ if overhead is unavoidable)
 
-The ideal `dun iterate` approach:
+The ideal `dun check --prompt` approach:
 - Generate minimal prompt (just task + instructions)
 - Call via CLI or API (not nested in Claude Code session)
 - Parse structured output

@@ -1,4 +1,4 @@
-# Iterate Options Spike
+# Prompt Options Spike
 
 Comparing different approaches for closing the autonomous loop.
 

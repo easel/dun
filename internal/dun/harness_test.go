@@ -8,6 +8,78 @@ import (
 	"time"
 )
 
+type runnerCapture struct {
+	name    string
+	args    []string
+	workDir string
+	env     map[string]string
+	calls   int
+}
+
+func captureRunner(capture *runnerCapture, stdout string, stderr string, err error) CommandRunner {
+	return func(_ context.Context, name string, args []string, workDir string, env map[string]string) (string, string, error) {
+		capture.calls++
+		capture.name = name
+		capture.args = append([]string(nil), args...)
+		capture.workDir = workDir
+		if env != nil {
+			capture.env = make(map[string]string, len(env))
+			for key, value := range env {
+				capture.env[key] = value
+			}
+		} else {
+			capture.env = nil
+		}
+		return stdout, stderr, err
+	}
+}
+
+func blockingRunner(capture *runnerCapture) CommandRunner {
+	return func(ctx context.Context, name string, args []string, workDir string, env map[string]string) (string, string, error) {
+		capture.calls++
+		capture.name = name
+		capture.args = append([]string(nil), args...)
+		capture.workDir = workDir
+		if env != nil {
+			capture.env = make(map[string]string, len(env))
+			for key, value := range env {
+				capture.env[key] = value
+			}
+		} else {
+			capture.env = nil
+		}
+		<-ctx.Done()
+		return "", "", ctx.Err()
+	}
+}
+
+func assertArgsContain(t *testing.T, args []string, required []string) {
+	t.Helper()
+	for _, req := range required {
+		found := false
+		for _, arg := range args {
+			if arg == req {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("expected args to contain %q, got %v", req, args)
+		}
+	}
+}
+
+func assertArgsContainSubstring(t *testing.T, args []string, needle string) {
+	t.Helper()
+	for _, arg := range args {
+		if strings.Contains(arg, needle) {
+			return
+		}
+	}
+	t.Fatalf("expected args to contain %q, got %v", needle, args)
+}
+
+
 // TestMockHarnessName verifies the mock harness returns correct name.
 func TestMockHarnessName(t *testing.T) {
 	harness := NewMockHarness(HarnessConfig{})
@@ -481,48 +553,44 @@ func TestHarnessRegistryConcurrentAccess(t *testing.T) {
 
 // TestClaudeHarnessExecuteWithEcho tests Claude harness with echo command.
 func TestClaudeHarnessExecuteWithEcho(t *testing.T) {
+	capture := &runnerCapture{}
 	harness := NewClaudeHarness(HarnessConfig{
-		Command: "echo",
+		Runner: captureRunner(capture, "ok", "", nil),
 	})
 
 	ctx := context.Background()
-	// When command is "echo", it will just echo the arguments
-	response, err := harness.Execute(ctx, "test")
+	_, err := harness.Execute(ctx, "test")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	// echo will print the arguments
-	if !strings.Contains(response, "-p") {
-		t.Fatalf("expected echo output to contain '-p', got %q", response)
-	}
+	assertArgsContain(t, capture.args, []string{"--dangerously-skip-permissions", "--output-format", "text", "-p", "test"})
 }
 
 // TestCodexHarnessExecuteWithEcho tests Codex harness with echo command.
 func TestCodexHarnessExecuteWithEcho(t *testing.T) {
+	capture := &runnerCapture{}
 	harness := NewCodexHarness(HarnessConfig{
-		Command: "echo",
+		Runner: captureRunner(capture, "ok", "", nil),
 	})
 
 	ctx := context.Background()
-	response, err := harness.Execute(ctx, "test")
+	_, err := harness.Execute(ctx, "test")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	// echo will print the arguments including "exec" and "-p"
-	if !strings.Contains(response, "exec") {
-		t.Fatalf("expected echo output to contain 'exec', got %q", response)
-	}
+	assertArgsContain(t, capture.args, []string{"exec", "--full-auto", "test"})
 }
 
 // TestHarnessExecuteWithTimeout tests harness respects timeout.
 func TestHarnessExecuteWithTimeout(t *testing.T) {
+	capture := &runnerCapture{}
 	harness := NewClaudeHarness(HarnessConfig{
-		Command: "sleep",
 		Timeout: 10 * time.Millisecond,
+		Runner:  blockingRunner(capture),
 	})
 
 	ctx := context.Background()
-	_, err := harness.Execute(ctx, "10") // sleep 10 seconds
+	_, err := harness.Execute(ctx, "10")
 	if err == nil {
 		t.Fatal("expected timeout error")
 	}
@@ -547,40 +615,38 @@ func TestAutomationModeConstants(t *testing.T) {
 
 // TestClaudeHarnessYoloArgs tests that yolo mode adds correct arguments.
 func TestClaudeHarnessYoloArgs(t *testing.T) {
+	capture := &runnerCapture{}
 	harness := NewClaudeHarness(HarnessConfig{
-		Command:        "echo",
 		AutomationMode: AutomationYolo,
+		Runner:         captureRunner(capture, "ok", "", nil),
 	})
 
 	ctx := context.Background()
-	response, err := harness.Execute(ctx, "test")
+	_, err := harness.Execute(ctx, "test")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	// In yolo mode, should include --dangerously-skip-permissions
-	if !strings.Contains(response, "--dangerously-skip-permissions") {
-		t.Fatalf("expected yolo args in output, got %q", response)
-	}
+	assertArgsContain(t, capture.args, []string{"--dangerously-skip-permissions"})
 }
 
 // TestCodexHarnessYoloArgs tests that yolo mode adds correct arguments.
 // Codex uses "exec --full-auto" for autonomous execution.
 // Reference: ralph-orchestrator/crates/ralph-adapters/src/cli_backend.rs
 func TestCodexHarnessYoloArgs(t *testing.T) {
+	capture := &runnerCapture{}
 	harness := NewCodexHarness(HarnessConfig{
-		Command:        "echo",
 		AutomationMode: AutomationYolo,
+		Runner:         captureRunner(capture, "ok", "", nil),
 	})
 
 	ctx := context.Background()
-	response, err := harness.Execute(ctx, "test")
+	_, err := harness.Execute(ctx, "test")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	// In yolo mode, should include --full-auto
-	if !strings.Contains(response, "--full-auto") {
-		t.Fatalf("expected --full-auto in output, got %q", response)
-	}
+	assertArgsContain(t, capture.args, []string{"--full-auto"})
 }
 
 // TestHarnessWorkDir tests that working directory is respected.
@@ -616,23 +682,24 @@ func TestClaudeHarnessWorkDirConfig(t *testing.T) {
 
 // TestGeminiHarnessPromptEscaping tests that gemini properly escapes prompts.
 func TestGeminiHarnessPromptEscaping(t *testing.T) {
+	capture := &runnerCapture{}
 	harness := NewGeminiHarness(HarnessConfig{
-		Command: "echo",
+		Runner: captureRunner(capture, "ok", "", nil),
 	})
 
 	ctx := context.Background()
 	// Execute with a prompt containing triple quotes
 	_, err := harness.Execute(ctx, `test """quote""" test`)
-	// This will fail because python3 isn't running a valid script,
-	// but we're just testing that it doesn't crash
+	// Ensure prompt is preserved in args and no panic
 	if err == nil {
-		// If it somehow succeeds, that's fine
+		assertArgsContain(t, capture.args, []string{`test """quote""" test`})
 		return
 	}
 	// Error should be about command execution, not panic
 	if strings.Contains(err.Error(), "unknown harness") {
 		t.Fatalf("gemini should be a known harness")
 	}
+	assertArgsContain(t, capture.args, []string{`test """quote""" test`})
 }
 
 // =============================================================================
@@ -644,12 +711,13 @@ func TestGeminiHarnessPromptEscaping(t *testing.T) {
 // TestClaudeHarnessAutonomousArgs verifies Claude harness uses correct autonomous flags.
 // Claude requires --dangerously-skip-permissions for multi-step execution.
 func TestClaudeHarnessAutonomousArgs(t *testing.T) {
+	capture := &runnerCapture{}
 	harness := NewClaudeHarness(HarnessConfig{
-		Command: "echo",
+		Runner: captureRunner(capture, "ok", "", nil),
 	})
 
 	ctx := context.Background()
-	response, err := harness.Execute(ctx, "multi-step task")
+	_, err := harness.Execute(ctx, "multi-step task")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -663,22 +731,19 @@ func TestClaudeHarnessAutonomousArgs(t *testing.T) {
 		"multi-step task",                // The actual prompt
 	}
 
-	for _, flag := range required {
-		if !strings.Contains(response, flag) {
-			t.Errorf("missing required flag %q in command: %s", flag, response)
-		}
-	}
+	assertArgsContain(t, capture.args, required)
 }
 
 // TestGeminiHarnessAutonomousArgs verifies Gemini harness uses correct autonomous flags.
 // The gemini CLI uses --yolo for autonomous tool approval.
 func TestGeminiHarnessAutonomousArgs(t *testing.T) {
+	capture := &runnerCapture{}
 	harness := NewGeminiHarness(HarnessConfig{
-		Command: "echo",
+		Runner: captureRunner(capture, "ok", "", nil),
 	})
 
 	ctx := context.Background()
-	response, err := harness.Execute(ctx, "multi-step task")
+	_, err := harness.Execute(ctx, "multi-step task")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -690,22 +755,19 @@ func TestGeminiHarnessAutonomousArgs(t *testing.T) {
 		"multi-step task", // The actual prompt
 	}
 
-	for _, flag := range required {
-		if !strings.Contains(response, flag) {
-			t.Errorf("missing required flag %q in command: %s", flag, response)
-		}
-	}
+	assertArgsContain(t, capture.args, required)
 }
 
 // TestCodexHarnessAutonomousArgs verifies Codex harness uses correct autonomous flags.
 // Codex uses "exec --full-auto" for autonomous execution with positional prompt.
 func TestCodexHarnessAutonomousArgs(t *testing.T) {
+	capture := &runnerCapture{}
 	harness := NewCodexHarness(HarnessConfig{
-		Command: "echo",
+		Runner: captureRunner(capture, "ok", "", nil),
 	})
 
 	ctx := context.Background()
-	response, err := harness.Execute(ctx, "multi-step task")
+	_, err := harness.Execute(ctx, "multi-step task")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -717,15 +779,14 @@ func TestCodexHarnessAutonomousArgs(t *testing.T) {
 		"multi-step task", // Positional prompt argument (not -p)
 	}
 
-	for _, flag := range required {
-		if !strings.Contains(response, flag) {
-			t.Errorf("missing required flag %q in command: %s", flag, response)
-		}
-	}
+	assertArgsContain(t, capture.args, required)
 
 	// Codex should NOT use -p flag (uses positional argument)
-	if strings.Contains(response, " -p ") {
-		t.Errorf("codex should not use -p flag, uses positional argument: %s", response)
+	for _, arg := range capture.args {
+		if arg == "-p" {
+			t.Errorf("codex should not use -p flag, uses positional argument: %v", capture.args)
+			break
+		}
 	}
 }
 
@@ -767,27 +828,26 @@ Step 2: Parse the YAML content
 Step 3: Validate the schema
 Step 4: Apply the changes`
 
-	harnesses := []struct {
-		name    string
-		harness Harness
-	}{
-		{"claude", NewClaudeHarness(HarnessConfig{Command: "echo"})},
-		{"gemini", NewGeminiHarness(HarnessConfig{Command: "echo"})},
-		{"codex", NewCodexHarness(HarnessConfig{Command: "echo"})},
-	}
-
 	ctx := context.Background()
-	for _, h := range harnesses {
-		t.Run(h.name, func(t *testing.T) {
-			response, err := h.harness.Execute(ctx, complexPrompt)
+	for _, name := range []string{"claude", "gemini", "codex"} {
+		t.Run(name, func(t *testing.T) {
+			capture := &runnerCapture{}
+			var harness Harness
+			switch name {
+			case "claude":
+				harness = NewClaudeHarness(HarnessConfig{Runner: captureRunner(capture, "ok", "", nil)})
+			case "gemini":
+				harness = NewGeminiHarness(HarnessConfig{Runner: captureRunner(capture, "ok", "", nil)})
+			case "codex":
+				harness = NewCodexHarness(HarnessConfig{Runner: captureRunner(capture, "ok", "", nil)})
+			}
+			_, err := harness.Execute(ctx, complexPrompt)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
 			// The multi-line prompt should be preserved in the command
-			if !strings.Contains(response, "Step 1") {
-				t.Errorf("prompt content not preserved: %s", response)
-			}
+			assertArgsContainSubstring(t, capture.args, "Step 1: Read the file config.yaml")
 		})
 	}
 }
@@ -835,27 +895,46 @@ func TestHarnessConsistentInterface(t *testing.T) {
 func TestCrossAgentExecutionConsistency(t *testing.T) {
 	prompt := "analyze the codebase and suggest improvements"
 
-	harnesses := map[string]Harness{
-		"claude": NewClaudeHarness(HarnessConfig{Command: "echo"}),
-		"gemini": NewGeminiHarness(HarnessConfig{Command: "echo"}),
-		"codex":  NewCodexHarness(HarnessConfig{Command: "echo"}),
+	harnesses := map[string]struct {
+		harness Harness
+		capture *runnerCapture
+	}{
+		"claude": {NewClaudeHarness(HarnessConfig{Runner: captureRunner(&runnerCapture{}, "ok", "", nil)}), &runnerCapture{}},
+		"gemini": {NewGeminiHarness(HarnessConfig{Runner: captureRunner(&runnerCapture{}, "ok", "", nil)}), &runnerCapture{}},
+		"codex":  {NewCodexHarness(HarnessConfig{Runner: captureRunner(&runnerCapture{}, "ok", "", nil)}), &runnerCapture{}},
 	}
 
 	ctx := context.Background()
-	results := make(map[string]string)
+	results := make(map[string][]string)
 
-	for name, harness := range harnesses {
-		response, err := harness.Execute(ctx, prompt)
+	for name, entry := range harnesses {
+		capture := &runnerCapture{}
+		switch name {
+		case "claude":
+			entry.harness = NewClaudeHarness(HarnessConfig{Runner: captureRunner(capture, "ok", "", nil)})
+		case "gemini":
+			entry.harness = NewGeminiHarness(HarnessConfig{Runner: captureRunner(capture, "ok", "", nil)})
+		case "codex":
+			entry.harness = NewCodexHarness(HarnessConfig{Runner: captureRunner(capture, "ok", "", nil)})
+		}
+		_, err := entry.harness.Execute(ctx, prompt)
 		if err != nil {
 			t.Fatalf("%s: unexpected error: %v", name, err)
 		}
-		results[name] = response
+		results[name] = capture.args
 	}
 
 	// All harnesses should include the prompt in their output
 	for name, result := range results {
-		if !strings.Contains(result, "analyze") {
-			t.Errorf("%s: prompt not found in command output: %s", name, result)
+		found := false
+		for _, arg := range result {
+			if strings.Contains(arg, "analyze") {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("%s: prompt not found in command args: %v", name, result)
 		}
 	}
 }
@@ -866,9 +945,9 @@ func TestHarnessErrorHandlingConsistency(t *testing.T) {
 		name    string
 		harness Harness
 	}{
-		{"claude", NewClaudeHarness(HarnessConfig{Command: "false"})}, // "false" command always fails
-		{"gemini", NewGeminiHarness(HarnessConfig{Command: "false"})},
-		{"codex", NewCodexHarness(HarnessConfig{Command: "false"})},
+		{"claude", NewClaudeHarness(HarnessConfig{Runner: captureRunner(&runnerCapture{}, "", "", errors.New("fail"))})},
+		{"gemini", NewGeminiHarness(HarnessConfig{Runner: captureRunner(&runnerCapture{}, "", "", errors.New("fail"))})},
+		{"codex", NewCodexHarness(HarnessConfig{Runner: captureRunner(&runnerCapture{}, "", "", errors.New("fail"))})},
 	}
 
 	ctx := context.Background()
@@ -891,9 +970,9 @@ func TestHarnessTimeoutConsistency(t *testing.T) {
 		name    string
 		harness Harness
 	}{
-		{"claude", NewClaudeHarness(HarnessConfig{Command: "sleep", Timeout: timeout})},
-		{"gemini", NewGeminiHarness(HarnessConfig{Command: "sleep", Timeout: timeout})},
-		{"codex", NewCodexHarness(HarnessConfig{Command: "sleep", Timeout: timeout})},
+		{"claude", NewClaudeHarness(HarnessConfig{Timeout: timeout, Runner: blockingRunner(&runnerCapture{})})},
+		{"gemini", NewGeminiHarness(HarnessConfig{Timeout: timeout, Runner: blockingRunner(&runnerCapture{})})},
+		{"codex", NewCodexHarness(HarnessConfig{Timeout: timeout, Runner: blockingRunner(&runnerCapture{})})},
 	}
 
 	ctx := context.Background()
@@ -926,10 +1005,11 @@ func TestHarnessTimeoutConsistency(t *testing.T) {
 // - --output-format text: Parseable output format
 // - -p: Prompt flag
 func TestRegressionClaudeFlags(t *testing.T) {
-	harness := NewClaudeHarness(HarnessConfig{Command: "echo"})
+	capture := &runnerCapture{}
+	harness := NewClaudeHarness(HarnessConfig{Runner: captureRunner(capture, "ok", "", nil)})
 	ctx := context.Background()
 
-	response, _ := harness.Execute(ctx, "test")
+	_, _ = harness.Execute(ctx, "test")
 
 	// These flags MUST NOT change without explicit decision
 	requiredFlags := map[string]string{
@@ -940,7 +1020,14 @@ func TestRegressionClaudeFlags(t *testing.T) {
 	}
 
 	for flag, reason := range requiredFlags {
-		if !strings.Contains(response, flag) {
+		found := false
+		for _, arg := range capture.args {
+			if arg == flag {
+				found = true
+				break
+			}
+		}
+		if !found {
 			t.Errorf("REGRESSION: Claude missing required flag %q (%s)", flag, reason)
 		}
 	}
@@ -951,10 +1038,11 @@ func TestRegressionClaudeFlags(t *testing.T) {
 // - --yolo: Required for autonomous tool approval
 // - -p: Prompt flag
 func TestRegressionGeminiFlags(t *testing.T) {
-	harness := NewGeminiHarness(HarnessConfig{Command: "echo"})
+	capture := &runnerCapture{}
+	harness := NewGeminiHarness(HarnessConfig{Runner: captureRunner(capture, "ok", "", nil)})
 	ctx := context.Background()
 
-	response, _ := harness.Execute(ctx, "test")
+	_, _ = harness.Execute(ctx, "test")
 
 	// These flags MUST NOT change without explicit decision
 	requiredFlags := map[string]string{
@@ -963,7 +1051,14 @@ func TestRegressionGeminiFlags(t *testing.T) {
 	}
 
 	for flag, reason := range requiredFlags {
-		if !strings.Contains(response, flag) {
+		found := false
+		for _, arg := range capture.args {
+			if arg == flag {
+				found = true
+				break
+			}
+		}
+		if !found {
 			t.Errorf("REGRESSION: Gemini missing required flag %q (%s)", flag, reason)
 		}
 	}
@@ -975,10 +1070,11 @@ func TestRegressionGeminiFlags(t *testing.T) {
 // - --full-auto: Required for autonomous execution
 // - Positional prompt (NOT -p flag)
 func TestRegressionCodexFlags(t *testing.T) {
-	harness := NewCodexHarness(HarnessConfig{Command: "echo"})
+	capture := &runnerCapture{}
+	harness := NewCodexHarness(HarnessConfig{Runner: captureRunner(capture, "ok", "", nil)})
 	ctx := context.Background()
 
-	response, _ := harness.Execute(ctx, "test")
+	_, _ = harness.Execute(ctx, "test")
 
 	// These flags MUST NOT change without explicit decision
 	requiredFlags := map[string]string{
@@ -987,14 +1083,24 @@ func TestRegressionCodexFlags(t *testing.T) {
 	}
 
 	for flag, reason := range requiredFlags {
-		if !strings.Contains(response, flag) {
+		found := false
+		for _, arg := range capture.args {
+			if arg == flag {
+				found = true
+				break
+			}
+		}
+		if !found {
 			t.Errorf("REGRESSION: Codex missing required flag %q (%s)", flag, reason)
 		}
 	}
 
 	// Codex uses positional argument, NOT -p flag
-	if strings.Contains(response, " -p ") {
-		t.Error("REGRESSION: Codex should use positional prompt, not -p flag")
+	for _, arg := range capture.args {
+		if arg == "-p" {
+			t.Error("REGRESSION: Codex should use positional prompt, not -p flag")
+			break
+		}
 	}
 }
 

@@ -103,7 +103,7 @@ By forcing a fresh start, Ralph stays aligned with the source of truth: the file
 - Priority ordering (plugin + check priorities)
 
 **Missing:**
-- `dun iterate` - present all work, let LLM choose
+- `dun check --prompt` - present all work, let LLM choose
 - Status block parsing - detect completion/exit signals
 - Circuit breaker - prevent runaway loops
 - Loop driver - outer bash/script that spawns Claude
@@ -114,16 +114,16 @@ By forcing a fresh start, Ralph stays aligned with the source of truth: the file
 ┌─────────────────────────────────────────────────────────┐
 │                    Outer Loop (bash)                     │
 │  while true; do                                          │
-│    dun iterate > prompt.md                               │
+│    dun check --prompt > prompt.md                               │
 │    claude -p "$(cat prompt.md)" --allowedTools "..."     │
 │    # Claude exits after ONE task                         │
-│    dun iterate  # re-evaluate, detect exit condition     │
+│    dun check --prompt  # re-evaluate, detect exit condition     │
 │  done                                                    │
 └─────────────────────────────────────────────────────────┘
          │
          ▼
 ┌─────────────────────────────────────────────────────────┐
-│                    dun iterate                           │
+│                    dun check --prompt                           │
 │  1. Run all checks (buildPlan + runCheck)                │
 │  2. Collect non-passing checks                           │
 │  3. Format as work list with priorities                  │
@@ -151,16 +151,17 @@ By forcing a fresh start, Ralph stays aligned with the source of truth: the file
 
 ## Implementation Plan
 
-### Phase 1: `dun iterate` Command
+### Phase 1: `dun check --prompt` Command
 
 New command that outputs a prompt for one iteration:
 
 ```go
 // cmd/dun/main.go
-case "iterate":
-    return runIterate(args[1:], stdout, stderr)
+case "check":
+    return runCheck(args[1:], stdout, stderr)
 
-func runIterate(args []string, stdout, stderr io.Writer) int {
+// inside runCheck when --prompt is set
+func runCheckPrompt(args []string, stdout, stderr io.Writer) int {
     // 1. Run dun check internally
     result, _ := checkRepo(root, opts)
 
@@ -174,15 +175,15 @@ func runIterate(args []string, stdout, stderr io.Writer) int {
 
     // 3. Check for exit conditions
     if len(actionable) == 0 {
-        fmt.Fprintln(stdout, "---DUN_ITERATE---")
+        fmt.Fprintln(stdout, "---DUN_PROMPT---")
         fmt.Fprintln(stdout, "STATUS: ALL_PASS")
         fmt.Fprintln(stdout, "EXIT_SIGNAL: true")
-        fmt.Fprintln(stdout, "---END_DUN_ITERATE---")
+        fmt.Fprintln(stdout, "---END_DUN_PROMPT---")
         return 0
     }
 
     // 4. Format as work list
-    printIteratePrompt(stdout, actionable, opts.AutomationMode)
+    printPrompt(stdout, actionable, opts.AutomationMode)
     return 0
 }
 ```
@@ -193,14 +194,14 @@ Parse Claude's response for loop control:
 
 ```go
 // internal/dun/status.go
-type IterationStatus struct {
+type PromptStatus struct {
     TaskCompleted      string `json:"task_completed"`
     Status             string `json:"status"`  // COMPLETE, IN_PROGRESS, BLOCKED
     ExitSignal         bool   `json:"exit_signal"`
     NextRecommendation string `json:"next_recommendation"`
 }
 
-func ParseStatusBlock(output string) (*IterationStatus, error) {
+func ParseStatusBlock(output string) (*PromptStatus, error) {
     // Look for ---DUN_STATUS--- ... ---END_DUN_STATUS---
     // Parse fields
 }
@@ -254,7 +255,7 @@ while true; do
     fi
 
     # Get iteration prompt
-    PROMPT=$(dun iterate --automation=auto)
+    PROMPT=$(dun check --prompt --automation=auto)
 
     # Check for exit
     if echo "$PROMPT" | grep -q "EXIT_SIGNAL: true"; then
@@ -277,10 +278,10 @@ while true; do
 done
 ```
 
-## Iterate Prompt Format
+## Prompt Format
 
 ```markdown
-# Dun Iteration
+# Dun Prompt
 
 ## Available Work (pick ONE)
 
@@ -357,17 +358,17 @@ Both must be true for clean exit. This prevents:
 
 ## Dun's Ralph Implementation
 
-The key insight: **dun iterate IS the PROMPT.md**
+The key insight: **dun check --prompt IS the PROMPT.md**
 
 ```bash
 # Pure Ralph
 while :; do cat PROMPT.md | claude-code ; done
 
 # Dun Ralph (dynamic prompt generation)
-while :; do dun iterate | claude -p "$(cat -)" ; done
+while :; do dun check --prompt | claude -p "$(cat -)" ; done
 ```
 
-Instead of a static PROMPT.md, `dun iterate` dynamically generates the prompt by:
+Instead of a static PROMPT.md, `dun check --prompt` dynamically generates the prompt by:
 1. Running all checks to detect available work
 2. Formatting results as a prioritized task list
 3. Including loop control instructions
@@ -386,13 +387,13 @@ When dun produces suboptimal results, tune via:
 |---------|-----------------|
 | Wrong task priority | Plugin `priority` field in manifests |
 | Missing work detection | Add new check conditions |
-| Claude makes wrong choices | Improve `dun iterate` prompt format |
+| Claude makes wrong choices | Improve `dun check --prompt` prompt format |
 | Loop runs too long | Circuit breaker thresholds |
 | Rate limiting | `MAX_CALLS_PER_HOUR` in config |
 
 ## Open Questions
 
-1. Should `dun iterate` call `dun check` internally or expect pre-computed results?
+1. Should `dun check --prompt` call `dun check` internally or expect pre-computed results?
    - **Proposed**: Call internally for simplicity
 2. How to handle BLOCKED status - retry? skip? escalate?
    - **Proposed**: Skip and continue, log for human review
@@ -432,7 +433,7 @@ When dun produces suboptimal results, tune via:
 
 3. **Hooks enable learning.** Pre/post events let the system improve over time.
 
-### Why `dun iterate` is Right
+### Why `dun check --prompt` is Right
 
 Dun already has:
 - `dun check` - Work detection ✓
@@ -440,7 +441,7 @@ Dun already has:
 - `dun respond` - Agent response handling ✓
 - Priority ordering - Plugin + check priorities ✓
 
-What's missing is **loop closure**. `dun iterate` fills this gap by:
+What's missing is **loop closure**. `dun check --prompt` fills this gap by:
 1. Calling `dun check` internally
 2. Formatting results as a work list for Claude
 3. Including exit detection in the prompt
@@ -448,14 +449,14 @@ What's missing is **loop closure**. `dun iterate` fills this gap by:
 
 The outer loop is literally:
 ```bash
-while :; do dun iterate | claude -p "$(cat -)" ; done
+while :; do dun check --prompt | claude -p "$(cat -)" ; done
 ```
 
 This is Ralph's genius applied to dun's strengths.
 
 ## Next Steps
 
-1. [ ] Implement `dun iterate` command
+1. [ ] Implement `dun check --prompt` command
 2. [ ] Add status block parsing
 3. [ ] Add circuit breaker
 4. [ ] Create loop driver script

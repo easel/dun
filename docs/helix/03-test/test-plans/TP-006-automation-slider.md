@@ -30,10 +30,9 @@
 | Test | Description | Covers |
 |------|-------------|--------|
 | `TestCheckUsesConfigAgentAuto` | Uses config with `automation: auto` and `mode: auto`, verifies agent responds | AC-2 (partial) |
-| `TestRunIterateWithActionable` | Passes `--automation yolo` flag to iterate command | AC-1 (partial) |
 | `TestCallHarnessClaudeYolo` | Verifies claude harness accepts yolo mode | AC-4 (partial) |
 | `TestCallHarnessCodexYolo` | Verifies codex harness accepts yolo mode | AC-4 (partial) |
-| `TestPrintIteratePromptVariants` | Includes automation mode in output verification (`Automation mode: yolo`) | AC-1 (partial) |
+| `TestPrintPromptVariants` | Includes automation mode in output verification (`Automation mode: yolo`) | AC-1 (partial) |
 | `TestRunLoopWithConfig` | Uses config with `mode: auto` | AC-2 (partial) |
 
 ---
@@ -43,8 +42,8 @@
 ### AC-1: CLI flag for automation mode
 
 **Current Coverage:**
-- `TestRunIterateWithActionable` uses `--automation yolo` flag
-- `TestPrintIteratePromptVariants` verifies mode appears in output
+- `TestPrintPromptVariants` verifies mode appears in output
+ - `TestRunCheckPromptOutput` exercises `check --prompt` output path
 
 **Gaps:**
 - No test verifies CLI flag is accepted on `check` command
@@ -120,7 +119,7 @@
 |---------|-----------|----------|-------------|
 | TC-011 | `TestManualModeReturnsPrompt` | `cmd/dun/main_test.go` | Verify agent checks return `prompt` status in manual mode |
 | TC-012 | `TestManualModeNoAutoExecution` | `internal/dun/agent_test.go` | Verify agent is not called automatically in manual mode |
-| TC-013 | `TestManualModeIterateHalts` | `cmd/dun/main_test.go` | Verify iterate command with manual mode includes approval instructions |
+| TC-013 | `TestManualModePromptHalts` | `cmd/dun/main_test.go` | Verify check --prompt with manual mode includes approval instructions |
 | TC-014 | `TestManualModeLoopWaitsForApproval` | `cmd/dun/main_test.go` | Verify loop with manual mode does not auto-proceed |
 
 ### 4.4 Yolo Mode Behavior Tests (AC-4)

@@ -12,6 +12,10 @@ import (
 
 const defaultCommandTimeout = 5 * time.Minute
 
+type commandRunner func(ctx context.Context, dir string, shell string, shellArg string, command string, env []string) ([]byte, int, error)
+
+var commandRunnerFn commandRunner = runCommandWithExec
+
 // runCommandCheck executes a generic shell command check.
 func runCommandCheck(root string, check Check) (CheckResult, error) {
 	timeout := commandTimeout(check)
@@ -19,17 +23,9 @@ func runCommandCheck(root string, check Check) (CheckResult, error) {
 	defer cancel()
 
 	shell, shellArg := shellCommand(check)
+	env := buildCommandEnv(check)
 
-	var cmd *exec.Cmd
-	if shellArg != "" {
-		cmd = exec.CommandContext(ctx, shell, shellArg, check.Command)
-	} else {
-		cmd = exec.CommandContext(ctx, shell, check.Command)
-	}
-	cmd.Dir = root
-	cmd.Env = buildCommandEnv(check)
-
-	output, err := cmd.CombinedOutput()
+	output, exitCode, err := commandRunnerFn(ctx, root, shell, shellArg, check.Command, env)
 
 	// Check for context timeout - must check before examining error
 	// since killed processes return an ExitError
@@ -52,7 +48,6 @@ func runCommandCheck(root string, check Check) (CheckResult, error) {
 		}, nil
 	}
 
-	exitCode := exitCodeFromError(err)
 	if exitCode == -1 && err != nil {
 		return CheckResult{
 			ID:     check.ID,
@@ -75,6 +70,20 @@ func runCommandCheck(root string, check Check) (CheckResult, error) {
 		Issues: issues,
 		Next:   nextFromStatus(status, check),
 	}, nil
+}
+
+func runCommandWithExec(ctx context.Context, dir string, shell string, shellArg string, command string, env []string) ([]byte, int, error) {
+	var cmd *exec.Cmd
+	if shellArg != "" {
+		cmd = exec.CommandContext(ctx, shell, shellArg, command)
+	} else {
+		cmd = exec.CommandContext(ctx, shell, command)
+	}
+	cmd.Dir = dir
+	cmd.Env = env
+
+	output, err := cmd.CombinedOutput()
+	return output, exitCodeFromError(err), err
 }
 
 // commandTimeout returns the timeout duration for a command check.

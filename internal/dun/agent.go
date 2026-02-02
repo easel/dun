@@ -253,12 +253,7 @@ func hasGlob(path string) bool {
 var relPath = filepath.Rel
 
 func execAgent(cmdStr, prompt string, timeout time.Duration) (AgentResponse, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	cmd := exec.CommandContext(ctx, "/bin/sh", "-c", cmdStr)
-	cmd.Stdin = strings.NewReader(prompt)
-	output, err := cmd.Output()
+	output, err := execAgentOutput(cmdStr, prompt, timeout)
 	if err != nil {
 		return AgentResponse{}, fmt.Errorf("agent command failed: %w", err)
 	}
@@ -268,4 +263,15 @@ func execAgent(cmdStr, prompt string, timeout time.Duration) (AgentResponse, err
 		return AgentResponse{}, fmt.Errorf("agent response parse error: %w", err)
 	}
 	return resp, nil
+}
+
+var execAgentOutput = execAgentShell
+
+func execAgentShell(cmdStr, prompt string, timeout time.Duration) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "/bin/sh", "-c", cmdStr)
+	cmd.Stdin = strings.NewReader(prompt)
+	return cmd.Output()
 }

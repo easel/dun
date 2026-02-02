@@ -1,14 +1,54 @@
 package dun
 
 import (
+	"context"
+	"errors"
 	"os"
-	"path/filepath"
 	"testing"
 	"time"
 )
 
+type commandCapture struct {
+	dir      string
+	shell    string
+	shellArg string
+	command  string
+	env      []string
+	calls    int
+}
+
+func captureCommandRunner(capture *commandCapture, output []byte, exitCode int, err error) commandRunner {
+	return func(_ context.Context, dir string, shell string, shellArg string, command string, env []string) ([]byte, int, error) {
+		capture.calls++
+		capture.dir = dir
+		capture.shell = shell
+		capture.shellArg = shellArg
+		capture.command = command
+		capture.env = append([]string(nil), env...)
+		return output, exitCode, err
+	}
+}
+
+func blockingCommandRunner(capture *commandCapture) commandRunner {
+	return func(ctx context.Context, dir string, shell string, shellArg string, command string, env []string) ([]byte, int, error) {
+		capture.calls++
+		capture.dir = dir
+		capture.shell = shell
+		capture.shellArg = shellArg
+		capture.command = command
+		capture.env = append([]string(nil), env...)
+		<-ctx.Done()
+		return nil, -1, ctx.Err()
+	}
+}
+
+
 func TestRunCommandCheck_Success(t *testing.T) {
 	root := t.TempDir()
+	capture := &commandCapture{}
+	orig := commandRunnerFn
+	commandRunnerFn = captureCommandRunner(capture, []byte("hello"), 0, nil)
+	t.Cleanup(func() { commandRunnerFn = orig })
 
 	check := Check{
 		ID:      "test-echo",
@@ -29,10 +69,17 @@ func TestRunCommandCheck_Success(t *testing.T) {
 	if result.Next != "" {
 		t.Errorf("expected empty Next for pass, got %q", result.Next)
 	}
+	if capture.command != check.Command {
+		t.Errorf("expected command %q, got %q", check.Command, capture.command)
+	}
 }
 
 func TestRunCommandCheck_Failure(t *testing.T) {
 	root := t.TempDir()
+	capture := &commandCapture{}
+	orig := commandRunnerFn
+	commandRunnerFn = captureCommandRunner(capture, nil, 1, errors.New("exit 1"))
+	t.Cleanup(func() { commandRunnerFn = orig })
 
 	check := Check{
 		ID:      "test-exit",
@@ -57,6 +104,9 @@ func TestRunCommandCheck_Failure(t *testing.T) {
 
 func TestRunCommandCheck_CustomSuccessExit(t *testing.T) {
 	root := t.TempDir()
+	orig := commandRunnerFn
+	commandRunnerFn = captureCommandRunner(&commandCapture{}, nil, 2, errors.New("exit 2"))
+	t.Cleanup(func() { commandRunnerFn = orig })
 
 	check := Check{
 		ID:          "test-custom-exit",
@@ -76,6 +126,9 @@ func TestRunCommandCheck_CustomSuccessExit(t *testing.T) {
 
 func TestRunCommandCheck_WarnExit(t *testing.T) {
 	root := t.TempDir()
+	orig := commandRunnerFn
+	commandRunnerFn = captureCommandRunner(&commandCapture{}, nil, 2, errors.New("exit 2"))
+	t.Cleanup(func() { commandRunnerFn = orig })
 
 	check := Check{
 		ID:        "test-warn-exit",
@@ -98,6 +151,10 @@ func TestRunCommandCheck_WarnExit(t *testing.T) {
 
 func TestRunCommandCheck_Timeout(t *testing.T) {
 	root := t.TempDir()
+	capture := &commandCapture{}
+	orig := commandRunnerFn
+	commandRunnerFn = blockingCommandRunner(capture)
+	t.Cleanup(func() { commandRunnerFn = orig })
 
 	// Use a command that runs in the shell process itself (not a subprocess)
 	// so that the context cancellation properly kills it
@@ -130,10 +187,10 @@ func TestRunCommandCheck_Timeout(t *testing.T) {
 
 func TestRunCommandCheck_WorkingDirectory(t *testing.T) {
 	root := t.TempDir()
-	testFile := filepath.Join(root, "testfile.txt")
-	if err := os.WriteFile(testFile, []byte("test content"), 0644); err != nil {
-		t.Fatalf("failed to create test file: %v", err)
-	}
+	capture := &commandCapture{}
+	orig := commandRunnerFn
+	commandRunnerFn = captureCommandRunner(capture, []byte("test content"), 0, nil)
+	t.Cleanup(func() { commandRunnerFn = orig })
 
 	check := Check{
 		ID:      "test-pwd",
@@ -148,10 +205,17 @@ func TestRunCommandCheck_WorkingDirectory(t *testing.T) {
 	if result.Status != "pass" {
 		t.Errorf("expected status 'pass', got %q", result.Status)
 	}
+	if capture.dir != root {
+		t.Errorf("expected working dir %q, got %q", root, capture.dir)
+	}
 }
 
 func TestRunCommandCheck_CustomEnv(t *testing.T) {
 	root := t.TempDir()
+	capture := &commandCapture{}
+	orig := commandRunnerFn
+	commandRunnerFn = captureCommandRunner(capture, []byte("hello"), 0, nil)
+	t.Cleanup(func() { commandRunnerFn = orig })
 
 	check := Check{
 		ID:      "test-env",
@@ -167,10 +231,24 @@ func TestRunCommandCheck_CustomEnv(t *testing.T) {
 	if result.Status != "pass" {
 		t.Errorf("expected status 'pass', got %q", result.Status)
 	}
+	found := false
+	for _, entry := range capture.env {
+		if entry == "MY_VAR=hello" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected env to include MY_VAR=hello, got %v", capture.env)
+	}
 }
 
 func TestRunCommandCheck_CustomShell(t *testing.T) {
 	root := t.TempDir()
+	capture := &commandCapture{}
+	orig := commandRunnerFn
+	commandRunnerFn = captureCommandRunner(capture, []byte("hello"), 0, nil)
+	t.Cleanup(func() { commandRunnerFn = orig })
 
 	check := Check{
 		ID:      "test-shell",
@@ -186,10 +264,16 @@ func TestRunCommandCheck_CustomShell(t *testing.T) {
 	if result.Status != "pass" {
 		t.Errorf("expected status 'pass', got %q", result.Status)
 	}
+	if capture.shell != "bash" || capture.shellArg != "-c" {
+		t.Errorf("expected shell bash -c, got %q %q", capture.shell, capture.shellArg)
+	}
 }
 
 func TestRunCommandCheck_LinesParser(t *testing.T) {
 	root := t.TempDir()
+	orig := commandRunnerFn
+	commandRunnerFn = captureCommandRunner(&commandCapture{}, []byte("line1\nline2\n"), 0, nil)
+	t.Cleanup(func() { commandRunnerFn = orig })
 
 	check := Check{
 		ID:      "test-lines",
@@ -212,6 +296,9 @@ func TestRunCommandCheck_LinesParser(t *testing.T) {
 
 func TestRunCommandCheck_JSONParser(t *testing.T) {
 	root := t.TempDir()
+	orig := commandRunnerFn
+	commandRunnerFn = captureCommandRunner(&commandCapture{}, []byte(`{"issues":[{"file":"a.go","message":"error"}]}`), 0, nil)
+	t.Cleanup(func() { commandRunnerFn = orig })
 
 	check := Check{
 		ID:      "test-json",
@@ -977,6 +1064,10 @@ func TestExtractSingleIssue_NonStringValues(t *testing.T) {
 
 func TestRunCommandCheck_InvalidCommand(t *testing.T) {
 	root := t.TempDir()
+	capture := &commandCapture{}
+	orig := commandRunnerFn
+	commandRunnerFn = captureCommandRunner(capture, nil, -1, errors.New("no such file"))
+	t.Cleanup(func() { commandRunnerFn = orig })
 
 	check := Check{
 		ID:      "test-invalid",
@@ -995,10 +1086,16 @@ func TestRunCommandCheck_InvalidCommand(t *testing.T) {
 	if result.Signal != "command failed to run" {
 		t.Errorf("expected signal 'command failed to run', got %q", result.Signal)
 	}
+	if capture.shell != "/nonexistent/shell" {
+		t.Errorf("expected shell %q, got %q", "/nonexistent/shell", capture.shell)
+	}
 }
 
 func TestRunCommandCheck_RegexParser(t *testing.T) {
 	root := t.TempDir()
+	orig := commandRunnerFn
+	commandRunnerFn = captureCommandRunner(&commandCapture{}, []byte("main.go:10: error\nutil.go:20: warning"), 0, nil)
+	t.Cleanup(func() { commandRunnerFn = orig })
 
 	check := Check{
 		ID:           "test-regex",
@@ -1022,6 +1119,9 @@ func TestRunCommandCheck_RegexParser(t *testing.T) {
 
 func TestRunCommandCheck_JSONLinesParser(t *testing.T) {
 	root := t.TempDir()
+	orig := commandRunnerFn
+	commandRunnerFn = captureCommandRunner(&commandCapture{}, []byte("{\"file\":\"a.go\",\"message\":\"err1\"}\n{\"file\":\"b.go\",\"message\":\"err2\"}"), 0, nil)
+	t.Cleanup(func() { commandRunnerFn = orig })
 
 	check := Check{
 		ID:      "test-jsonlines",

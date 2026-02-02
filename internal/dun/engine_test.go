@@ -102,8 +102,23 @@ func runFixture(t *testing.T, name string, mode string) Result {
 		AgentMode:    mode,
 	}
 	if mode == "auto" {
-		agentCmd := fixturePath(t, "../testdata/agent/agent.sh")
-		opts.AgentCmd = "bash " + agentCmd
+		orig := execAgentOutput
+		execAgentOutput = func(cmdStr, prompt string, timeout time.Duration) ([]byte, error) {
+			switch {
+			case strings.Contains(prompt, "Check-ID: helix-create-architecture"):
+				return []byte(`{"status":"fail","signal":"architecture doc missing","detail":"docs/helix/02-design/architecture.md is missing","next":"Create docs/helix/02-design/architecture.md using the Helix template"}`), nil
+			case strings.Contains(prompt, "Check-ID: helix-create-feature-specs"):
+				return []byte(`{"status":"fail","signal":"feature specs missing","detail":"docs/helix/01-frame/features/ has no FEAT files","next":"Create FEAT-XXX specs in docs/helix/01-frame/features/"}`), nil
+			case strings.Contains(prompt, "Check-ID: helix-align-specs"):
+				return []byte(`{"status":"warn","signal":"alignment gaps found","detail":"PRD scope does not fully map to feature specs","next":"Review sections and update specs"}`), nil
+			case strings.Contains(prompt, "Check-ID: helix-reconcile-stack"):
+				return []byte(`{"status":"warn","signal":"drift plan ready","detail":"Reconciliation plan generated","next":"Apply plan updates"}`), nil
+			default:
+				return []byte(`{"status":"fail","signal":"unknown check","detail":"agent could not identify check id"}`), nil
+			}
+		}
+		t.Cleanup(func() { execAgentOutput = orig })
+		opts.AgentCmd = "stub-agent"
 	}
 	result, err := CheckRepo(root, opts)
 	if err != nil {

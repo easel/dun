@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -53,8 +54,6 @@ func run(args []string, stdout io.Writer, stderr io.Writer) int {
 		return runRespond(args[1:], stdout, stderr)
 	case "install":
 		return runInstall(args[1:], stdout, stderr)
-	case "iterate":
-		return runIterate(args[1:], stdout, stderr)
 	case "loop":
 		return runLoop(args[1:], stdout, stderr)
 	case "version":
@@ -79,10 +78,18 @@ COMMANDS:
   explain    Show details for a specific check
   respond    Process agent response for a check
   install    Install dun config and agent documentation
-  iterate    Output work list as a prompt for an agent
   loop       Run autonomous loop with an agent harness
   version    Show version information
   update     Update dun to the latest version
+
+CHECK MODE:
+  dun check [options]
+
+  Options:
+    --prompt     Output the loop prompt for the current repo state
+    --all        Include passing checks in prompt output
+    --format     Output format: prompt, llm, json
+    --automation Mode: manual, plan, auto, yolo (default: auto)
 
 LOOP MODE:
   dun loop [options]
@@ -128,17 +135,9 @@ UPDATE:
     --dry-run     Show what would be updated without applying
     --force       Force update even if already on latest version
 
-ITERATE MODE:
-  dun iterate [options]
-
-  Outputs a prompt listing available work for an external agent.
-  Use this with a bash loop:
-
-    while :; do dun iterate | claude -p "$(cat -)"; done
-
 AGENT DOCUMENTATION:
   Run 'dun install' to add AGENTS.md with instructions for AI agents.
-  Agents can then run 'dun iterate' or 'dun loop' to work autonomously.
+  Agents can then run 'dun check --prompt' or 'dun loop' to work autonomously.
 
 EXIT CODES:
   0  Success / all checks pass
@@ -171,9 +170,8 @@ func runCheck(args []string, stdout io.Writer, stderr io.Writer) int {
 	fs.SetOutput(stderr)
 	configPath := fs.String("config", explicitConfig, "path to config file (default .dun/config.yaml if present)")
 	format := fs.String("format", "prompt", "output format (prompt|llm|json)")
-	agentCmd := fs.String("agent-cmd", opts.AgentCmd, "agent command override")
-	agentTimeout := fs.Int("agent-timeout", int(opts.AgentTimeout/time.Second), "agent timeout in seconds")
-	agentMode := fs.String("agent-mode", opts.AgentMode, "agent mode (prompt|auto)")
+	promptOut := fs.Bool("prompt", false, "output loop prompt")
+	allChecks := fs.Bool("all", false, "include passing checks in prompt output")
 	automation := fs.String("automation", opts.AutomationMode, "automation mode (manual|plan|auto|yolo)")
 	if err := fs.Parse(args); err != nil {
 		return dun.ExitUsageError
@@ -181,15 +179,49 @@ func runCheck(args []string, stdout io.Writer, stderr io.Writer) int {
 	explicitConfig = *configPath
 
 	opts = dun.Options{
-		AgentCmd:       *agentCmd,
-		AgentTimeout:   time.Duration(*agentTimeout) * time.Second,
-		AgentMode:      *agentMode,
+		AgentMode:      "prompt",
 		AutomationMode: *automation,
 	}
 	result, err := checkRepo(root, opts)
 	if err != nil {
 		fmt.Fprintf(stderr, "dun check failed: %v\n", err)
 		return dun.ExitCheckFailed
+	}
+
+	if *promptOut {
+		checks := result.Checks
+		if !*allChecks {
+			var actionable []dun.CheckResult
+			for _, check := range checks {
+				if check.Status != "pass" {
+					actionable = append(actionable, check)
+				}
+			}
+			if len(actionable) == 0 {
+				passCount := 0
+				for _, check := range checks {
+					if check.Status == "pass" {
+						passCount++
+					}
+				}
+				plugins, err := activePlugins(root)
+				pluginsLine := "unknown"
+				if err == nil {
+					pluginsLine = strings.Join(plugins, ", ")
+				}
+				fmt.Fprintln(stdout, "---DUN_PROMPT---")
+				fmt.Fprintln(stdout, "STATUS: ALL_PASS")
+				fmt.Fprintln(stdout, "EXIT_SIGNAL: true")
+				fmt.Fprintf(stdout, "CHECKS_PASSED: %d\n", passCount)
+				fmt.Fprintf(stdout, "PLUGINS_ACTIVE: %s\n", pluginsLine)
+				fmt.Fprintln(stdout, "MESSAGE: All checks pass. No work remaining.")
+				fmt.Fprintln(stdout, "---END_DUN_PROMPT---")
+				return dun.ExitSuccess
+			}
+			checks = actionable
+		}
+		printPrompt(stdout, checks, *automation, root)
+		return dun.ExitSuccess
 	}
 
 	switch *format {
@@ -384,60 +416,6 @@ func runInstall(args []string, stdout io.Writer, stderr io.Writer) int {
 	return dun.ExitSuccess
 }
 
-func runIterate(args []string, stdout io.Writer, stderr io.Writer) int {
-	root := resolveRoot(".")
-	explicitConfig := findConfigFlag(args)
-	opts := dun.DefaultOptions()
-	cfg, loaded, err := dun.LoadConfig(root, explicitConfig)
-	if err != nil {
-		fmt.Fprintf(stderr, "dun iterate failed: config error: %v\n", err)
-		return dun.ExitConfigError
-	}
-	if loaded {
-		opts = dun.ApplyConfig(opts, cfg)
-	}
-
-	fs := flag.NewFlagSet("iterate", flag.ContinueOnError)
-	fs.SetOutput(stderr)
-	configPath := fs.String("config", explicitConfig, "path to config file")
-	automation := fs.String("automation", opts.AutomationMode, "automation mode (manual|plan|auto|yolo)")
-	if err := fs.Parse(args); err != nil {
-		return dun.ExitUsageError
-	}
-	explicitConfig = *configPath
-
-	// Force prompt mode for iterate - we detect work, don't execute it
-	opts.AgentMode = "prompt"
-	opts.AutomationMode = *automation
-	result, err := checkRepo(root, opts)
-	if err != nil {
-		fmt.Fprintf(stderr, "dun iterate failed: %v\n", err)
-		return dun.ExitCheckFailed
-	}
-
-	// Filter to actionable items (non-pass checks with prompts or issues)
-	var actionable []dun.CheckResult
-	for _, check := range result.Checks {
-		if check.Status != "pass" {
-			actionable = append(actionable, check)
-		}
-	}
-
-	// Check for exit condition: all checks pass
-	if len(actionable) == 0 {
-		fmt.Fprintln(stdout, "---DUN_ITERATE---")
-		fmt.Fprintln(stdout, "STATUS: ALL_PASS")
-		fmt.Fprintln(stdout, "EXIT_SIGNAL: true")
-		fmt.Fprintln(stdout, "MESSAGE: All checks pass. No work remaining.")
-		fmt.Fprintln(stdout, "---END_DUN_ITERATE---")
-		return dun.ExitSuccess
-	}
-
-	// Generate iteration prompt
-	printIteratePrompt(stdout, actionable, *automation, root)
-	return dun.ExitSuccess
-}
-
 func runLoop(args []string, stdout io.Writer, stderr io.Writer) int {
 	root := resolveRoot(".")
 	explicitConfig := findConfigFlag(args)
@@ -496,7 +474,7 @@ func runLoop(args []string, stdout io.Writer, stderr io.Writer) int {
 	for i := 1; i <= *maxIterations; i++ {
 		fmt.Fprintf(stdout, "\n=== Iteration %d/%d ===\n", i, *maxIterations)
 
-		// Run iterate to get work list
+		// Run check to get work list
 		opts.AgentMode = "prompt"
 		opts.AutomationMode = *automation
 		result, err := checkRepo(root, opts)
@@ -521,7 +499,7 @@ func runLoop(args []string, stdout io.Writer, stderr io.Writer) int {
 
 		// Generate prompt
 		var promptBuf strings.Builder
-		printIteratePrompt(&promptBuf, actionable, *automation, root)
+		printPrompt(&promptBuf, actionable, *automation, root)
 		prompt := promptBuf.String()
 
 		if *dryRun {
@@ -619,8 +597,8 @@ func callHarnessImpl(harnessName, prompt, automation string) (string, error) {
 	return result.Response, nil
 }
 
-func printIteratePrompt(w io.Writer, checks []dun.CheckResult, automation string, root string) {
-	fmt.Fprintln(w, "# Dun Iteration")
+func printPrompt(w io.Writer, checks []dun.CheckResult, automation string, root string) {
+	fmt.Fprintln(w, "# Dun Prompt")
 	fmt.Fprintln(w)
 	fmt.Fprintf(w, "You are working in: %s\n", root)
 	fmt.Fprintf(w, "Automation mode: %s\n", automation)
@@ -634,6 +612,8 @@ func printIteratePrompt(w io.Writer, checks []dun.CheckResult, automation string
 		priority := "MEDIUM"
 		if check.Status == "error" {
 			priority = "HIGH"
+		} else if check.Status == "pass" {
+			priority = "DONE"
 		} else if check.Status == "skip" {
 			priority = "LOW"
 		}
@@ -733,6 +713,25 @@ func findConfigFlag(args []string) string {
 		}
 	}
 	return ""
+}
+
+func activePlugins(root string) ([]string, error) {
+	plan, err := planRepo(root)
+	if err != nil {
+		return nil, err
+	}
+	seen := make(map[string]struct{})
+	for _, check := range plan.Checks {
+		if check.PluginID != "" {
+			seen[check.PluginID] = struct{}{}
+		}
+	}
+	plugins := make([]string, 0, len(seen))
+	for id := range seen {
+		plugins = append(plugins, id)
+	}
+	sort.Strings(plugins)
+	return plugins, nil
 }
 
 func printLLM(stdout io.Writer, result dun.Result) {

@@ -171,9 +171,9 @@ $ dun respond --id helix-create-architecture --response -
 
 ---
 
-#### Command: iterate
+#### Command: check (prompt)
 **Purpose**: Emit a work list prompt for an external agent (no execution).  
-**Usage**: `$ dun iterate [options]`
+**Usage**: `$ dun check --prompt [options]`
 
 **Options**:
 - `--config` : Path to config file (default `.dun/config.yaml` if present)
@@ -195,7 +195,7 @@ $ dun respond --id helix-create-architecture --response -
 **Examples**:
 ```bash
 # Emit a single-iteration prompt
-$ dun iterate
+$ dun check --prompt
 # (prompt text emitted)
 ```
 

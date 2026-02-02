@@ -16,8 +16,24 @@ import (
 
 func TestCheckUsesConfigAgentAuto(t *testing.T) {
 	root := setupRepoFromFixture(t, "helix-alignment")
-	agentCmd := "bash " + fixturePath(t, "internal/testdata/agent/agent.sh")
+	agentCmd := "test-agent-cmd"
 	writeConfig(t, root, agentCmd)
+
+	origCheck := checkRepo
+	checkRepo = func(gotRoot string, opts dun.Options) (dun.Result, error) {
+		if gotRoot != root {
+			t.Fatalf("expected root %q, got %q", root, gotRoot)
+		}
+		if opts.AgentMode != "prompt" {
+			t.Fatalf("expected agent mode prompt, got %q", opts.AgentMode)
+		}
+		return dun.Result{
+			Checks: []dun.CheckResult{
+				{ID: "helix-align-specs", Status: "warn"},
+			},
+		}, nil
+	}
+	t.Cleanup(func() { checkRepo = origCheck })
 
 	output := runInDir(t, root, []string{"check"})
 	var result dun.Result
@@ -36,8 +52,24 @@ func TestCheckUsesConfigAgentAuto(t *testing.T) {
 
 func TestCheckResolvesRepoRootFromSubdir(t *testing.T) {
 	root := setupRepoFromFixture(t, "helix-alignment")
-	agentCmd := "bash " + fixturePath(t, "internal/testdata/agent/agent.sh")
+	agentCmd := "test-agent-cmd"
 	writeConfig(t, root, agentCmd)
+
+	origCheck := checkRepo
+	checkRepo = func(gotRoot string, opts dun.Options) (dun.Result, error) {
+		if gotRoot != root {
+			t.Fatalf("expected root %q, got %q", root, gotRoot)
+		}
+		if opts.AgentMode != "prompt" {
+			t.Fatalf("expected agent mode prompt, got %q", opts.AgentMode)
+		}
+		return dun.Result{
+			Checks: []dun.CheckResult{
+				{ID: "helix-align-specs", Status: "warn"},
+			},
+		}, nil
+	}
+	t.Cleanup(func() { checkRepo = origCheck })
 
 	subdir := filepath.Join(root, "nested", "work")
 	if err := os.MkdirAll(subdir, 0755); err != nil {
@@ -135,6 +167,55 @@ func TestRunCheckLLMOutput(t *testing.T) {
 	}
 }
 
+func TestRunCheckPromptOutput(t *testing.T) {
+	root := setupEmptyRepo(t)
+	orig := checkRepo
+	checkRepo = func(_ string, _ dun.Options) (dun.Result, error) {
+		return dun.Result{
+			Checks: []dun.CheckResult{
+				{ID: "check-fail", Status: "fail", Signal: "boom", Detail: "detail"},
+			},
+		}, nil
+	}
+	t.Cleanup(func() { checkRepo = orig })
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := runInDirWithWriters(t, root, []string{"check", "--prompt"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("expected success, got %d", code)
+	}
+	text := stdout.String()
+	if !strings.Contains(text, "Dun Prompt") || !strings.Contains(text, "check-fail") {
+		t.Fatalf("expected prompt output, got: %s", text)
+	}
+}
+
+func TestRunCheckPromptOutputAllIncludesPass(t *testing.T) {
+	root := setupEmptyRepo(t)
+	orig := checkRepo
+	checkRepo = func(_ string, _ dun.Options) (dun.Result, error) {
+		return dun.Result{
+			Checks: []dun.CheckResult{
+				{ID: "check-pass", Status: "pass", Signal: "ok"},
+				{ID: "check-fail", Status: "fail", Signal: "boom"},
+			},
+		}, nil
+	}
+	t.Cleanup(func() { checkRepo = orig })
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := runInDirWithWriters(t, root, []string{"check", "--prompt", "--all"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("expected success, got %d", code)
+	}
+	text := stdout.String()
+	if !strings.Contains(text, "check-pass") || !strings.Contains(text, "check-fail") {
+		t.Fatalf("expected prompt output to include pass and fail checks, got: %s", text)
+	}
+}
+
 func TestRunCheckJSONEncodeError(t *testing.T) {
 	root := setupEmptyRepo(t)
 	errWriter := &failWriter{err: errors.New("write failed")}
@@ -166,7 +247,7 @@ func TestRunCheckParseError(t *testing.T) {
 	root := setupEmptyRepo(t)
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	code := runInDirWithWriters(t, root, []string{"check", "--agent-timeout=bad"}, &stdout, &stderr)
+	code := runInDirWithWriters(t, root, []string{"check", "--badflag"}, &stdout, &stderr)
 	if code != 4 {
 		t.Fatalf("expected code 4, got %d", code)
 	}
@@ -659,66 +740,33 @@ func findCheck(t *testing.T, result dun.Result, id string) dun.CheckResult {
 	return dun.CheckResult{}
 }
 
-// Tests for runIterate
-
-func TestRunIterateParseError(t *testing.T) {
+func TestRunCheckPromptAllPassIncludesCountsAndPlugins(t *testing.T) {
 	root := setupEmptyRepo(t)
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	code := runInDirWithWriters(t, root, []string{"iterate", "--badflag"}, &stdout, &stderr)
-	if code != dun.ExitUsageError {
-		t.Fatalf("expected code %d, got %d", dun.ExitUsageError, code)
-	}
-}
-
-func TestRunIterateConfigError(t *testing.T) {
-	root := setupEmptyRepo(t)
-	cfgPath := filepath.Join(root, ".dun", "config.yaml")
-	if err := os.MkdirAll(filepath.Dir(cfgPath), 0755); err != nil {
-		t.Fatalf("mkdir: %v", err)
-	}
-	if err := os.WriteFile(cfgPath, []byte("agent:\n  cmd: ["), 0644); err != nil {
-		t.Fatalf("write config: %v", err)
-	}
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	code := runInDirWithWriters(t, root, []string{"iterate"}, &stdout, &stderr)
-	if code != dun.ExitConfigError {
-		t.Fatalf("expected code %d, got %d", dun.ExitConfigError, code)
-	}
-}
-
-func TestRunIterateCheckError(t *testing.T) {
-	root := setupEmptyRepo(t)
-	orig := checkRepo
-	checkRepo = func(_ string, _ dun.Options) (dun.Result, error) {
-		return dun.Result{}, errors.New("boom")
-	}
-	t.Cleanup(func() { checkRepo = orig })
-
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	code := runInDirWithWriters(t, root, []string{"iterate"}, &stdout, &stderr)
-	if code != dun.ExitCheckFailed {
-		t.Fatalf("expected code %d, got %d", dun.ExitCheckFailed, code)
-	}
-}
-
-func TestRunIterateAllPass(t *testing.T) {
-	root := setupEmptyRepo(t)
-	orig := checkRepo
+	origCheck := checkRepo
 	checkRepo = func(_ string, _ dun.Options) (dun.Result, error) {
 		return dun.Result{
 			Checks: []dun.CheckResult{
-				{ID: "test", Status: "pass", Signal: "ok"},
+				{ID: "pass-a", Status: "pass", Signal: "ok"},
+				{ID: "pass-b", Status: "pass", Signal: "ok"},
 			},
 		}, nil
 	}
-	t.Cleanup(func() { checkRepo = orig })
+	t.Cleanup(func() { checkRepo = origCheck })
+
+	origPlan := planRepo
+	planRepo = func(_ string) (dun.Plan, error) {
+		return dun.Plan{
+			Checks: []dun.PlannedCheck{
+				{ID: "pass-a", PluginID: "alpha"},
+				{ID: "pass-b", PluginID: "beta"},
+			},
+		}, nil
+	}
+	t.Cleanup(func() { planRepo = origPlan })
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	code := runInDirWithWriters(t, root, []string{"iterate"}, &stdout, &stderr)
+	code := runInDirWithWriters(t, root, []string{"check", "--prompt"}, &stdout, &stderr)
 	if code != dun.ExitSuccess {
 		t.Fatalf("expected code %d, got %d", dun.ExitSuccess, code)
 	}
@@ -729,44 +777,11 @@ func TestRunIterateAllPass(t *testing.T) {
 	if !strings.Contains(output, "EXIT_SIGNAL: true") {
 		t.Fatalf("expected EXIT_SIGNAL in output")
 	}
-}
-
-func TestRunIterateWithActionable(t *testing.T) {
-	root := setupEmptyRepo(t)
-	orig := checkRepo
-	checkRepo = func(_ string, _ dun.Options) (dun.Result, error) {
-		return dun.Result{
-			Checks: []dun.CheckResult{
-				{ID: "pass-check", Status: "pass", Signal: "ok"},
-				{ID: "fail-check", Status: "fail", Signal: "failed", Detail: "something failed", Next: "fix it"},
-				{ID: "warn-check", Status: "warn", Signal: "warning"},
-				{ID: "error-check", Status: "error", Signal: "error"},
-				{ID: "skip-check", Status: "skip", Signal: "skipped"},
-			},
-		}, nil
+	if !strings.Contains(output, "CHECKS_PASSED: 2") {
+		t.Fatalf("expected checks passed count in output")
 	}
-	t.Cleanup(func() { checkRepo = orig })
-
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	code := runInDirWithWriters(t, root, []string{"iterate", "--automation", "yolo"}, &stdout, &stderr)
-	if code != dun.ExitSuccess {
-		t.Fatalf("expected code %d, got %d", dun.ExitSuccess, code)
-	}
-	output := stdout.String()
-	// Should have iteration prompt, not all pass
-	if strings.Contains(output, "STATUS: ALL_PASS") {
-		t.Fatalf("should not have ALL_PASS when actionable items exist")
-	}
-	// Should list the actionable checks
-	if !strings.Contains(output, "fail-check") {
-		t.Fatalf("expected fail-check in output")
-	}
-	if !strings.Contains(output, "[HIGH]") {
-		t.Fatalf("expected HIGH priority for error status")
-	}
-	if !strings.Contains(output, "[LOW]") {
-		t.Fatalf("expected LOW priority for skip status")
+	if !strings.Contains(output, "PLUGINS_ACTIVE: alpha, beta") {
+		t.Fatalf("expected plugins list in output")
 	}
 }
 
@@ -1048,86 +1063,9 @@ func TestCallHarnessUnknown(t *testing.T) {
 	}
 }
 
-func TestCallHarnessClaude(t *testing.T) {
-	// This test verifies the command construction for claude harness
-	// It will fail if claude is not installed, which is expected in CI
-	_, err := callHarness("claude", "test prompt", "auto")
-	// We expect an error since claude CLI is likely not installed
-	if err == nil {
-		// If it succeeds, that's fine too
-		return
-	}
-	// Error should be about command execution, not harness type
-	if strings.Contains(err.Error(), "unknown harness") {
-		t.Fatalf("claude should be a known harness")
-	}
-}
+// Tests for printPrompt
 
-func TestCallHarnessClaudeYolo(t *testing.T) {
-	// Test that yolo mode adds the right flags
-	_, err := callHarness("claude", "test prompt", "yolo")
-	// We expect an error since claude CLI is likely not installed
-	if err == nil {
-		return
-	}
-	if strings.Contains(err.Error(), "unknown harness") {
-		t.Fatalf("claude should be a known harness")
-	}
-}
-
-func TestCallHarnessGemini(t *testing.T) {
-	// Mock callHarnessFn to avoid calling real gemini CLI which may hang
-	origCallHarnessFn := callHarnessFn
-	callHarnessFn = func(harnessName, prompt, automation string) (string, error) {
-		// Always return mock error for gemini - don't call real CLI
-		if harnessName == "gemini" {
-			return "", errors.New("gemini harness not configured in test environment")
-		}
-		// For other harnesses, also return error to avoid calling real CLIs
-		return "", errors.New("harness not available in test environment")
-	}
-	t.Cleanup(func() { callHarnessFn = origCallHarnessFn })
-
-	// This test verifies the mock is working correctly
-	_, err := callHarness("gemini", "test prompt", "auto")
-	if err == nil {
-		t.Fatalf("expected an error when calling gemini harness without proper setup, but got none")
-	}
-	if strings.Contains(err.Error(), "unknown harness") {
-		t.Fatalf("gemini should be a known harness, but got 'unknown harness' error: %v", err)
-	}
-	// We expect the mock error
-	if !strings.Contains(err.Error(), "gemini harness not configured in test environment") {
-		t.Fatalf("expected specific error message for gemini harness, got: %v", err)
-	}
-}
-
-func TestCallHarnessCodex(t *testing.T) {
-	// This test verifies the command construction for codex harness
-	_, err := callHarness("codex", "test prompt", "auto")
-	// We expect an error since codex CLI is likely not installed
-	if err == nil {
-		return
-	}
-	if strings.Contains(err.Error(), "unknown harness") {
-		t.Fatalf("codex should be a known harness")
-	}
-}
-
-func TestCallHarnessCodexYolo(t *testing.T) {
-	// Test that yolo mode adds the right flags
-	_, err := callHarness("codex", "test prompt", "yolo")
-	if err == nil {
-		return
-	}
-	if strings.Contains(err.Error(), "unknown harness") {
-		t.Fatalf("codex should be a known harness")
-	}
-}
-
-// Tests for printIteratePrompt
-
-func TestPrintIteratePromptVariants(t *testing.T) {
+func TestPrintPromptVariants(t *testing.T) {
 	checks := []dun.CheckResult{
 		{
 			ID:     "error-check",
@@ -1154,11 +1092,11 @@ func TestPrintIteratePromptVariants(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	printIteratePrompt(&buf, checks, "yolo", "/test/root")
+	printPrompt(&buf, checks, "yolo", "/test/root")
 	output := buf.String()
 
 	// Check header
-	if !strings.Contains(output, "# Dun Iteration") {
+	if !strings.Contains(output, "# Dun Prompt") {
 		t.Fatalf("expected header")
 	}
 	if !strings.Contains(output, "You are working in: /test/root") {
@@ -1202,22 +1140,6 @@ func TestPrintIteratePromptVariants(t *testing.T) {
 }
 
 // Tests for help command coverage (AC-8)
-
-func TestRunHelpIncludesIterate(t *testing.T) {
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	code := run([]string{"help"}, &stdout, &stderr)
-	if code != dun.ExitSuccess {
-		t.Fatalf("expected success, got %d", code)
-	}
-	output := stdout.String()
-	if !strings.Contains(output, "iterate") {
-		t.Fatalf("help should document iterate command")
-	}
-	if !strings.Contains(output, "dun iterate") {
-		t.Fatalf("help should show iterate usage")
-	}
-}
 
 func TestRunHelpIncludesLoop(t *testing.T) {
 	var stdout bytes.Buffer

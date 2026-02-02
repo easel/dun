@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"sync"
 	"time"
@@ -43,6 +44,10 @@ type HarnessResult struct {
 	Timestamp time.Time     // When the execution started
 }
 
+// CommandRunner executes a CLI command for a harness.
+// It returns stdout, stderr, and any execution error.
+type CommandRunner func(ctx context.Context, name string, args []string, workDir string, env map[string]string) (string, string, error)
+
 // HarnessConfig holds configuration for initializing a harness.
 type HarnessConfig struct {
 	// Name is the harness identifier (e.g., "claude", "gemini", "codex")
@@ -62,6 +67,9 @@ type HarnessConfig struct {
 
 	// Environment variables to set for command execution
 	Env map[string]string
+
+	// Runner overrides command execution for tests.
+	Runner CommandRunner
 
 	// MockResponse is used by MockHarness for testing
 	MockResponse string
@@ -174,27 +182,7 @@ func (h *ClaudeHarness) SupportsAutomation(mode AutomationMode) bool {
 }
 
 func (h *ClaudeHarness) runCommand(ctx context.Context, name string, args ...string) (string, error) {
-	if h.config.Timeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, h.config.Timeout)
-		defer cancel()
-	}
-
-	cmd := exec.CommandContext(ctx, name, args...)
-
-	if h.config.WorkDir != "" {
-		cmd.Dir = h.config.WorkDir
-	}
-
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("%v: %s", err, stderr.String())
-	}
-
-	return stdout.String(), nil
+	return runHarnessCommand(ctx, h.config, name, args)
 }
 
 // GeminiHarness wraps the Gemini API via Python for agent execution.
@@ -235,27 +223,7 @@ func (h *GeminiHarness) SupportsAutomation(mode AutomationMode) bool {
 }
 
 func (h *GeminiHarness) runCommand(ctx context.Context, name string, args ...string) (string, error) {
-	if h.config.Timeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, h.config.Timeout)
-		defer cancel()
-	}
-
-	cmd := exec.CommandContext(ctx, name, args...)
-
-	if h.config.WorkDir != "" {
-		cmd.Dir = h.config.WorkDir
-	}
-
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("%v: %s", err, stderr.String())
-	}
-
-	return stdout.String(), nil
+	return runHarnessCommand(ctx, h.config, name, args)
 }
 
 // CodexHarness wraps the Codex CLI for agent execution.
@@ -295,27 +263,7 @@ func (h *CodexHarness) SupportsAutomation(mode AutomationMode) bool {
 }
 
 func (h *CodexHarness) runCommand(ctx context.Context, name string, args ...string) (string, error) {
-	if h.config.Timeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, h.config.Timeout)
-		defer cancel()
-	}
-
-	cmd := exec.CommandContext(ctx, name, args...)
-
-	if h.config.WorkDir != "" {
-		cmd.Dir = h.config.WorkDir
-	}
-
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("%v: %s", err, stderr.String())
-	}
-
-	return stdout.String(), nil
+	return runHarnessCommand(ctx, h.config, name, args)
 }
 
 // MockHarness is a harness for testing that returns configurable responses.
@@ -354,6 +302,56 @@ func (h *MockHarness) Execute(ctx context.Context, prompt string) (string, error
 // SupportsAutomation returns true for all automation modes.
 func (h *MockHarness) SupportsAutomation(mode AutomationMode) bool {
 	return true
+}
+
+func runHarnessCommand(ctx context.Context, config HarnessConfig, name string, args []string) (string, error) {
+	if config.Timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, config.Timeout)
+		defer cancel()
+	}
+
+	runner := config.Runner
+	if runner == nil {
+		runner = defaultCommandRunner
+	}
+
+	stdout, stderr, err := runner(ctx, name, args, config.WorkDir, config.Env)
+	if err != nil {
+		if stderr != "" {
+			return "", fmt.Errorf("%v: %s", err, stderr)
+		}
+		return "", err
+	}
+
+	return stdout, nil
+}
+
+func defaultCommandRunner(ctx context.Context, name string, args []string, workDir string, env map[string]string) (string, string, error) {
+	cmd := exec.CommandContext(ctx, name, args...)
+
+	if workDir != "" {
+		cmd.Dir = workDir
+	}
+
+	if len(env) > 0 {
+		cmd.Env = append(os.Environ(), formatEnv(env)...)
+	}
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+	return stdout.String(), stderr.String(), err
+}
+
+func formatEnv(env map[string]string) []string {
+	out := make([]string, 0, len(env))
+	for key, value := range env {
+		out = append(out, key+"="+value)
+	}
+	return out
 }
 
 // DefaultRegistry is the global harness registry with default harnesses.

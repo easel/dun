@@ -6,23 +6,23 @@
 
 ## Overview
 
-This test plan covers the `dun iterate` and `dun loop` commands that enable autonomous agent-driven iteration for resolving quality issues.
+This test plan covers the `dun check --prompt` and `dun loop` commands that enable autonomous agent-driven iteration for resolving quality issues.
 
 ## Acceptance Criteria Coverage
 
-### AC-1: `dun iterate` outputs a work list prompt for an external agent
+### AC-1: `dun check --prompt` outputs a work list prompt for an external agent
 
 | Test Case | Existing Test | Status |
 |-----------|---------------|--------|
-| Outputs structured prompt with work items | `TestRunIterateWithActionable` | Covered |
-| Includes priority labels (HIGH/MEDIUM/LOW) | `TestRunIterateWithActionable` | Covered |
-| Shows ALL_PASS status when no work | `TestRunIterateAllPass` | Covered |
-| Handles parse errors | `TestRunIterateParseError` | Covered |
-| Handles config errors | `TestRunIterateConfigError` | Covered |
-| Handles check errors | `TestRunIterateCheckError` | Covered |
-| Includes instructions section | `TestPrintIteratePromptVariants` | Covered |
-| Shows working directory | `TestPrintIteratePromptVariants` | Covered |
-| Shows automation mode | `TestPrintIteratePromptVariants` | Covered |
+| Outputs structured prompt with work items | `TestRunCheckPromptOutput` | Covered |
+| Includes priority labels (HIGH/MEDIUM/LOW) | `TestPrintPromptVariants` | Covered |
+| Shows ALL_PASS status when no work | `TestRunCheckPromptAllPassIncludesCountsAndPlugins` | Covered |
+| Handles parse errors | `TestRunCheckParseError` | Covered |
+| Handles config errors | `TestRunCheckConfigError` | Covered |
+| Handles check errors | `TestRunCheckRepoError` | Covered |
+| Includes instructions section | `TestPrintPromptVariants` | Covered |
+| Shows working directory | `TestPrintPromptVariants` | Covered |
+| Shows automation mode | `TestPrintPromptVariants` | Covered |
 
 ### AC-2: `dun loop` runs an embedded loop calling a configurable agent harness
 
@@ -70,7 +70,7 @@ This test plan covers the `dun iterate` and `dun loop` commands that enable auto
 | Claude: --dangerously-skip-permissions | `TestCallHarnessClaudeYolo` | Covered |
 | Codex: --full-auto | `TestCallHarnessCodexYolo` | Covered |
 | Gemini: appropriate API config | - | **GAP** |
-| Iterate respects automation flag | `TestRunIterateWithActionable` | Covered |
+| Prompt respects automation flag | `TestPrintPromptVariants` | Covered |
 
 ### AC-7: `dun install` adds agent documentation to AGENTS.md explaining the pattern
 
@@ -78,13 +78,13 @@ This test plan covers the `dun iterate` and `dun loop` commands that enable auto
 |-----------|---------------|--------|
 | Install outputs installed files | `TestRunInstallOutputsInstalled` | Covered |
 | Install dry-run mode | `TestRunInstallDryRunAndError` | Covered |
-| AGENTS.md content includes iterate/loop | - | **GAP** |
+| AGENTS.md content includes check --prompt/loop | - | **GAP** |
 
-### AC-8: `dun help` documents the iterate and loop commands
+### AC-8: `dun help` documents the check --prompt and loop commands
 
 | Test Case | Existing Test | Status |
 |-----------|---------------|--------|
-| Help includes iterate command | - | **GAP** |
+| Help includes check --prompt command | - | **GAP** |
 | Help includes loop command | - | **GAP** |
 | Help includes loop options | - | **GAP** |
 | Help includes examples | - | **GAP** |
@@ -152,12 +152,12 @@ func TestRunLoopFreshContextPerIteration(t *testing.T) {
 }
 ```
 
-### Gap 3: Help command coverage for iterate/loop
+### Gap 3: Help command coverage for check --prompt/loop
 **Priority:** High
-**Description:** No tests verify the help output includes iterate and loop documentation.
+**Description:** No tests verify the help output includes check --prompt and loop documentation.
 **Proposed Tests:**
 ```go
-func TestRunHelpIncludesIterate(t *testing.T) {
+func TestRunHelpIncludesCheckPrompt(t *testing.T) {
     var stdout bytes.Buffer
     var stderr bytes.Buffer
     code := run([]string{"help"}, &stdout, &stderr)
@@ -165,11 +165,11 @@ func TestRunHelpIncludesIterate(t *testing.T) {
         t.Fatalf("expected success, got %d", code)
     }
     output := stdout.String()
-    if !strings.Contains(output, "iterate") {
-        t.Fatalf("help should document iterate command")
+    if !strings.Contains(output, "check") || !strings.Contains(output, "--prompt") {
+        t.Fatalf("help should document check --prompt command")
     }
-    if !strings.Contains(output, "dun iterate") {
-        t.Fatalf("help should show iterate usage")
+    if !strings.Contains(output, "dun check --prompt") {
+        t.Fatalf("help should show check --prompt usage")
     }
 }
 
@@ -214,7 +214,7 @@ func TestRunHelpIncludesExamples(t *testing.T) {
 
 ### Gap 4: AGENTS.md content verification
 **Priority:** Medium
-**Description:** No test verifies that `dun install` creates AGENTS.md with iterate/loop documentation.
+**Description:** No test verifies that `dun install` creates AGENTS.md with check --prompt/loop documentation.
 **Proposed Test:**
 ```go
 func TestInstallCreatesAgentsMDWithLoopDocs(t *testing.T) {
@@ -231,8 +231,8 @@ func TestInstallCreatesAgentsMDWithLoopDocs(t *testing.T) {
         t.Fatalf("read AGENTS.md: %v", err)
     }
 
-    if !strings.Contains(string(content), "dun iterate") {
-        t.Fatalf("AGENTS.md should document iterate command")
+    if !strings.Contains(string(content), "dun check --prompt") {
+        t.Fatalf("AGENTS.md should document check --prompt command")
     }
     if !strings.Contains(string(content), "dun loop") {
         t.Fatalf("AGENTS.md should document loop command")
@@ -240,10 +240,10 @@ func TestInstallCreatesAgentsMDWithLoopDocs(t *testing.T) {
 }
 ```
 
-### Gap 5: Dry-run mode for iterate
+### Gap 5: Dry-run mode for check --prompt
 **Priority:** Low
-**Description:** No test for iterate with --dry-run or similar preview behavior.
-**Note:** Currently iterate always outputs the prompt, so dry-run may not be needed. Consider if a --format flag would be useful.
+**Description:** No test for check --prompt with --dry-run or similar preview behavior.
+**Note:** Currently check --prompt always outputs the prompt, so dry-run may not be needed. Consider if a --format flag would be useful.
 
 ### Gap 6: Integration test with real harness
 **Priority:** Low (CI limitation)
@@ -254,9 +254,9 @@ func TestInstallCreatesAgentsMDWithLoopDocs(t *testing.T) {
 
 | Feature | Unit | Integration | E2E |
 |---------|------|-------------|-----|
-| iterate output format | Yes | - | - |
-| iterate all-pass detection | Yes | - | - |
-| iterate priority sorting | Yes | - | - |
+| prompt output format | Yes | - | - |
+| prompt all-pass detection | Yes | - | - |
+| prompt priority sorting | Yes | - | - |
 | loop harness selection | Yes | - | - |
 | loop exit conditions | Yes | - | - |
 | loop fresh context | Partial | **Needed** | - |
@@ -267,7 +267,7 @@ func TestInstallCreatesAgentsMDWithLoopDocs(t *testing.T) {
 ## Recommended Priority Order
 
 1. **High Priority (Add immediately)**
-   - `TestRunHelpIncludesIterate`
+   - `TestRunHelpIncludesCheckPrompt`
    - `TestRunHelpIncludesLoop`
    - `TestRunHelpIncludesExamples`
 
