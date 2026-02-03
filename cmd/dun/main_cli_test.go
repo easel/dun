@@ -96,3 +96,15 @@ func TestCallHarnessPi(t *testing.T) {
 		t.Fatalf("pi should be a known harness")
 	}
 }
+
+func TestCallHarnessCursor(t *testing.T) {
+	// This test verifies the command construction for cursor harness
+	_, err := callHarness("cursor", "test prompt", "auto")
+	// We expect an error since cursor CLI is likely not installed
+	if err == nil {
+		return
+	}
+	if strings.Contains(err.Error(), "unknown harness") {
+		t.Fatalf("cursor should be a known harness")
+	}
+}

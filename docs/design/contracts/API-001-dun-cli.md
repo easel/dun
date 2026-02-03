@@ -209,7 +209,7 @@ proceeding (quorum is applied to the iteration prompt, not per-check prompts).
 
 **Options**:
 - `--config` : Path to config file (default `.dun/config.yaml` if present)
-- `--harness` : Agent harness (`codex`, `claude`, `gemini`, `opencode`, `pi`, default from config)
+- `--harness` : Agent harness (`codex`, `claude`, `gemini`, `opencode`, `pi`, `cursor`, default from config)
 - `--model` : Model override for selected harness(es)
 - `--models` : Per-harness model overrides (e.g., `codex:o3,claude:sonnet`)
 - `--automation` : Automation mode (`manual`, `plan`, `auto`, `yolo`, default `auto`)

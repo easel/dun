@@ -52,7 +52,7 @@ type CommandRunner func(ctx context.Context, name string, args []string, workDir
 
 // HarnessConfig holds configuration for initializing a harness.
 type HarnessConfig struct {
-	// Name is the harness identifier (e.g., "claude", "gemini", "codex", "pi")
+	// Name is the harness identifier (e.g., "claude", "gemini", "codex", "pi", "cursor")
 	Name string
 
 	// Command is the base command to execute (optional, uses default if empty)
@@ -112,6 +112,7 @@ func NewHarnessRegistry() *HarnessRegistry {
 	r.Register("codex", NewCodexHarness)
 	r.Register("opencode", NewOpenCodeHarness)
 	r.Register("pi", NewPiHarness)
+	r.Register("cursor", NewCursorHarness)
 	r.Register("mock", NewMockHarness)
 	return r
 }
@@ -407,6 +408,58 @@ func sanitizePiPrompt(prompt string) string {
 		return " " + prompt
 	}
 	return prompt
+}
+
+// CursorHarness wraps the Cursor CLI for agent execution.
+type CursorHarness struct {
+	config HarnessConfig
+}
+
+// NewCursorHarness creates a new Cursor harness.
+func NewCursorHarness(config HarnessConfig) Harness {
+	if config.Command == "" {
+		config.Command = "cursor"
+	}
+	if config.AutomationMode == "" {
+		config.AutomationMode = AutomationAuto
+	}
+	return &CursorHarness{config: config}
+}
+
+// Name returns "cursor".
+func (h *CursorHarness) Name() string {
+	return "cursor"
+}
+
+// Execute runs the Cursor CLI with the given prompt.
+// Uses --print for non-interactive execution.
+func (h *CursorHarness) Execute(ctx context.Context, prompt string) (string, error) {
+	args := []string{"agent", "--print", "--output-format", "text"}
+	if h.config.Model != "" {
+		args = append(args, "--model", h.config.Model)
+	}
+	switch h.config.AutomationMode {
+	case AutomationPlan:
+		args = append(args, "--mode", "plan")
+	case AutomationAuto:
+		args = append(args, "--force")
+	case AutomationYolo:
+		args = append(args, "--force", "--approve-mcps")
+	}
+	if prompt != "" {
+		args = append(args, "--", prompt)
+	}
+
+	return h.runCommand(ctx, h.config.Command, "", args...)
+}
+
+// SupportsAutomation returns true for all automation modes.
+func (h *CursorHarness) SupportsAutomation(mode AutomationMode) bool {
+	return true
+}
+
+func (h *CursorHarness) runCommand(ctx context.Context, name string, stdin string, args ...string) (string, error) {
+	return runHarnessCommand(ctx, h.config, name, stdin, args)
 }
 
 // MockHarness is a harness for testing that returns configurable responses.

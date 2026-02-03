@@ -235,11 +235,11 @@ func TestHarnessRegistryList(t *testing.T) {
 	registry := NewHarnessRegistry()
 
 	names := registry.List()
-	if len(names) < 6 {
-		t.Fatalf("expected at least 6 default harnesses, got %d", len(names))
+	if len(names) < 7 {
+		t.Fatalf("expected at least 7 default harnesses, got %d", len(names))
 	}
 
-	expected := map[string]bool{"claude": true, "gemini": true, "codex": true, "opencode": true, "pi": true, "mock": true}
+	expected := map[string]bool{"claude": true, "gemini": true, "codex": true, "opencode": true, "pi": true, "cursor": true, "mock": true}
 	for _, name := range names {
 		if !expected[name] {
 			continue // Allow additional harnesses
@@ -398,6 +398,32 @@ func TestPiHarnessSupportsAutomation(t *testing.T) {
 	}
 }
 
+// TestCursorHarnessName verifies cursor harness returns correct name.
+func TestCursorHarnessName(t *testing.T) {
+	harness := NewCursorHarness(HarnessConfig{})
+	if harness.Name() != "cursor" {
+		t.Fatalf("expected name 'cursor', got %q", harness.Name())
+	}
+}
+
+// TestCursorHarnessSupportsAutomation verifies cursor harness supports all modes.
+func TestCursorHarnessSupportsAutomation(t *testing.T) {
+	harness := NewCursorHarness(HarnessConfig{})
+
+	modes := []AutomationMode{
+		AutomationManual,
+		AutomationPlan,
+		AutomationAuto,
+		AutomationYolo,
+	}
+
+	for _, mode := range modes {
+		if !harness.SupportsAutomation(mode) {
+			t.Fatalf("cursor harness should support mode %s", mode)
+		}
+	}
+}
+
 // TestExecuteHarnessWithMock verifies ExecuteHarness convenience function works.
 func TestExecuteHarnessWithMock(t *testing.T) {
 	// Temporarily register a mock that we control
@@ -510,6 +536,12 @@ func TestHarnessConfigDefaults(t *testing.T) {
 	if piHarness.config.Command != "pi" {
 		t.Fatalf("expected default command 'pi', got %q", piHarness.config.Command)
 	}
+
+	// Cursor harness should default to "cursor" command
+	cursorHarness := NewCursorHarness(HarnessConfig{}).(*CursorHarness)
+	if cursorHarness.config.Command != "cursor" {
+		t.Fatalf("expected default command 'cursor', got %q", cursorHarness.config.Command)
+	}
 }
 
 // TestHarnessConfigOverride verifies harnesses respect config overrides.
@@ -554,7 +586,7 @@ func TestDefaultRegistryInitialized(t *testing.T) {
 		t.Fatal("DefaultRegistry should be initialized")
 	}
 
-	expectedHarnesses := []string{"claude", "gemini", "codex", "opencode", "pi", "mock"}
+	expectedHarnesses := []string{"claude", "gemini", "codex", "opencode", "pi", "cursor", "mock"}
 	for _, name := range expectedHarnesses {
 		if !DefaultRegistry.Has(name) {
 			t.Fatalf("DefaultRegistry should have '%s' harness", name)
@@ -573,6 +605,7 @@ func TestDefaultRegistryCanCreateHarnesses(t *testing.T) {
 		{"codex", "codex"},
 		{"opencode", "opencode"},
 		{"pi", "pi"},
+		{"cursor", "cursor"},
 		{"mock", "mock"},
 	}
 
@@ -698,6 +731,25 @@ func TestPiHarnessExecuteWithEcho(t *testing.T) {
 	}
 }
 
+// TestCursorHarnessExecuteWithEcho tests Cursor harness with echo command.
+func TestCursorHarnessExecuteWithEcho(t *testing.T) {
+	capture := &runnerCapture{}
+	harness := NewCursorHarness(HarnessConfig{
+		Runner: captureRunner(capture, "ok", "", nil),
+	})
+
+	ctx := context.Background()
+	_, err := harness.Execute(ctx, "test")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assertArgsContain(t, capture.args, []string{"agent", "--print", "--output-format", "text"})
+	assertArgsContain(t, capture.args, []string{"test"})
+	if capture.stdin != "" {
+		t.Fatalf("expected stdin to be empty, got %q", capture.stdin)
+	}
+}
+
 // TestHarnessModelFlags verifies model overrides are passed to harness CLIs.
 func TestHarnessModelFlags(t *testing.T) {
 	tests := []struct {
@@ -709,6 +761,7 @@ func TestHarnessModelFlags(t *testing.T) {
 		{"codex", NewCodexHarness(HarnessConfig{Model: "model-c", Runner: captureRunner(&runnerCapture{}, "ok", "", nil)})},
 		{"opencode", NewOpenCodeHarness(HarnessConfig{Model: "model-d", Runner: captureRunner(&runnerCapture{}, "ok", "", nil)})},
 		{"pi", NewPiHarness(HarnessConfig{Model: "model-e", Runner: captureRunner(&runnerCapture{}, "ok", "", nil)})},
+		{"cursor", NewCursorHarness(HarnessConfig{Model: "model-f", Runner: captureRunner(&runnerCapture{}, "ok", "", nil)})},
 	}
 
 	for _, tc := range tests {
@@ -725,6 +778,8 @@ func TestHarnessModelFlags(t *testing.T) {
 				tc.harness = NewOpenCodeHarness(HarnessConfig{Model: "model-d", Runner: captureRunner(capture, "ok", "", nil)})
 			case "pi":
 				tc.harness = NewPiHarness(HarnessConfig{Model: "model-e", Runner: captureRunner(capture, "ok", "", nil)})
+			case "cursor":
+				tc.harness = NewCursorHarness(HarnessConfig{Model: "model-f", Runner: captureRunner(capture, "ok", "", nil)})
 			}
 
 			_, err := tc.harness.Execute(context.Background(), "test")
@@ -743,6 +798,8 @@ func TestHarnessModelFlags(t *testing.T) {
 				assertFlagValue(t, capture.args, "--model", "model-d")
 			case "pi":
 				assertFlagValue(t, capture.args, "--model", "model-e")
+			case "cursor":
+				assertFlagValue(t, capture.args, "--model", "model-f")
 			}
 		})
 	}
@@ -928,6 +985,29 @@ func TestPiHarnessPromptSanitization(t *testing.T) {
 	}
 }
 
+// TestCursorHarnessPromptSeparatesFlags verifies cursor prompt is separated from flags.
+func TestCursorHarnessPromptSeparatesFlags(t *testing.T) {
+	capture := &runnerCapture{}
+	harness := NewCursorHarness(HarnessConfig{
+		Runner: captureRunner(capture, "ok", "", nil),
+	})
+
+	ctx := context.Background()
+	_, err := harness.Execute(ctx, "-flag-like")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(capture.args) < 2 {
+		t.Fatalf("expected args to include separator and prompt, got %v", capture.args)
+	}
+	if capture.args[len(capture.args)-2] != "--" {
+		t.Fatalf("expected args to include \"--\" before prompt, got %v", capture.args)
+	}
+	if capture.args[len(capture.args)-1] != "-flag-like" {
+		t.Fatalf("expected prompt to be last arg, got %q", capture.args[len(capture.args)-1])
+	}
+}
+
 // =============================================================================
 // Integration Tests for Multi-Step Agent Behavior
 // =============================================================================
@@ -1082,6 +1162,34 @@ func TestPiHarnessAutonomousArgs(t *testing.T) {
 	}
 }
 
+// TestCursorHarnessAutonomousArgs verifies Cursor harness uses correct autonomous flags.
+func TestCursorHarnessAutonomousArgs(t *testing.T) {
+	capture := &runnerCapture{}
+	harness := NewCursorHarness(HarnessConfig{
+		Runner: captureRunner(capture, "ok", "", nil),
+	})
+
+	ctx := context.Background()
+	_, err := harness.Execute(ctx, "multi-step task")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Verify required arguments are present
+	required := []string{
+		"agent",
+		"--print",
+		"--output-format",
+		"text",
+		"multi-step task",
+	}
+
+	assertArgsContain(t, capture.args, required)
+	if capture.stdin != "" {
+		t.Fatalf("expected stdin to be empty, got %q", capture.stdin)
+	}
+}
+
 // TestAllHarnessesHaveAutonomousMode verifies all harnesses support autonomous execution.
 func TestAllHarnessesHaveAutonomousMode(t *testing.T) {
 	harnesses := []struct {
@@ -1093,6 +1201,7 @@ func TestAllHarnessesHaveAutonomousMode(t *testing.T) {
 		{"codex", NewCodexHarness(HarnessConfig{})},
 		{"opencode", NewOpenCodeHarness(HarnessConfig{})},
 		{"pi", NewPiHarness(HarnessConfig{})},
+		{"cursor", NewCursorHarness(HarnessConfig{})},
 		{"mock", NewMockHarness(HarnessConfig{})},
 	}
 
@@ -1123,7 +1232,7 @@ Step 3: Validate the schema
 Step 4: Apply the changes`
 
 	ctx := context.Background()
-	for _, name := range []string{"claude", "gemini", "codex", "opencode", "pi"} {
+	for _, name := range []string{"claude", "gemini", "codex", "opencode", "pi", "cursor"} {
 		t.Run(name, func(t *testing.T) {
 			capture := &runnerCapture{}
 			var harness Harness
@@ -1138,14 +1247,16 @@ Step 4: Apply the changes`
 				harness = NewOpenCodeHarness(HarnessConfig{Runner: captureRunner(capture, "ok", "", nil)})
 			case "pi":
 				harness = NewPiHarness(HarnessConfig{Runner: captureRunner(capture, "ok", "", nil)})
+			case "cursor":
+				harness = NewCursorHarness(HarnessConfig{Runner: captureRunner(capture, "ok", "", nil)})
 			}
 			_, err := harness.Execute(ctx, complexPrompt)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
-			// The multi-line prompt should be preserved in stdin (or args for pi)
-			if name == "pi" {
+			// The multi-line prompt should be preserved in stdin (or args for pi/cursor)
+			if name == "pi" || name == "cursor" {
 				if len(capture.args) == 0 || !strings.Contains(capture.args[len(capture.args)-1], "Step 1: Read the file config.yaml") {
 					t.Fatalf("expected prompt to be preserved in args, got %v", capture.args)
 				}
@@ -1176,6 +1287,7 @@ func TestHarnessConsistentInterface(t *testing.T) {
 		{"codex", NewCodexHarness},
 		{"opencode", NewOpenCodeHarness},
 		{"pi", NewPiHarness},
+		{"cursor", NewCursorHarness},
 		{"mock", NewMockHarness},
 	}
 
@@ -1206,7 +1318,7 @@ func TestCrossAgentExecutionConsistency(t *testing.T) {
 	ctx := context.Background()
 	results := make(map[string]string)
 
-	for _, name := range []string{"claude", "gemini", "codex", "opencode", "pi"} {
+	for _, name := range []string{"claude", "gemini", "codex", "opencode", "pi", "cursor"} {
 		capture := &runnerCapture{}
 		var harness Harness
 		switch name {
@@ -1220,12 +1332,14 @@ func TestCrossAgentExecutionConsistency(t *testing.T) {
 			harness = NewOpenCodeHarness(HarnessConfig{Runner: captureRunner(capture, "ok", "", nil)})
 		case "pi":
 			harness = NewPiHarness(HarnessConfig{Runner: captureRunner(capture, "ok", "", nil)})
+		case "cursor":
+			harness = NewCursorHarness(HarnessConfig{Runner: captureRunner(capture, "ok", "", nil)})
 		}
 		_, err := harness.Execute(ctx, prompt)
 		if err != nil {
 			t.Fatalf("%s: unexpected error: %v", name, err)
 		}
-		if name == "pi" && len(capture.args) > 0 {
+		if (name == "pi" || name == "cursor") && len(capture.args) > 0 {
 			results[name] = capture.args[len(capture.args)-1]
 			continue
 		}
@@ -1251,6 +1365,7 @@ func TestHarnessErrorHandlingConsistency(t *testing.T) {
 		{"codex", NewCodexHarness(HarnessConfig{Runner: captureRunner(&runnerCapture{}, "", "", errors.New("fail"))})},
 		{"opencode", NewOpenCodeHarness(HarnessConfig{Runner: captureRunner(&runnerCapture{}, "", "", errors.New("fail"))})},
 		{"pi", NewPiHarness(HarnessConfig{Runner: captureRunner(&runnerCapture{}, "", "", errors.New("fail"))})},
+		{"cursor", NewCursorHarness(HarnessConfig{Runner: captureRunner(&runnerCapture{}, "", "", errors.New("fail"))})},
 	}
 
 	ctx := context.Background()
@@ -1278,6 +1393,7 @@ func TestHarnessTimeoutConsistency(t *testing.T) {
 		{"codex", NewCodexHarness(HarnessConfig{Timeout: timeout, Runner: blockingRunner(&runnerCapture{})})},
 		{"opencode", NewOpenCodeHarness(HarnessConfig{Timeout: timeout, Runner: blockingRunner(&runnerCapture{})})},
 		{"pi", NewPiHarness(HarnessConfig{Timeout: timeout, Runner: blockingRunner(&runnerCapture{})})},
+		{"cursor", NewCursorHarness(HarnessConfig{Timeout: timeout, Runner: blockingRunner(&runnerCapture{})})},
 	}
 
 	ctx := context.Background()
@@ -1430,6 +1546,7 @@ func TestRegressionDefaultCommands(t *testing.T) {
 		{"codex", NewCodexHarness, "codex"},
 		{"opencode", NewOpenCodeHarness, "opencode"},
 		{"pi", NewPiHarness, "pi"},
+		{"cursor", NewCursorHarness, "cursor"},
 	}
 
 	for _, tc := range tests {
@@ -1448,6 +1565,8 @@ func TestRegressionDefaultCommands(t *testing.T) {
 			case *OpenCodeHarness:
 				command = h.config.Command
 			case *PiHarness:
+				command = h.config.Command
+			case *CursorHarness:
 				command = h.config.Command
 			}
 
@@ -1470,6 +1589,7 @@ func TestRegressionHarnessNames(t *testing.T) {
 		{NewCodexHarness, "codex"},
 		{NewOpenCodeHarness, "opencode"},
 		{NewPiHarness, "pi"},
+		{NewCursorHarness, "cursor"},
 		{NewMockHarness, "mock"},
 	}
 
@@ -1489,7 +1609,7 @@ func TestRegressionRegistryHarnesses(t *testing.T) {
 	registry := NewHarnessRegistry()
 
 	// These harnesses MUST be registered by default
-	requiredHarnesses := []string{"claude", "gemini", "codex", "opencode", "pi", "mock"}
+	requiredHarnesses := []string{"claude", "gemini", "codex", "opencode", "pi", "cursor", "mock"}
 
 	for _, name := range requiredHarnesses {
 		if !registry.Has(name) {
@@ -1509,6 +1629,7 @@ func TestRegressionAllHarnessesAutonomous(t *testing.T) {
 		{"codex", NewCodexHarness(HarnessConfig{})},
 		{"opencode", NewOpenCodeHarness(HarnessConfig{})},
 		{"pi", NewPiHarness(HarnessConfig{})},
+		{"cursor", NewCursorHarness(HarnessConfig{})},
 	}
 
 	// All real harnesses MUST support all automation modes
