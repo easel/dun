@@ -137,6 +137,18 @@ func TestDocDagMissingRequiredPrompt(t *testing.T) {
 	}
 }
 
+func TestDocDagParkingLotIgnored(t *testing.T) {
+	result := runFixture(t, "doc-dag-parking-lot", "")
+
+	check := findCheck(t, result, "helix-doc-dag")
+	if check.Status != "pass" {
+		t.Fatalf("expected pass, got %s", check.Status)
+	}
+	if hasIssueID(check.Issues, "stale:ADR-008") {
+		t.Fatalf("expected parking lot ADR to be ignored, got %+v", check.Issues)
+	}
+}
+
 func runFixture(t *testing.T, name string, mode string) Result {
 	t.Helper()
 
