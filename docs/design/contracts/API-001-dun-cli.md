@@ -202,7 +202,9 @@ $ dun check --prompt
 ---
 
 #### Command: loop
-**Purpose**: Run autonomous iterations with an agent harness until all checks pass.  
+**Purpose**: Run autonomous iterations with an agent harness until all checks pass.
+If `--quorum` is enabled, each iteration prompt is resolved via quorum before
+proceeding (quorum is applied to the iteration prompt, not per-check prompts).  
 **Usage**: `$ dun loop [options]`
 
 **Options**:
@@ -215,7 +217,7 @@ $ dun check --prompt
 - `--dry-run` : Print prompt without calling harness
 - `--verbose` : Print prompts sent to harnesses and responses received
 - `--quorum` : Quorum strategy (`any`, `majority`, `unanimous`, or number)
-- `--harnesses` : Comma-separated harness list for quorum
+- `--harnesses` : Comma-separated harness list for quorum (supports `name@persona`)
 - `--cost-mode` : Run harnesses sequentially to minimize cost
 - `--escalate` : Pause for human review on conflict
 - `--prefer` : Preferred harness on conflict
@@ -250,6 +252,48 @@ $ dun loop --verbose
 ```
 
 ---
+
+#### Command: quorum
+**Purpose**: Run a one-shot multi-agent quorum task and return a selected response.  
+**Usage**: `$ dun quorum [options]`
+
+**Options**:
+- `--task` : Task prompt (string)
+- `--quorum` : Quorum strategy (`any`, `majority`, `unanimous`, or number)
+- `--harnesses` : Comma-separated harness list (supports `name@persona`)
+- `--cost-mode` : Run harnesses sequentially to minimize cost
+- `--escalate` : Pause for human review on conflict
+- `--prefer` : Preferred harness on conflict
+- `--similarity` : Similarity threshold for conflict detection (default `0.8`)
+- `--synthesize` : Enable synthesis mode (merge drafts via meta-harness)
+- `--synthesizer` : Meta-harness for synthesis (supports `name@persona`)
+
+**Input**:
+- Format: task prompt + optional config
+
+**Output**:
+- Format: selected response (vote mode) or merged response (synthesize)
+
+**Exit Codes**:
+- `0`: Success
+- `4`: Invalid arguments or config
+- `6`: Quorum conflict (no consensus reached)
+- `7`: Quorum aborted (user intervention)
+
+**Examples**:
+```bash
+# One-shot quorum selection
+$ dun quorum --task "Write the quorum spec" --harnesses codex@architect,claude@critic --quorum majority
+
+# One-shot synthesis (merged result)
+$ dun quorum --synthesize --task "Write the quorum spec" --harnesses codex@architect,claude@critic --synthesizer codex@editor
+```
+
+---
+
+#### Command: synth
+**Purpose**: Shorthand for `dun quorum --synthesize`.  
+**Usage**: `$ dun synth [options]`
 
 ## REST API Contract (if applicable)
 

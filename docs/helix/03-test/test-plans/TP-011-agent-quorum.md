@@ -13,18 +13,21 @@ dun:
 ## Overview
 
 This test plan defines the verification strategy for the Agent Quorum feature,
-which enables running tasks through multiple agent harnesses and requiring
-consensus before applying changes.
+which enables running iteration prompts through multiple agent harnesses and
+requiring consensus before applying changes, plus one-shot quorum/synthesis
+commands.
 
 ## Acceptance Criteria (from US-011)
 
-1. `dun loop --quorum 2` runs each task through multiple harnesses
+1. `dun loop --quorum 2` runs each iteration prompt through multiple harnesses
 2. Quorum strategies supported: majority, unanimous, any
 3. Results are compared for agreement before applying changes
 4. Conflicts are logged and can escalate to human review
-5. Quorum can mix harnesses: `--harness claude,gemini,codex`
+5. Quorum can mix harnesses: `--harnesses claude,gemini,codex`
 6. Performance mode runs harnesses in parallel
 7. Cost mode runs harnesses sequentially, stopping on first agreement
+8. `dun quorum` returns a selected response for a one-shot task
+9. `dun synth` returns a merged response via a synthesis meta-harness
 
 ## Test Cases
 
@@ -42,15 +45,32 @@ consensus before applying changes.
 | TC-011-01f | `--quorum -1` | Error: invalid quorum value |
 | TC-011-01g | `--quorum invalid` | Error: unknown quorum strategy |
 
+### TC-011-01h: Quorum Command Parsing
+
+**Objective**: Verify `dun quorum` and `dun synth` parse correctly.
+
+| Test | Input | Expected |
+|------|-------|----------|
+| TC-011-01h | `dun quorum --task "spec" --quorum 2 --harnesses a,b` | Quorum command parses |
+| TC-011-01i | `dun synth --task "spec" --harnesses a,b --synthesizer a` | Synthesis command parses |
+
 ### TC-011-02: Multiple Harness Execution
 
 **Objective**: Verify tasks run through all specified harnesses.
 
 | Test | Input | Expected |
 |------|-------|----------|
-| TC-011-02a | `--harness claude,gemini --quorum 2` | Both harnesses invoked |
-| TC-011-02b | `--harness claude,gemini,codex --quorum 2` | All three harnesses invoked |
-| TC-011-02c | `--harness claude --quorum 2` | Error: quorum requires >= 2 harnesses |
+| TC-011-02a | `--harnesses claude,gemini --quorum 2` | Both harnesses invoked |
+| TC-011-02b | `--harnesses claude,gemini,codex --quorum 2` | All three harnesses invoked |
+| TC-011-02c | `--harnesses claude --quorum 2` | Error: quorum requires >= 2 harnesses |
+
+### TC-011-02d: Persona Parsing
+
+**Objective**: Verify personas in `harness@persona` are parsed and passed through.
+
+| Test | Input | Expected |
+|------|-------|----------|
+| TC-011-02d | `--harnesses codex@architect,claude@critic` | Personas passed to harness layer |
 
 ### TC-011-03: Quorum Strategy - Any
 
@@ -197,10 +217,20 @@ consensus before applying changes.
 
 | Test | Condition | Expected |
 |------|-----------|----------|
-| TC-011-16a | `dun loop --quorum 2` with tasks | Each task goes through quorum |
+| TC-011-16a | `dun loop --quorum 2` with tasks | Each iteration prompt goes through quorum |
 | TC-011-16b | Quorum with `--dry-run` | Shows what would happen |
 | TC-011-16c | Quorum with `--verbose` | Detailed quorum logging (prompts + responses) |
 | TC-011-16d | Quorum with automation modes | Modes apply per-harness |
+
+### TC-011-17: Synthesis Mode
+
+**Objective**: Verify `dun synth` and synthesis meta-harness behavior.
+
+| Test | Condition | Expected |
+|------|-----------|----------|
+| TC-011-17a | `dun synth --task "spec"` | Synthesizer invoked |
+| TC-011-17b | Two drafts with differences | Merged response returned |
+| TC-011-17c | Synthesizer fails | Task fails with error |
 
 ## Test Data Requirements
 

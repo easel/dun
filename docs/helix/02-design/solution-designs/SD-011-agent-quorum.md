@@ -12,19 +12,30 @@ dun:
 
 ## 1. Overview
 
-This document describes the architecture and implementation plan for the Agent Quorum feature, which enables running tasks through multiple agent harnesses and requiring consensus before applying changes.
+This document describes the architecture and implementation plan for the Agent
+Quorum feature, which enables running tasks through multiple agent harnesses,
+requiring consensus (vote mode), or synthesizing a merged result (synthesis
+mode).
 
 ### 1.1 Problem Statement
 
-Single-agent execution provides no redundancy or validation. For high-stakes changes (security patches, data migrations, production deployments), maintainers need higher confidence that autonomous changes are correct.
+Single-agent execution provides no redundancy or validation. For high-stakes
+changes (security patches, data migrations, production deployments), and for
+high-quality spec generation, maintainers need higher confidence and richer
+outputs than a single agent can provide.
 
 ### 1.2 Solution Summary
 
-Extend the `dun loop` command to:
-- Execute tasks through multiple harnesses concurrently or sequentially
-- Compare responses using semantic similarity
-- Apply changes only when quorum is reached
-- Handle conflicts through escalation, preference, or skip
+Extend Dun with:
+- `dun loop --quorum` to apply quorum to each iteration prompt.
+- `dun quorum` to run a one-shot multi-agent vote and select a response.
+- `dun synth` (`dun quorum --synthesize`) to run a one-shot multi-agent draft
+  plus synthesis meta-harness.
+- Execute tasks through multiple harnesses concurrently or sequentially.
+- Compare responses using semantic similarity.
+- Apply changes only when quorum is reached (loop mode) or return the chosen
+  response (one-shot mode).
+- Handle conflicts through escalation, preference, or skip.
 
 ## 2. Architecture Overview
 
@@ -32,7 +43,7 @@ Extend the `dun loop` command to:
 
 ```
 +-------------------+     +-------------------+     +-------------------+
-|   Loop Command    |---->|  Quorum Manager   |---->|  Result Aggregator|
+| Loop/Quorum Cmds  |---->|  Quorum Manager   |---->|  Result Aggregator|
 +-------------------+     +-------------------+     +-------------------+
                                    |                         |
                     +--------------+--------------+          |
@@ -40,7 +51,7 @@ Extend the `dun loop` command to:
                     v              v              v          v
             +----------+   +----------+   +----------+  +-----------+
             | Harness  |   | Harness  |   | Harness  |  | Semantic  |
-            | Claude   |   | Gemini   |   | Codex    |  | Comparator|
+            | (persona)|   | (persona)|   | (persona)|  | Comparator|
             +----------+   +----------+   +----------+  +-----------+
                     |              |              |
                     v              v              v
@@ -52,17 +63,23 @@ Extend the `dun loop` command to:
             +-------------------------------------------+
             |           Conflict Resolver               |
             +-------------------------------------------+
+                                   |
+                                   v
+            +-------------------------------------------+
+            |        Synthesis Meta-Harness (opt)       |
+            +-------------------------------------------+
 ```
 
 ### 2.2 Data Flow
 
-1. **Loop Command** parses quorum flags and creates `QuorumConfig`
+1. **Loop/Quorum Command** parses quorum flags and creates `QuorumConfig`
 2. **Quorum Manager** coordinates harness execution based on mode (parallel/sequential)
 3. **Harnesses** execute prompts and return `HarnessResult` structs
 4. **Response Collector** gathers all results with timing metadata
 5. **Semantic Comparator** groups responses by similarity
 6. **Result Aggregator** determines if quorum is met
 7. **Conflict Resolver** handles disagreements per policy
+8. **Synthesis Meta-Harness** (optional) merges drafts into one result
 
 ## 3. Quorum Strategies
 
@@ -99,6 +116,13 @@ func (q *QuorumConfig) IsMet(agreements int, total int) bool {
 - `quorum 0` or negative: error
 - `quorum unanimous` with single harness: warning (degrades to single-agent)
 - `quorum majority` with 2 harnesses: requires both (2/2 > 50%)
+
+### 3.4 Quorum Modes
+
+| Mode | Behavior | Surface |
+|------|----------|---------|
+| `vote` (default) | Select an existing response that meets quorum | `dun quorum`, `dun loop --quorum` |
+| `synthesize` | Merge drafts via a synthesis meta-harness | `dun synth` / `dun quorum --synthesize` |
 
 ## 4. Multi-Harness Execution
 
@@ -423,13 +447,31 @@ type GroupDiff struct {
 ```go
 // QuorumConfig holds quorum settings parsed from flags
 type QuorumConfig struct {
-    Strategy       string   // "any", "majority", "unanimous", or ""
-    Threshold      int      // Numeric threshold when Strategy is ""
-    Harnesses      []string // List of harness names
-    TotalHarnesses int      // Computed count
-    Mode           string   // "parallel" or "sequential"
-    Prefer         string   // Preferred harness on conflict
-    Escalate       bool     // Pause for human review on conflict
+    Strategy       string        // "any", "majority", "unanimous", or ""
+    Threshold      int           // Numeric threshold when Strategy is ""
+    Harnesses      []HarnessSpec // Harness + persona specs
+    TotalHarnesses int           // Computed count
+    Mode           string        // "parallel" or "sequential"
+    Prefer         string        // Preferred harness on conflict
+    Escalate       bool          // Pause for human review on conflict
+    Similarity     float64       // Similarity threshold for grouping
+    Synthesize     bool          // Enable synthesis mode
+    Synthesizer    SynthSpec      // Meta-harness config for synthesis
+}
+
+// HarnessSpec captures a harness with an optional persona and model override.
+type HarnessSpec struct {
+    Name     string `json:"name"`
+    Persona  string `json:"persona,omitempty"`
+    Model    string `json:"model,omitempty"`
+}
+
+// SynthSpec defines the synthesis meta-harness configuration.
+type SynthSpec struct {
+    Name    string `json:"name"`
+    Persona string `json:"persona,omitempty"`
+    Model   string `json:"model,omitempty"`
+    Prompt  string `json:"prompt,omitempty"`
 }
 
 // HarnessResult captures a single harness execution
@@ -477,14 +519,22 @@ type Config struct {
 }
 
 type QuorumYAML struct {
-    Default    string   `yaml:"default"`     // Default strategy
-    Harnesses  []string `yaml:"harnesses"`   // Default harnesses
-    Mode       string   `yaml:"mode"`        // "parallel" or "sequential"
-    Threshold  float64  `yaml:"threshold"`   // Semantic similarity threshold
-    Prefer     string   `yaml:"prefer"`      // Default preferred harness
-    Escalate   bool     `yaml:"escalate"`    // Default escalation behavior
+    Default     string        `yaml:"default"`     // Default strategy
+    Mode        string        `yaml:"mode"`        // "parallel" or "sequential"
+    Similarity  float64       `yaml:"similarity"`  // Similarity threshold
+    Prefer      string        `yaml:"prefer"`      // Default preferred harness
+    Escalate    bool          `yaml:"escalate"`    // Default escalation behavior
+    Harnesses   []HarnessSpec `yaml:"harnesses"`   // Default harnesses + personas
+    Synthesize  bool          `yaml:"synthesize"`  // Default to synthesis mode
+    Synthesizer SynthSpec     `yaml:"synthesizer"` // Meta-harness config
 }
 ```
+
+**Persona Registry Boundary**: persona definitions (system prompts and defaults)
+live in the harness/DDX layer. Dun only references persona names and passes
+them to harnesses.
+Quorum vote and synthesis prompts are owned by Dun (not agents) and are passed
+as task prompts to the harnesses.
 
 ## 8. File Structure
 
@@ -492,6 +542,7 @@ type QuorumYAML struct {
 
 | File | Purpose |
 |------|---------|
+| `cmd/dun/quorum.go` | New `dun quorum` / `dun synth` command surface |
 | `internal/dun/quorum.go` | QuorumManager, QuorumConfig, strategy logic |
 | `internal/dun/quorum_test.go` | Unit tests for quorum logic |
 | `internal/dun/harness.go` | Harness interface, registry, implementations |
@@ -524,7 +575,7 @@ type QuorumYAML struct {
 | P1.2 | Implement QuorumConfig parsing | `quorum.go` | 2h |
 | P1.3 | Add flag parsing to loop command | `main.go` | 2h |
 
-**Deliverable**: `dun loop --quorum 2 --harness claude,gemini` parses without error.
+**Deliverable**: `dun loop --quorum 2 --harnesses claude,gemini` parses without error.
 
 ### Phase 2: Harness Abstraction (4 tasks)
 
@@ -617,7 +668,7 @@ dun loop [existing flags] [quorum flags]
 Quorum Flags:
   --quorum <strategy|N>   Quorum strategy: any, majority, unanimous, or number
                           (default: none - single harness mode)
-  --harness <list>        Comma-separated harness names (default: from config)
+  --harnesses <list>      Comma-separated harness names (supports name@persona)
   --cost-mode             Run harnesses sequentially, stop on quorum
   --escalate              Pause for human review on conflict
   --prefer <harness>      Use this harness response on conflict
@@ -628,19 +679,25 @@ Quorum Flags:
 
 ```bash
 # Basic quorum: 2 of 3 must agree
-dun loop --harness claude,gemini,codex --quorum 2
+dun loop --harnesses claude,gemini,codex --quorum 2
 
 # Unanimous agreement required
-dun loop --harness claude,gemini --quorum unanimous
+dun loop --harnesses claude,gemini --quorum unanimous
 
 # Cost-optimized: stop when 2 agree
-dun loop --harness claude,gemini,codex --quorum 2 --cost-mode
+dun loop --harnesses claude,gemini,codex --quorum 2 --cost-mode
 
 # With escalation on conflict
-dun loop --harness claude,gemini --quorum unanimous --escalate
+dun loop --harnesses claude,gemini --quorum unanimous --escalate
 
 # With preferred fallback
-dun loop --harness claude,gemini,codex --quorum majority --prefer claude
+dun loop --harnesses claude,gemini,codex --quorum majority --prefer claude
+
+# One-shot quorum
+dun quorum --task \"Write the quorum spec\" --harnesses codex@architect,claude@critic --quorum majority
+
+# One-shot synthesis
+dun synth --task \"Write the quorum spec\" --harnesses codex@architect,claude@critic --synthesizer codex@editor
 ```
 
 ### 10.3 Exit Codes

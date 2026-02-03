@@ -14,8 +14,9 @@ dun:
 
 ## Summary
 
-Add quorum-based decision making to `dun loop` by running each iteration
-through multiple harnesses and requiring agreement before applying changes.
+Add quorum-based decision making to Dun with two surfaces:
+- `dun loop --quorum` for per-iteration consensus in repo iteration.
+- `dun quorum` / `dun synth` for one-shot multi-agent consensus or synthesis.
 
 ## Requirements
 
@@ -25,12 +26,21 @@ through multiple harnesses and requiring agreement before applying changes.
 - Support cost mode (sequential) and performance mode (parallel).
 - Record agreement metadata for each iteration decision.
 - Keep quorum evaluation deterministic for the same repo state and harness set.
+- Add a dedicated quorum command for one-shot tasks:
+  - `dun quorum` selects a winning response via quorum.
+  - `dun synth` is shorthand for `dun quorum --synthesize` and produces a merged result.
+- Support per-harness personas via `harness@persona` (persona definitions live in harness/DDX).
+- Support synthesis via a meta-harness with its own prompt/model/persona.
+- Make loop semantics explicit: `dun loop --quorum` applies quorum to the
+  iteration prompt (not per-check prompts).
 
 ## Inputs
 
 - Loop output and prompt envelope from F-017 Autonomous Iteration.
 - Harness responses per iteration.
 - Automation mode selection and harness configuration (from loop config).
+- One-shot task prompt (for `dun quorum` / `dun synth`).
+- Persona registry (provided by harness/DDX; optionally overridden in config).
 
 ## Gaps & Conflicts
 
@@ -45,6 +55,7 @@ through multiple harnesses and requiring agreement before applying changes.
   (e.g., a harness unavailable in parallel mode).
 - Dependencies: F-017 loop flow, output formats (F-002), and automation policy
   (F-007).
+- Missing boundary definition for persona registry between Dun and DDX/harnesses.
 
 ## Quorum Flow
 
@@ -54,15 +65,24 @@ through multiple harnesses and requiring agreement before applying changes.
 4. If quorum is met, apply changes and record agreement metadata.
 5. If quorum is not met, log the conflict and follow the selected conflict
    handling policy.
+6. For one-shot `dun quorum`, return the selected response instead of applying
+   repo changes.
+7. For `dun synth`, collect drafts and run a synthesis meta-harness to merge
+   results into a single output.
 
 ## Acceptance Criteria
 
-- `dun loop --harness a,b --quorum unanimous` blocks on disagreement.
-- `dun loop --harness a,b,c --quorum 2` succeeds on two matching responses.
+- `dun loop --harnesses a,b --quorum unanimous` blocks on disagreement.
+- `dun loop --harnesses a,b,c --quorum 2` succeeds on two matching responses.
 - Conflicts are logged with enough detail for human review.
 - Sequential and parallel modes produce the same quorum result for identical
   responses.
 - Agreement metadata is emitted deterministically for each iteration.
+- `dun quorum --task "Write spec"` returns a single selected response.
+- `dun synth --task "Write spec"` returns a merged response created by a
+  synthesis meta-harness.
+- `dun quorum --harnesses codex@architect,claude@critic --quorum majority`
+  passes personas to harnesses via `harness@persona`.
 
 ## Traceability
 
@@ -70,3 +90,4 @@ through multiple harnesses and requiring agreement before applying changes.
   feedback loops.
 - Extends the autonomous iteration loop (F-017) with consensus before applying
   changes.
+- Adds a one-shot consensus/synthesis command for agent collaboration workflows.
