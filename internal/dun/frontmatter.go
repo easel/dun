@@ -16,11 +16,12 @@ type Frontmatter struct {
 }
 
 type DunFrontmatter struct {
-	ID        string    `yaml:"id"`
-	DependsOn []string  `yaml:"depends_on"`
-	Prompt    string    `yaml:"prompt"`
-	Inputs    []string  `yaml:"inputs"`
-	Review    DocReview `yaml:"review"`
+	ID          string    `yaml:"id"`
+	DependsOn   []string  `yaml:"depends_on"`
+	Prompt      string    `yaml:"prompt"`
+	Inputs      []string  `yaml:"inputs"`
+	Review      DocReview `yaml:"review"`
+	ParkingLot  bool      `yaml:"parking_lot"`
 }
 
 type DocReview struct {

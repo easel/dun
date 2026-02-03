@@ -215,6 +215,9 @@ func loadDocNodes(root string) (map[string]*DocNode, map[string]*DocNode, []Issu
 		if !frontmatter.HasFrontmatter || strings.TrimSpace(frontmatter.Dun.ID) == "" {
 			return nil
 		}
+		if frontmatter.Dun.ParkingLot {
+			return nil
+		}
 		if frontmatter.Dun.Review.Deps == nil {
 			frontmatter.Dun.Review.Deps = make(map[string]string)
 		}

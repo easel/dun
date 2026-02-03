@@ -16,6 +16,7 @@ dun:
   prompt: prompts/test.md
   inputs:
     - node:parent.doc
+  parking_lot: true
   review:
     self_hash: abc123
     deps:
@@ -42,6 +43,9 @@ Body`
 	}
 	if len(frontmatter.Dun.Inputs) != 1 || frontmatter.Dun.Inputs[0] != "node:parent.doc" {
 		t.Fatalf("unexpected inputs: %#v", frontmatter.Dun.Inputs)
+	}
+	if !frontmatter.Dun.ParkingLot {
+		t.Fatalf("expected parking_lot true")
 	}
 	if frontmatter.Dun.Review.SelfHash != "abc123" {
 		t.Fatalf("unexpected self hash: %q", frontmatter.Dun.Review.SelfHash)

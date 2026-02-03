@@ -355,3 +355,49 @@ dun:
 		t.Fatalf("expected invalid issue, got %#v", graph.Issues)
 	}
 }
+
+func TestBuildDocGraphSkipsParkingLotDocs(t *testing.T) {
+	root := t.TempDir()
+	parkedDir := filepath.Join(root, "docs", "helix", "02-design", "adr")
+	if err := os.MkdirAll(parkedDir, 0755); err != nil {
+		t.Fatalf("mkdir parked dir: %v", err)
+	}
+	activeDir := filepath.Join(root, "docs", "helix", "01-frame")
+	if err := os.MkdirAll(activeDir, 0755); err != nil {
+		t.Fatalf("mkdir active dir: %v", err)
+	}
+
+	parked := `---
+dun:
+  id: ADR-008
+  parking_lot: true
+  depends_on:
+    - PRD-001
+---
+# Parked ADR
+`
+	if err := os.WriteFile(filepath.Join(parkedDir, "ADR-008-parked.md"), []byte(parked), 0644); err != nil {
+		t.Fatalf("write parked: %v", err)
+	}
+
+	active := `---
+dun:
+  id: PRD-001
+---
+# PRD
+`
+	if err := os.WriteFile(filepath.Join(activeDir, "prd.md"), []byte(active), 0644); err != nil {
+		t.Fatalf("write active: %v", err)
+	}
+
+	graph, err := buildDocGraph(root)
+	if err != nil {
+		t.Fatalf("build graph: %v", err)
+	}
+	if _, ok := graph.Nodes["ADR-008"]; ok {
+		t.Fatalf("expected parking lot doc to be skipped")
+	}
+	if _, ok := graph.Nodes["PRD-001"]; !ok {
+		t.Fatalf("expected active doc to be included")
+	}
+}
