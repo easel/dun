@@ -101,21 +101,63 @@ checks:
     description: "Verify feature specs have implementations"
     type: spec-binding
     phase: build
-    spec_pattern: docs/helix/01-frame/user-stories/US-*.md
-    code_pattern: internal/**/*.go
-    binding_marker: "// Implements: US-"
+    bindings:
+      specs:
+        - pattern: docs/helix/01-frame/user-stories/US-*.md
+          implementation_section: "## Implementation"
+          id_pattern: "US-\\d+"
+      code:
+        - pattern: internal/**/*.go
+          spec_comment: "// Implements: US-"
+        - pattern: cmd/**/*.go
+          spec_comment: "// Implements: US-"
+    binding_rules:
+      - type: no-orphan-specs
+        warn_only: true
+      - type: no-orphan-code
+        warn_only: true
+
+  - id: helix-doc-dag
+    description: "Detect missing or stale Helix docs"
+    type: doc-dag
+    phase: iterate
 
   - id: helix-change-cascade
     description: "Verify downstream updates when PRD changes"
     type: change-cascade
     phase: iterate
-    upstream: docs/helix/01-frame/prd.md
-    downstreams:
-      - docs/helix/02-design/architecture.md
-      - docs/helix/01-frame/user-stories/*.md
+    trigger: git-diff
+    baseline: HEAD~1
+    cascade_rules:
+      - upstream: docs/helix/01-frame/prd.md
+        downstreams:
+          - path: docs/helix/02-design/architecture.md
+            required: true
+          - path: docs/helix/01-frame/user-stories/*.md
+            required: true
+
+  - id: helix-integration-contract
+    description: "Verify integration contracts and dependencies"
+    type: integration-contract
+    phase: build
+    conditions:
+      - type: path-exists
+        path: docs/helix/02-design/integration-map.yaml
+    contracts:
+      map: docs/helix/02-design/integration-map.yaml
+      definitions: internal/**/*.go
+    contract_rules:
+      - type: all-providers-implemented
+      - type: all-consumers-satisfied
+      - type: no-circular-dependencies
 
   - id: helix-conflict-detection
     description: "Detect overlapping agent work"
     type: conflict-detection
     phase: build
-    manifest: .dun/work-in-progress.yaml
+    tracking:
+      manifest: .dun/work-in-progress.yaml
+    conflict_rules:
+      - type: no-overlap
+        scope: file
+        required: false

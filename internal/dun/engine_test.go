@@ -92,6 +92,51 @@ func TestHelixAlignmentAutoRunsAgent(t *testing.T) {
 	}
 }
 
+func TestDocDagCascadeStale(t *testing.T) {
+	result := runFixture(t, "doc-dag-cascade", "")
+
+	check := findCheck(t, result, "helix-doc-dag")
+	if check.Status != "warn" {
+		t.Fatalf("expected warn, got %s", check.Status)
+	}
+	if !hasIssueID(check.Issues, "stale:helix.architecture") {
+		t.Fatalf("expected stale issue, got %+v", check.Issues)
+	}
+	if check.Prompt == nil {
+		t.Fatalf("expected prompt envelope")
+	}
+	if !strings.Contains(check.Prompt.Prompt, "Gaps & Conflicts") {
+		t.Fatalf("expected prompt to require Gaps & Conflicts section")
+	}
+	if !containsStringSlice(check.Prompt.Inputs, "docs/helix/01-frame/prd.md") {
+		t.Fatalf("expected PRD input, got %+v", check.Prompt.Inputs)
+	}
+	if !containsStringSlice(check.Prompt.Inputs, "docs/helix/02-design/adrs/ADR-001.md") {
+		t.Fatalf("expected ADR input, got %+v", check.Prompt.Inputs)
+	}
+	if !containsStringSlice(check.Prompt.Inputs, "internal/feature/feature.go") {
+		t.Fatalf("expected code ref input, got %+v", check.Prompt.Inputs)
+	}
+}
+
+func TestDocDagMissingRequiredPrompt(t *testing.T) {
+	result := runFixture(t, "doc-dag-missing", "")
+
+	check := findCheck(t, result, "helix-doc-dag")
+	if check.Status != "fail" {
+		t.Fatalf("expected fail, got %s", check.Status)
+	}
+	if !hasIssueID(check.Issues, "missing:helix.prd") {
+		t.Fatalf("expected missing issue, got %+v", check.Issues)
+	}
+	if check.Prompt == nil {
+		t.Fatalf("expected prompt envelope")
+	}
+	if !strings.Contains(check.Prompt.Prompt, "helix.prd") {
+		t.Fatalf("expected prompt to include doc id")
+	}
+}
+
 func runFixture(t *testing.T, name string, mode string) Result {
 	t.Helper()
 
@@ -148,6 +193,24 @@ func hasIssueSummaryContains(issues []Issue, parts ...string) bool {
 			}
 		}
 		if match {
+			return true
+		}
+	}
+	return false
+}
+
+func hasIssueID(issues []Issue, id string) bool {
+	for _, issue := range issues {
+		if issue.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
+func containsStringSlice(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
 			return true
 		}
 	}
