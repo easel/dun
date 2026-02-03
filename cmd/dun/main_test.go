@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/easel/dun/internal/dun"
@@ -850,14 +852,14 @@ func TestRunLoopVerboseLogsPromptAndResponse(t *testing.T) {
 	}
 	t.Cleanup(func() { checkRepo = origCheck })
 
-	origHarness := callHarnessFn
-	callHarnessFn = func(harness, prompt, automation string) (string, error) {
+	origHarness := callHarnessStreamingFn
+	callHarnessStreamingFn = func(harness, prompt, automation string, _ io.Writer, _ io.Writer) (string, error) {
 		if !strings.Contains(prompt, "fail-check") {
 			t.Fatalf("expected prompt to include fail-check, got %q", prompt)
 		}
 		return "---DUN_STATUS---\nEXIT_SIGNAL: true\n---END_DUN_STATUS---", nil
 	}
-	t.Cleanup(func() { callHarnessFn = origHarness })
+	t.Cleanup(func() { callHarnessStreamingFn = origHarness })
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
@@ -872,11 +874,144 @@ func TestRunLoopVerboseLogsPromptAndResponse(t *testing.T) {
 	if !strings.Contains(output, "fail-check") {
 		t.Fatalf("expected prompt content in output")
 	}
-	if !strings.Contains(output, "--- RESPONSE (claude) ---") {
+	if !strings.Contains(output, "--- RESPONSE (codex) ---") {
 		t.Fatalf("expected verbose response block in output")
 	}
 	if !strings.Contains(output, "EXIT_SIGNAL: true") {
 		t.Fatalf("expected response content in output")
+	}
+}
+
+func TestRunLoopAutoStampsDocDag(t *testing.T) {
+	root := setupEmptyRepo(t)
+	docPath := filepath.Join(root, "docs", "test.md")
+	if err := os.MkdirAll(filepath.Dir(docPath), 0755); err != nil {
+		t.Fatalf("mkdir docs: %v", err)
+	}
+	content := "---\ndun:\n  id: TEST\n  depends_on: []\n---\n# Test\n"
+	if err := os.WriteFile(docPath, []byte(content), 0644); err != nil {
+		t.Fatalf("write doc: %v", err)
+	}
+
+	origCheck := checkRepo
+	checkRepo = func(_ string, _ dun.Options) (dun.Result, error) {
+		return dun.Result{
+			Checks: []dun.CheckResult{
+				{
+					ID:     "helix-doc-dag",
+					Status: "warn",
+					Signal: "stale",
+					Prompt: &dun.PromptEnvelope{
+						Prompt: "Check-ID: doc-dag-TEST\n\nYou are Dun's documentation assistant. The document `docs/test.md` is stale.\n",
+					},
+				},
+			},
+		}, nil
+	}
+	t.Cleanup(func() { checkRepo = origCheck })
+
+	origHarness := callHarnessStreamingFn
+	callHarnessStreamingFn = func(harness, prompt, automation string, _ io.Writer, _ io.Writer) (string, error) {
+		return "{\"status\":\"pass\",\"signal\":\"ok\"}\nEXIT_SIGNAL: true", nil
+	}
+	t.Cleanup(func() { callHarnessStreamingFn = origHarness })
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := runInDirWithWriters(t, root, []string{"loop", "--max-iterations", "1", "--verbose"}, &stdout, &stderr)
+	if code != dun.ExitSuccess {
+		t.Fatalf("expected code %d, got %d", dun.ExitSuccess, code)
+	}
+	updatedBytes, err := os.ReadFile(docPath)
+	if err != nil {
+		t.Fatalf("read doc: %v", err)
+	}
+	updated := string(updatedBytes)
+	if !strings.Contains(updated, "review:") {
+		t.Fatalf("expected auto-stamped review block")
+	}
+	if !strings.Contains(stdout.String(), "auto-stamped: docs/test.md") {
+		t.Fatalf("expected auto-stamped output")
+	}
+}
+
+func TestRunLoopAutoStampSkipsOnFailStatus(t *testing.T) {
+	root := setupEmptyRepo(t)
+	docPath := filepath.Join(root, "docs", "test.md")
+	if err := os.MkdirAll(filepath.Dir(docPath), 0755); err != nil {
+		t.Fatalf("mkdir docs: %v", err)
+	}
+	content := "---\ndun:\n  id: TEST\n  depends_on: []\n---\n# Test\n"
+	if err := os.WriteFile(docPath, []byte(content), 0644); err != nil {
+		t.Fatalf("write doc: %v", err)
+	}
+
+	origCheck := checkRepo
+	checkRepo = func(_ string, _ dun.Options) (dun.Result, error) {
+		return dun.Result{
+			Checks: []dun.CheckResult{
+				{
+					ID:     "helix-doc-dag",
+					Status: "warn",
+					Signal: "stale",
+					Prompt: &dun.PromptEnvelope{
+						Prompt: "Check-ID: doc-dag-TEST\n\nYou are Dun's documentation assistant. The document `docs/test.md` is stale.\n",
+					},
+				},
+			},
+		}, nil
+	}
+	t.Cleanup(func() { checkRepo = origCheck })
+
+	origHarness := callHarnessStreamingFn
+	callHarnessStreamingFn = func(harness, prompt, automation string, _ io.Writer, _ io.Writer) (string, error) {
+		return "{\"status\":\"fail\",\"signal\":\"blocked\"}\nEXIT_SIGNAL: true", nil
+	}
+	t.Cleanup(func() { callHarnessStreamingFn = origHarness })
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := runInDirWithWriters(t, root, []string{"loop", "--max-iterations", "1", "--verbose"}, &stdout, &stderr)
+	if code != dun.ExitSuccess {
+		t.Fatalf("expected code %d, got %d", dun.ExitSuccess, code)
+	}
+	updatedBytes, err := os.ReadFile(docPath)
+	if err != nil {
+		t.Fatalf("read doc: %v", err)
+	}
+	updated := string(updatedBytes)
+	if strings.Contains(updated, "review:") {
+		t.Fatalf("did not expect auto-stamp on fail status")
+	}
+}
+
+func TestRunLoopOnlyFiltersChecks(t *testing.T) {
+	root := setupEmptyRepo(t)
+	origCheck := checkRepo
+	checkRepo = func(_ string, _ dun.Options) (dun.Result, error) {
+		return dun.Result{
+			Checks: []dun.CheckResult{
+				{ID: "keep-me", Status: "fail", Signal: "failed"},
+				{ID: "drop-me", Status: "fail", Signal: "failed"},
+			},
+		}, nil
+	}
+	t.Cleanup(func() { checkRepo = origCheck })
+
+	origHarness := callHarnessStreamingFn
+	callHarnessStreamingFn = func(harness, prompt, automation string, _ io.Writer, _ io.Writer) (string, error) {
+		if !strings.Contains(prompt, "keep-me") || strings.Contains(prompt, "drop-me") {
+			t.Fatalf("expected only keep-me in prompt, got %q", prompt)
+		}
+		return "---DUN_STATUS---\nEXIT_SIGNAL: true\n---END_DUN_STATUS---", nil
+	}
+	t.Cleanup(func() { callHarnessStreamingFn = origHarness })
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := runInDirWithWriters(t, root, []string{"loop", "--max-iterations", "1", "--verbose", "--only", "keep-me"}, &stdout, &stderr)
+	if code != dun.ExitSuccess {
+		t.Fatalf("expected code %d, got %d", dun.ExitSuccess, code)
 	}
 }
 
@@ -1139,6 +1274,33 @@ func TestPrintPromptVariants(t *testing.T) {
 	}
 }
 
+func TestPrintPromptIncludesBeadsCandidates(t *testing.T) {
+	checks := []dun.CheckResult{
+		{
+			ID:     "beads-ready",
+			Status: "action",
+			Issues: []dun.Issue{
+				{ID: "BEAD-1", Summary: "First bead"},
+				{ID: "BEAD-2", Summary: "Second bead"},
+			},
+		},
+	}
+
+	var buf bytes.Buffer
+	printPrompt(&buf, checks, "auto", "/test/root")
+	output := buf.String()
+
+	if !strings.Contains(output, "### Beads Candidates") {
+		t.Fatalf("expected beads candidates section")
+	}
+	if !strings.Contains(output, "BEAD-1 - First bead") {
+		t.Fatalf("expected bead summary, got %q", output)
+	}
+	if !strings.Contains(output, "bd show <id>") {
+		t.Fatalf("expected bd show instructions")
+	}
+}
+
 // Tests for help command coverage (AC-8)
 
 func TestRunHelpIncludesLoop(t *testing.T) {
@@ -1158,7 +1320,7 @@ func TestRunHelpIncludesLoop(t *testing.T) {
 	if !strings.Contains(output, "--max-iterations") {
 		t.Fatalf("help should document max-iterations option")
 	}
-	if !strings.Contains(output, "claude, gemini, codex") {
+	if !strings.Contains(output, "codex, claude, gemini") {
 		t.Fatalf("help should list available harnesses")
 	}
 }
@@ -1933,6 +2095,66 @@ func TestRunLoopQuorumCostMode(t *testing.T) {
 	}, &stdout, &stderr)
 	if code != dun.ExitSuccess {
 		t.Fatalf("expected code %d, got %d: stdout=%s stderr=%s", dun.ExitSuccess, code, stdout.String(), stderr.String())
+	}
+}
+
+func TestRunReviewSynthesizesResponses(t *testing.T) {
+	root := setupEmptyRepo(t)
+	docDir := filepath.Join(root, "docs", "helix", "02-design", "technical-designs")
+	principlesDir := filepath.Join(root, "docs", "helix", "01-frame")
+	if err := os.MkdirAll(docDir, 0755); err != nil {
+		t.Fatalf("mkdir doc dir: %v", err)
+	}
+	if err := os.MkdirAll(principlesDir, 0755); err != nil {
+		t.Fatalf("mkdir principles dir: %v", err)
+	}
+
+	principlesPath := filepath.Join(principlesDir, "principles.md")
+	docPath := filepath.Join(docDir, "TD-001-auto-discovery.md")
+	principlesContent := "Principle: Keep it deterministic."
+	docContent := "# TD-001 Auto-Discovery\n\nEnsure deterministic activation."
+	if err := os.WriteFile(principlesPath, []byte(principlesContent), 0644); err != nil {
+		t.Fatalf("write principles: %v", err)
+	}
+	if err := os.WriteFile(docPath, []byte(docContent), 0644); err != nil {
+		t.Fatalf("write doc: %v", err)
+	}
+
+	origHarness := callHarnessFn
+	var mu sync.Mutex
+	prompts := map[string]string{}
+	callHarnessFn = func(harness, prompt, automation string) (string, error) {
+		mu.Lock()
+		prompts[harness] = prompt
+		mu.Unlock()
+		if harness == "synth" {
+			return "SYNTHESIZED REVIEW", nil
+		}
+		return fmt.Sprintf("review-%s", harness), nil
+	}
+	t.Cleanup(func() { callHarnessFn = origHarness })
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := runInDirWithWriters(t, root, []string{
+		"review",
+		"--principles", "docs/helix/01-frame/principles.md",
+		"--harnesses", "a,b",
+		"--synth-harness", "synth",
+		"docs/helix/02-design/technical-designs/TD-001-auto-discovery.md",
+	}, &stdout, &stderr)
+	if code != dun.ExitSuccess {
+		t.Fatalf("expected success, got %d: %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "SYNTHESIZED REVIEW") {
+		t.Fatalf("expected synthesized output, got: %s", stdout.String())
+	}
+
+	if prompt, ok := prompts["a"]; !ok || !strings.Contains(prompt, principlesContent) || !strings.Contains(prompt, docContent) {
+		t.Fatalf("expected review prompt to include principles and doc content")
+	}
+	if synthPrompt, ok := prompts["synth"]; !ok || !strings.Contains(synthPrompt, "review-a") || !strings.Contains(synthPrompt, "review-b") {
+		t.Fatalf("expected synthesis prompt to include individual reviews")
 	}
 }
 

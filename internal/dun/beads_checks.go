@@ -165,9 +165,19 @@ func runBeadsSuggestCheck(root string, check Check) (CheckResult, error) {
 			ID:      suggested.ID,
 			Title:   suggested.Title,
 			Summary: suggested.Description,
-			Prompt:  "Work on this bead: " + suggested.ID + " - " + suggested.Title,
+			Prompt:  buildBeadsPrompt(suggested),
 		},
 	}, nil
+}
+
+func buildBeadsPrompt(issue beadsIssue) string {
+	if issue.ID == "" {
+		return "No bead selected."
+	}
+	return "Work on this bead: " + issue.ID + " - " + issue.Title + "\n\n" +
+		"To get details:\n" +
+		"- bd show " + issue.ID + "\n" +
+		"- bd comments " + issue.ID
 }
 
 // findCriticalPath finds beads that block the most other beads

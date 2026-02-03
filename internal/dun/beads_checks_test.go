@@ -390,6 +390,9 @@ func TestRunBeadsSuggestCheck_Success(t *testing.T) {
 	if res.Prompt.Kind != "bead" {
 		t.Errorf("expected Prompt.Kind 'bead', got %q", res.Prompt.Kind)
 	}
+	if !strings.Contains(res.Prompt.Prompt, "bd show BEAD-2") {
+		t.Errorf("expected prompt to include bd show, got %q", res.Prompt.Prompt)
+	}
 }
 
 func TestRunBeadsSuggestCheck_NoReadyBeads(t *testing.T) {

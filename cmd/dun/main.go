@@ -31,6 +31,7 @@ var planRepo = dun.PlanRepo
 var respondFn = dun.Respond
 var installRepo = dun.InstallRepo
 var callHarnessFn = callHarnessImpl
+var callHarnessStreamingFn = callHarnessStreamingImpl
 
 func main() {
 	code := run(os.Args[1:], os.Stdout, os.Stderr)
@@ -52,6 +53,10 @@ func run(args []string, stdout io.Writer, stderr io.Writer) int {
 		return runExplain(args[1:], stdout, stderr)
 	case "respond":
 		return runRespond(args[1:], stdout, stderr)
+	case "review":
+		return runReview(args[1:], stdout, stderr)
+	case "stamp":
+		return runStamp(args[1:], stdout, stderr)
 	case "install":
 		return runInstall(args[1:], stdout, stderr)
 	case "loop":
@@ -77,10 +82,26 @@ COMMANDS:
   list       List available checks
   explain    Show details for a specific check
   respond    Process agent response for a check
+  review     Run multi-agent review with synthesis
+  stamp      Update doc review stamps
   install    Install dun config and agent documentation
   loop       Run autonomous loop with an agent harness
   version    Show version information
   update     Update dun to the latest version
+
+REVIEW MODE:
+  dun review [options] [doc paths...]
+
+  Runs a multi-agent review of the provided document(s) and synthesizes a
+  single response using the synthesis harness.
+
+  Options:
+    --principles  Path to principles document (default docs/helix/01-frame/principles.md)
+    --harnesses   Comma-separated list of review harnesses (default: codex,claude,gemini)
+    --synth-harness Harness to synthesize final review (default: first harness)
+    --automation  Mode: manual, plan, auto, yolo (default: auto)
+    --dry-run     Print prompt without calling harnesses
+    --verbose     Print individual harness reviews
 
 CHECK MODE:
   dun check [options]
@@ -90,6 +111,7 @@ CHECK MODE:
     --all        Include passing checks in prompt output
     --format     Output format: prompt, llm, json
     --automation Mode: manual, plan, auto, yolo (default: auto)
+    --ignore-version  Skip .ddx-version check
 
 LOOP MODE:
   dun loop [options]
@@ -98,28 +120,30 @@ LOOP MODE:
   and repeats until all checks pass or max iterations is reached.
 
   Options:
-    --harness     Agent to use: claude, gemini, codex (default: claude)
+    --harness     Agent to use: codex, claude, gemini (default: from config)
     --automation  Mode: manual, plan, auto, yolo (default: auto)
     --max-iterations  Safety limit (default: 100)
     --dry-run     Show prompt without calling agent
     --verbose     Print prompts sent to harnesses and responses received
+    --only        Comma-separated check IDs to include (supports * suffix)
+    --ignore-version  Skip .ddx-version check
 
   Quorum Options (multi-agent consensus):
     --quorum      Strategy: any, majority, unanimous, or number (e.g., 2)
-    --harnesses   Comma-separated list of harnesses (e.g., claude,gemini,codex)
+    --harnesses   Comma-separated list of harnesses (e.g., codex,claude,gemini)
     --cost-mode   Run harnesses sequentially to minimize cost
     --escalate    Pause for human review on conflict
-    --prefer      Preferred harness on conflict (e.g., claude)
+    --prefer      Preferred harness on conflict (e.g., codex)
     --similarity  Similarity threshold for conflict detection (default: 0.8)
 
   Examples:
-    dun loop                              # Run with claude
+    dun loop                              # Run with default harness
     dun loop --harness gemini             # Run with gemini
     dun loop --automation yolo            # Allow autonomous edits
     dun loop --dry-run                    # Preview prompt
     dun loop --verbose                    # Show prompt and responses
-    dun loop --quorum majority --harnesses claude,gemini,codex
-    dun loop --quorum 2 --harnesses claude,gemini --prefer claude
+    dun loop --quorum majority --harnesses codex,claude,gemini
+    dun loop --quorum 2 --harnesses codex,claude --prefer codex
 
 VERSION:
   dun version [options]
@@ -138,6 +162,12 @@ UPDATE:
 AGENT DOCUMENTATION:
   Run 'dun install' to add AGENTS.md with instructions for AI agents.
   Agents can then run 'dun check --prompt' or 'dun loop' to work autonomously.
+
+STAMP:
+  dun stamp [--all] [paths...]
+
+  Options:
+    --all        Stamp all docs with dun frontmatter
 
 EXIT CODES:
   0  Success / all checks pass
@@ -173,6 +203,7 @@ func runCheck(args []string, stdout io.Writer, stderr io.Writer) int {
 	promptOut := fs.Bool("prompt", false, "output loop prompt")
 	allChecks := fs.Bool("all", false, "include passing checks in prompt output")
 	automation := fs.String("automation", opts.AutomationMode, "automation mode (manual|plan|auto|yolo)")
+	ignoreVersion := fs.Bool("ignore-version", false, "skip .ddx-version check")
 	if err := fs.Parse(args); err != nil {
 		return dun.ExitUsageError
 	}
@@ -180,6 +211,11 @@ func runCheck(args []string, stdout io.Writer, stderr io.Writer) int {
 
 	opts.AgentMode = "prompt"
 	opts.AutomationMode = *automation
+	if !*ignoreVersion {
+		if warn := checkDDXVersion(root); warn != "" {
+			fmt.Fprintln(stderr, warn)
+		}
+	}
 	result, err := checkRepo(root, opts)
 	if err != nil {
 		fmt.Fprintf(stderr, "dun check failed: %v\n", err)
@@ -388,6 +424,40 @@ func runRespond(args []string, stdout io.Writer, stderr io.Writer) int {
 	return dun.ExitSuccess
 }
 
+func runStamp(args []string, stdout io.Writer, stderr io.Writer) int {
+	root := resolveRoot(".")
+	fs := flag.NewFlagSet("stamp", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	all := fs.Bool("all", false, "stamp all docs with dun frontmatter")
+	if err := fs.Parse(args); err != nil {
+		return dun.ExitUsageError
+	}
+	if *all && fs.NArg() > 0 {
+		fmt.Fprintln(stderr, "usage: dun stamp [--all] [paths...]")
+		return dun.ExitUsageError
+	}
+
+	var stamped []string
+	var err error
+	if *all {
+		stamped, err = dun.StampAll(root)
+	} else {
+		if fs.NArg() == 0 {
+			fmt.Fprintln(stderr, "usage: dun stamp [--all] [paths...]")
+			return dun.ExitUsageError
+		}
+		stamped, err = dun.StampDocs(root, fs.Args())
+	}
+	if err != nil {
+		fmt.Fprintf(stderr, "dun stamp failed: %v\n", err)
+		return dun.ExitRuntimeError
+	}
+	for _, path := range stamped {
+		fmt.Fprintf(stdout, "stamped: %s\n", path)
+	}
+	return dun.ExitSuccess
+}
+
 func runInstall(args []string, stdout io.Writer, stderr io.Writer) int {
 	fs := flag.NewFlagSet("install", flag.ContinueOnError)
 	fs.SetOutput(stderr)
@@ -430,11 +500,13 @@ func runLoop(args []string, stdout io.Writer, stderr io.Writer) int {
 	fs := flag.NewFlagSet("loop", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	configPath := fs.String("config", explicitConfig, "path to config file")
-	harness := fs.String("harness", "claude", "agent harness (claude|gemini|codex)")
+	harness := fs.String("harness", "", "agent harness (codex|claude|gemini); default from config")
 	automation := fs.String("automation", opts.AutomationMode, "automation mode (manual|plan|auto|yolo)")
 	maxIterations := fs.Int("max-iterations", 100, "maximum iterations before stopping")
 	dryRun := fs.Bool("dry-run", false, "print prompt without calling harness")
 	verbose := fs.Bool("verbose", false, "print prompts and harness responses")
+	only := fs.String("only", "", "comma-separated list of check IDs to include")
+	ignoreVersion := fs.Bool("ignore-version", false, "skip .ddx-version check")
 
 	// Quorum flags
 	quorumFlag := fs.String("quorum", "", "quorum strategy: any, majority, unanimous, or number")
@@ -449,6 +521,13 @@ func runLoop(args []string, stdout io.Writer, stderr io.Writer) int {
 	}
 	_ = *configPath
 	_ = *similarity // Reserved for future use in conflict detection
+	if *harness == "" {
+		if opts.AgentHarness != "" {
+			*harness = opts.AgentHarness
+		} else {
+			*harness = "codex"
+		}
+	}
 
 	// Parse quorum configuration if specified
 	var quorumCfg dun.QuorumConfig
@@ -469,6 +548,12 @@ func runLoop(args []string, stdout io.Writer, stderr io.Writer) int {
 			*harness, *automation, *maxIterations)
 	}
 
+	if !*ignoreVersion {
+		if warn := checkDDXVersion(root); warn != "" {
+			fmt.Fprintln(stderr, warn)
+		}
+	}
+
 	for i := 1; i <= *maxIterations; i++ {
 		fmt.Fprintf(stdout, "\n=== Iteration %d/%d ===\n", i, *maxIterations)
 
@@ -481,9 +566,14 @@ func runLoop(args []string, stdout io.Writer, stderr io.Writer) int {
 			return dun.ExitCheckFailed
 		}
 
+		checks := result.Checks
+		if *only != "" {
+			checks = filterChecksByID(checks, *only)
+		}
+
 		// Filter to actionable items
 		var actionable []dun.CheckResult
-		for _, check := range result.Checks {
+		for _, check := range checks {
 			if check.Status != "pass" {
 				actionable = append(actionable, check)
 			}
@@ -499,6 +589,12 @@ func runLoop(args []string, stdout io.Writer, stderr io.Writer) int {
 		var promptBuf strings.Builder
 		printPrompt(&promptBuf, actionable, *automation, root)
 		prompt := promptBuf.String()
+		if *only != "" && len(actionable) == 1 && actionable[0].Prompt != nil {
+			trimmed := strings.TrimSpace(actionable[0].Prompt.Prompt)
+			if trimmed != "" {
+				prompt = trimmed
+			}
+		}
 
 		if *dryRun {
 			fmt.Fprintln(stdout, "--- DRY RUN: Would send this prompt ---")
@@ -531,7 +627,16 @@ func runLoop(args []string, stdout io.Writer, stderr io.Writer) int {
 			}
 		} else {
 			// Single harness call
-			response, err = callHarness(*harness, prompt, *automation)
+			start := time.Now()
+			if *verbose {
+				fmt.Fprintf(stdout, "Calling %s...\n", *harness)
+				response, err = callHarnessStreaming(*harness, prompt, *automation, stdout, stderr)
+			} else {
+				response, err = callHarness(*harness, prompt, *automation)
+			}
+			if *verbose {
+				fmt.Fprintf(stdout, "%s completed in %s\n", *harness, time.Since(start).Round(time.Millisecond))
+			}
 			if err != nil {
 				fmt.Fprintf(stderr, "harness call failed: %v\n", err)
 				// Don't exit on harness failure - circuit breaker would handle this
@@ -549,6 +654,8 @@ func runLoop(args []string, stdout io.Writer, stderr io.Writer) int {
 			fmt.Fprintf(stdout, "Harness response:\n%s\n", response)
 		}
 
+		maybeAutoStampDocDag(root, actionable, response, stdout, stderr)
+
 		// Check for exit signal in response
 		if strings.Contains(response, "EXIT_SIGNAL: true") {
 			fmt.Fprintln(stdout, "Exit signal received. Loop complete.")
@@ -563,8 +670,71 @@ func runLoop(args []string, stdout io.Writer, stderr io.Writer) int {
 	return dun.ExitSuccess
 }
 
+func maybeAutoStampDocDag(root string, actionable []dun.CheckResult, response string, stdout, stderr io.Writer) {
+	if len(actionable) != 1 {
+		return
+	}
+	check := actionable[0]
+	if check.ID != "helix-doc-dag" || check.Prompt == nil {
+		return
+	}
+	if status := parseAgentStatus(response); status == "fail" {
+		return
+	}
+	docPath := extractDocPath(check.Prompt.Prompt)
+	if docPath == "" {
+		return
+	}
+	stamped, err := dun.StampDocs(root, []string{docPath})
+	if err != nil {
+		fmt.Fprintf(stderr, "auto-stamp failed for %s: %v\n", docPath, err)
+		return
+	}
+	for _, path := range stamped {
+		fmt.Fprintf(stdout, "auto-stamped: %s\n", path)
+	}
+}
+
+func parseAgentStatus(response string) string {
+	trimmed := strings.TrimSpace(response)
+	if trimmed == "" {
+		return ""
+	}
+	start := strings.Index(trimmed, "{")
+	end := strings.LastIndex(trimmed, "}")
+	if start == -1 || end == -1 || end <= start {
+		return ""
+	}
+	var resp dun.AgentResponse
+	if err := json.Unmarshal([]byte(trimmed[start:end+1]), &resp); err != nil {
+		return ""
+	}
+	return resp.Status
+}
+
+func extractDocPath(prompt string) string {
+	idx := strings.Index(prompt, "document `")
+	if idx == -1 {
+		return ""
+	}
+	start := idx + len("document `")
+	if start >= len(prompt) {
+		return ""
+	}
+	rest := prompt[start:]
+	end := strings.Index(rest, "`")
+	if end == -1 {
+		return ""
+	}
+	return rest[:end]
+}
+
 func callHarness(harness, prompt, automation string) (string, error) {
 	return callHarnessFn(harness, prompt, automation)
+}
+
+func callHarnessStreaming(harness, prompt, automation string, stdout, stderr io.Writer) (string, error) {
+	return callHarnessStreamingFn(harness, prompt, automation, stdout, stderr)
 }
 
 func callHarnessImpl(harnessName, prompt, automation string) (string, error) {
@@ -595,6 +765,33 @@ func callHarnessImpl(harnessName, prompt, automation string) (string, error) {
 	return result.Response, nil
 }
 
+func callHarnessStreamingImpl(harnessName, prompt, automation string, stdout, stderr io.Writer) (string, error) {
+	// Convert automation string to AutomationMode
+	var mode dun.AutomationMode
+	switch automation {
+	case "manual":
+		mode = dun.AutomationManual
+	case "plan":
+		mode = dun.AutomationPlan
+	case "auto", "":
+		mode = dun.AutomationAuto
+	case "yolo":
+		mode = dun.AutomationYolo
+	default:
+		mode = dun.AutomationAuto
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	result, err := dun.ExecuteHarnessWithOutput(ctx, harnessName, prompt, mode, ".", stdout, stderr)
+	if err != nil {
+		return "", err
+	}
+
+	return result.Response, nil
+}
+
 func printPrompt(w io.Writer, checks []dun.CheckResult, automation string, root string) {
 	fmt.Fprintln(w, "# Dun Prompt")
 	fmt.Fprintln(w)
@@ -605,6 +802,21 @@ func printPrompt(w io.Writer, checks []dun.CheckResult, automation string, root 
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Pick ONE task from this list. Choose the one with highest impact.")
 	fmt.Fprintln(w)
+
+	if candidates := collectBeadsCandidates(checks); len(candidates) > 0 {
+		fmt.Fprintln(w, "### Beads Candidates")
+		for _, candidate := range candidates {
+			line := candidate.ID
+			if line == "" {
+				line = candidate.Summary
+			} else if candidate.Summary != "" {
+				line = line + " - " + candidate.Summary
+			}
+			fmt.Fprintf(w, "- %s\n", line)
+		}
+		fmt.Fprintln(w, "For details, run: `bd show <id>` (optional: `bd comments <id>`)")
+		fmt.Fprintln(w)
+	}
 
 	for i, check := range checks {
 		priority := "MEDIUM"
@@ -639,6 +851,10 @@ func printPrompt(w io.Writer, checks []dun.CheckResult, automation string, root 
 		}
 		if check.Prompt != nil {
 			fmt.Fprintf(w, "**Prompt available:** Use `dun explain %s` for details\n", check.ID)
+			if strings.TrimSpace(check.Prompt.Prompt) != "" {
+				fmt.Fprintln(w, "**Prompt:**")
+				fmt.Fprintln(w, check.Prompt.Prompt)
+			}
 		}
 		fmt.Fprintln(w)
 	}
@@ -669,6 +885,92 @@ func printPrompt(w io.Writer, checks []dun.CheckResult, automation string, root 
 	fmt.Fprintln(w, "NEXT_RECOMMENDATION: <what to do next>")
 	fmt.Fprintln(w, "---END_DUN_STATUS---")
 	fmt.Fprintln(w, "```")
+}
+
+type beadsCandidate struct {
+	ID      string
+	Summary string
+}
+
+func collectBeadsCandidates(checks []dun.CheckResult) []beadsCandidate {
+	var suggest []beadsCandidate
+	var ready []beadsCandidate
+
+	for _, check := range checks {
+		switch check.ID {
+		case "beads-suggest":
+			suggest = issuesToBeadsCandidates(check.Issues)
+		case "beads-ready":
+			ready = issuesToBeadsCandidates(check.Issues)
+		}
+	}
+
+	candidates := suggest
+	if len(candidates) == 0 {
+		candidates = ready
+	}
+	if len(candidates) > 3 {
+		candidates = candidates[:3]
+	}
+	return candidates
+}
+
+func issuesToBeadsCandidates(issues []dun.Issue) []beadsCandidate {
+	if len(issues) == 0 {
+		return nil
+	}
+	candidates := make([]beadsCandidate, 0, len(issues))
+	for _, issue := range issues {
+		if issue.ID == "" && issue.Summary == "" {
+			continue
+		}
+		candidates = append(candidates, beadsCandidate{
+			ID:      issue.ID,
+			Summary: issue.Summary,
+		})
+	}
+	return candidates
+}
+
+func filterChecksByID(checks []dun.CheckResult, only string) []dun.CheckResult {
+	parts := splitCSV(only)
+	if len(parts) == 0 {
+		return checks
+	}
+	out := make([]dun.CheckResult, 0, len(checks))
+	for _, check := range checks {
+		if matchesAny(check.ID, parts) {
+			out = append(out, check)
+		}
+	}
+	return out
+}
+
+func splitCSV(value string) []string {
+	raw := strings.Split(value, ",")
+	out := make([]string, 0, len(raw))
+	for _, part := range raw {
+		trimmed := strings.TrimSpace(part)
+		if trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+	return out
+}
+
+func matchesAny(id string, patterns []string) bool {
+	for _, pattern := range patterns {
+		if pattern == id {
+			return true
+		}
+		if strings.HasSuffix(pattern, "*") {
+			prefix := strings.TrimSuffix(pattern, "*")
+			if strings.HasPrefix(id, prefix) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func formatRules(rules []dun.Rule) string {
