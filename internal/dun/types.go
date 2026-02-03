@@ -8,6 +8,8 @@ import (
 type Options struct {
 	AgentCmd          string
 	AgentHarness      string
+	AgentModel        string
+	AgentModels       map[string]string
 	AgentTimeout      time.Duration
 	AgentMode         string
 	AutomationMode    string

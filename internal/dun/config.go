@@ -16,11 +16,13 @@ type Config struct {
 }
 
 type AgentConfig struct {
-	Cmd        string `yaml:"cmd"`
-	Harness    string `yaml:"harness"`
-	TimeoutMS  int    `yaml:"timeout_ms"`
-	Mode       string `yaml:"mode"`
-	Automation string `yaml:"automation"`
+	Cmd        string            `yaml:"cmd"`
+	Harness    string            `yaml:"harness"`
+	Model      string            `yaml:"model"`
+	Models     map[string]string `yaml:"models"`
+	TimeoutMS  int               `yaml:"timeout_ms"`
+	Mode       string            `yaml:"mode"`
+	Automation string            `yaml:"automation"`
 }
 
 type GoConfig struct {
@@ -35,6 +37,8 @@ agent:
   automation: auto
   mode: auto
   timeout_ms: 300000
+  model: ""
+  models: {}
 go:
   coverage_threshold: 80
 `
@@ -53,6 +57,18 @@ func ApplyConfig(opts Options, cfg Config) Options {
 	}
 	if cfg.Agent.Harness != "" {
 		opts.AgentHarness = cfg.Agent.Harness
+	}
+	if cfg.Agent.Model != "" {
+		opts.AgentModel = cfg.Agent.Model
+	}
+	if len(cfg.Agent.Models) > 0 {
+		opts.AgentModels = make(map[string]string, len(cfg.Agent.Models))
+		for harness, model := range cfg.Agent.Models {
+			if model == "" {
+				continue
+			}
+			opts.AgentModels[harness] = model
+		}
 	}
 	if cfg.Agent.TimeoutMS > 0 {
 		opts.AgentTimeout = time.Duration(cfg.Agent.TimeoutMS) * time.Millisecond

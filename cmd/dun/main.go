@@ -32,6 +32,8 @@ var respondFn = dun.Respond
 var installRepo = dun.InstallRepo
 var callHarnessFn = callHarnessImpl
 var callHarnessStreamingFn = callHarnessStreamingImpl
+var harnessModel string
+var harnessModelOverrides map[string]string
 
 func main() {
 	code := run(os.Args[1:], os.Stdout, os.Stderr)
@@ -99,6 +101,8 @@ REVIEW MODE:
     --principles  Path to principles document (default docs/helix/01-frame/principles.md)
     --harnesses   Comma-separated list of review harnesses (default: codex,claude,gemini)
     --synth-harness Harness to synthesize final review (default: first harness)
+    --model       Model override for selected harness(es)
+    --models      Per-harness model overrides (e.g., codex:o3,claude:sonnet)
     --automation  Mode: manual, plan, auto, yolo (default: auto)
     --dry-run     Print prompt without calling harnesses
     --verbose     Print individual harness reviews
@@ -121,6 +125,8 @@ LOOP MODE:
 
   Options:
     --harness     Agent to use: codex, claude, gemini, opencode (default: from config)
+    --model       Model override for selected harness(es)
+    --models      Per-harness model overrides (e.g., codex:o3,claude:sonnet)
     --automation  Mode: manual, plan, auto, yolo (default: auto)
     --max-iterations  Safety limit (default: 100)
     --dry-run     Show prompt without calling agent
@@ -501,6 +507,8 @@ func runLoop(args []string, stdout io.Writer, stderr io.Writer) int {
 	fs.SetOutput(stderr)
 	configPath := fs.String("config", explicitConfig, "path to config file")
 	harness := fs.String("harness", "", "agent harness (codex|claude|gemini|opencode); default from config")
+	model := fs.String("model", opts.AgentModel, "model override for selected harness(es)")
+	models := fs.String("models", "", "per-harness model overrides (e.g., codex:o3,claude:sonnet)")
 	automation := fs.String("automation", opts.AutomationMode, "automation mode (manual|plan|auto|yolo)")
 	maxIterations := fs.Int("max-iterations", 100, "maximum iterations before stopping")
 	dryRun := fs.Bool("dry-run", false, "print prompt without calling harness")
@@ -527,6 +535,30 @@ func runLoop(args []string, stdout io.Writer, stderr io.Writer) int {
 		} else {
 			*harness = "codex"
 		}
+	}
+
+	modelOverrides := make(map[string]string)
+	for harnessName, modelName := range opts.AgentModels {
+		if modelName == "" {
+			continue
+		}
+		modelOverrides[harnessName] = modelName
+	}
+	if *models != "" {
+		parsed, parseErr := parseHarnessModelOverrides(*models)
+		if parseErr != nil {
+			fmt.Fprintf(stderr, "dun loop failed: invalid models: %v\n", parseErr)
+			return dun.ExitUsageError
+		}
+		for harnessName, modelName := range parsed {
+			modelOverrides[harnessName] = modelName
+		}
+	}
+	harnessModel = strings.TrimSpace(*model)
+	if len(modelOverrides) == 0 {
+		harnessModelOverrides = nil
+	} else {
+		harnessModelOverrides = modelOverrides
 	}
 
 	// Parse quorum configuration if specified
@@ -737,6 +769,40 @@ func callHarnessStreaming(harness, prompt, automation string, stdout, stderr io.
 	return callHarnessStreamingFn(harness, prompt, automation, stdout, stderr)
 }
 
+func resolveHarnessModel(harness string) string {
+	if len(harnessModelOverrides) > 0 {
+		if model, ok := harnessModelOverrides[harness]; ok && model != "" {
+			return model
+		}
+	}
+	return harnessModel
+}
+
+func parseHarnessModelOverrides(raw string) (map[string]string, error) {
+	if raw == "" {
+		return nil, nil
+	}
+	overrides := make(map[string]string)
+	parts := strings.Split(raw, ",")
+	for _, part := range parts {
+		item := strings.TrimSpace(part)
+		if item == "" {
+			continue
+		}
+		fields := strings.SplitN(item, ":", 2)
+		if len(fields) != 2 {
+			return nil, fmt.Errorf("invalid model override %q (expected harness:model)", item)
+		}
+		harness := strings.TrimSpace(fields[0])
+		model := strings.TrimSpace(fields[1])
+		if harness == "" || model == "" {
+			return nil, fmt.Errorf("invalid model override %q (expected harness:model)", item)
+		}
+		overrides[harness] = model
+	}
+	return overrides, nil
+}
+
 func callHarnessImpl(harnessName, prompt, automation string) (string, error) {
 	// Convert automation string to AutomationMode
 	var mode dun.AutomationMode
@@ -757,7 +823,8 @@ func callHarnessImpl(harnessName, prompt, automation string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	result, err := dun.ExecuteHarness(ctx, harnessName, prompt, mode, ".")
+	model := resolveHarnessModel(harnessName)
+	result, err := dun.ExecuteHarness(ctx, harnessName, prompt, mode, ".", model)
 	if err != nil {
 		return "", err
 	}
@@ -784,7 +851,8 @@ func callHarnessStreamingImpl(harnessName, prompt, automation string, stdout, st
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	result, err := dun.ExecuteHarnessWithOutput(ctx, harnessName, prompt, mode, ".", stdout, stderr)
+	model := resolveHarnessModel(harnessName)
+	result, err := dun.ExecuteHarnessWithOutput(ctx, harnessName, prompt, mode, ".", model, stdout, stderr)
 	if err != nil {
 		return "", err
 	}

@@ -58,6 +58,9 @@ type HarnessConfig struct {
 	// Command is the base command to execute (optional, uses default if empty)
 	Command string
 
+	// Model selects the model for the harness (optional, uses harness default if empty)
+	Model string
+
 	// WorkDir is the working directory for command execution
 	WorkDir string
 
@@ -184,6 +187,9 @@ func (h *ClaudeHarness) Execute(ctx context.Context, prompt string) (string, err
 		"--input-format", "text",
 		"--output-format", "text",
 	}
+	if h.config.Model != "" {
+		args = append(args, "--model", h.config.Model)
+	}
 	switch h.config.AutomationMode {
 	case AutomationPlan:
 		args = append(args, "--permission-mode", "plan")
@@ -233,6 +239,9 @@ func (h *GeminiHarness) Execute(ctx context.Context, prompt string) (string, err
 		"--prompt", "",
 		"--output-format", "text",
 	}
+	if h.config.Model != "" {
+		args = append(args, "--model", h.config.Model)
+	}
 	switch h.config.AutomationMode {
 	case AutomationPlan:
 		args = append(args, "--approval-mode", "plan")
@@ -280,7 +289,11 @@ func (h *CodexHarness) Name() string {
 // Uses exec --full-auto for autonomous execution.
 // Reference: ralph-orchestrator/crates/ralph-adapters/src/cli_backend.rs
 func (h *CodexHarness) Execute(ctx context.Context, prompt string) (string, error) {
-	args := []string{"exec"}
+	args := []string{}
+	if h.config.Model != "" {
+		args = append(args, "--model", h.config.Model)
+	}
+	args = append(args, "exec")
 	switch h.config.AutomationMode {
 	case AutomationPlan:
 		args = append(args, "--sandbox", "read-only")
@@ -325,7 +338,11 @@ func (h *OpenCodeHarness) Name() string {
 // Execute runs the OpenCode CLI with the given prompt.
 // OpenCode expects the prompt as a positional message for `opencode run`.
 func (h *OpenCodeHarness) Execute(ctx context.Context, prompt string) (string, error) {
-	args := []string{"run", prompt}
+	args := []string{"run"}
+	if h.config.Model != "" {
+		args = append(args, "--model", h.config.Model)
+	}
+	args = append(args, prompt)
 
 	return h.runCommand(ctx, h.config.Command, prompt, args...)
 }
@@ -471,13 +488,14 @@ func formatEnv(env map[string]string) []string {
 var DefaultRegistry = NewHarnessRegistry()
 
 // ExecuteHarness is a convenience function that executes a prompt using a harness from the default registry.
-func ExecuteHarness(ctx context.Context, harnessName, prompt string, automationMode AutomationMode, workDir string) (HarnessResult, error) {
+func ExecuteHarness(ctx context.Context, harnessName, prompt string, automationMode AutomationMode, workDir string, model string) (HarnessResult, error) {
 	start := time.Now()
 
 	config := HarnessConfig{
 		Name:           harnessName,
 		WorkDir:        workDir,
 		AutomationMode: automationMode,
+		Model:          model,
 	}
 
 	harness, err := DefaultRegistry.Get(harnessName, config)
@@ -511,13 +529,14 @@ func ExecuteHarness(ctx context.Context, harnessName, prompt string, automationM
 }
 
 // ExecuteHarnessWithOutput streams harness output while capturing the full response.
-func ExecuteHarnessWithOutput(ctx context.Context, harnessName, prompt string, automationMode AutomationMode, workDir string, stdoutWriter io.Writer, stderrWriter io.Writer) (HarnessResult, error) {
+func ExecuteHarnessWithOutput(ctx context.Context, harnessName, prompt string, automationMode AutomationMode, workDir string, model string, stdoutWriter io.Writer, stderrWriter io.Writer) (HarnessResult, error) {
 	start := time.Now()
 
 	config := HarnessConfig{
 		Name:           harnessName,
 		WorkDir:        workDir,
 		AutomationMode: automationMode,
+		Model:          model,
 		StdoutWriter:   stdoutWriter,
 		StderrWriter:   stderrWriter,
 	}

@@ -146,7 +146,7 @@ func runSelfTestCheck(root string, check Check) (CheckResult, error) {
 	}
 
 	// Test 8: Verify ExecuteHarness convenience function
-	result, err := ExecuteHarness(context.Background(), "mock", "test", AutomationAuto, root)
+	result, err := ExecuteHarness(context.Background(), "mock", "test", AutomationAuto, root, "")
 	if err != nil && !strings.Contains(err.Error(), "unknown harness") {
 		// ExecuteHarness may fail because we're using a fresh registry for the mock
 		// This is expected - we just want to make sure the function exists and runs

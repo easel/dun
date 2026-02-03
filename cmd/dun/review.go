@@ -43,6 +43,8 @@ func runReview(args []string, stdout io.Writer, stderr io.Writer) int {
 	principlesPath := fs.String("principles", "docs/helix/01-frame/principles.md", "path to principles document")
 	harnessesFlag := fs.String("harnesses", "codex,claude,gemini", "comma-separated list of review harnesses")
 	synthHarness := fs.String("synth-harness", "", "harness used to synthesize final review (default: first harness)")
+	model := fs.String("model", opts.AgentModel, "model override for selected harness(es)")
+	models := fs.String("models", "", "per-harness model overrides (e.g., codex:o3,claude:sonnet)")
 	automation := fs.String("automation", opts.AutomationMode, "automation mode (manual|plan|auto|yolo)")
 	dryRun := fs.Bool("dry-run", false, "print review prompt without calling harnesses")
 	verbose := fs.Bool("verbose", false, "print individual harness reviews")
@@ -88,6 +90,30 @@ func runReview(args []string, stdout io.Writer, stderr io.Writer) int {
 	synth := *synthHarness
 	if synth == "" {
 		synth = reviewCfg.Harnesses[0]
+	}
+
+	modelOverrides := make(map[string]string)
+	for harnessName, modelName := range opts.AgentModels {
+		if modelName == "" {
+			continue
+		}
+		modelOverrides[harnessName] = modelName
+	}
+	if *models != "" {
+		parsed, parseErr := parseHarnessModelOverrides(*models)
+		if parseErr != nil {
+			fmt.Fprintf(stderr, "dun review failed: invalid models: %v\n", parseErr)
+			return dun.ExitUsageError
+		}
+		for harnessName, modelName := range parsed {
+			modelOverrides[harnessName] = modelName
+		}
+	}
+	harnessModel = strings.TrimSpace(*model)
+	if len(modelOverrides) == 0 {
+		harnessModelOverrides = nil
+	} else {
+		harnessModelOverrides = modelOverrides
 	}
 
 	for _, doc := range docs {

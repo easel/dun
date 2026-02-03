@@ -84,6 +84,19 @@ func assertArgsContainSubstring(t *testing.T, args []string, needle string) {
 	t.Fatalf("expected args to contain %q, got %v", needle, args)
 }
 
+func assertFlagValue(t *testing.T, args []string, flag string, value string) {
+	t.Helper()
+	for i, arg := range args {
+		if arg == flag && i+1 < len(args) {
+			if args[i+1] != value {
+				t.Fatalf("expected %s %q, got %q", flag, value, args[i+1])
+			}
+			return
+		}
+	}
+	t.Fatalf("expected args to contain %s %q, got %v", flag, value, args)
+}
+
 // TestMockHarnessName verifies the mock harness returns correct name.
 func TestMockHarnessName(t *testing.T) {
 	harness := NewMockHarness(HarnessConfig{})
@@ -380,7 +393,7 @@ func TestExecuteHarnessWithMock(t *testing.T) {
 	defer func() { DefaultRegistry = origRegistry }()
 
 	ctx := context.Background()
-	result, err := ExecuteHarness(ctx, "mock", "test prompt", AutomationAuto, ".")
+	result, err := ExecuteHarness(ctx, "mock", "test prompt", AutomationAuto, ".", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -404,7 +417,7 @@ func TestExecuteHarnessWithMock(t *testing.T) {
 // TestExecuteHarnessUnknown verifies ExecuteHarness returns error for unknown harness.
 func TestExecuteHarnessUnknown(t *testing.T) {
 	ctx := context.Background()
-	result, err := ExecuteHarness(ctx, "nonexistent", "test", AutomationAuto, ".")
+	result, err := ExecuteHarness(ctx, "nonexistent", "test", AutomationAuto, ".", "")
 	if err == nil {
 		t.Fatal("expected error for unknown harness")
 	}
@@ -427,7 +440,7 @@ func TestExecuteHarnessUnsupportedAutomation(t *testing.T) {
 	defer func() { DefaultRegistry = origRegistry }()
 
 	ctx := context.Background()
-	result, err := ExecuteHarness(ctx, "noyolo", "test", AutomationYolo, ".")
+	result, err := ExecuteHarness(ctx, "noyolo", "test", AutomationYolo, ".", "")
 	if err == nil {
 		t.Fatal("expected error for unsupported automation")
 	}
@@ -640,6 +653,51 @@ func TestOpenCodeHarnessExecuteWithEcho(t *testing.T) {
 	assertArgsContain(t, capture.args, []string{"test"})
 	if capture.stdin != "test" {
 		t.Fatalf("expected stdin to be %q, got %q", "test", capture.stdin)
+	}
+}
+
+// TestHarnessModelFlags verifies model overrides are passed to harness CLIs.
+func TestHarnessModelFlags(t *testing.T) {
+	tests := []struct {
+		name    string
+		harness Harness
+	}{
+		{"claude", NewClaudeHarness(HarnessConfig{Model: "model-a", Runner: captureRunner(&runnerCapture{}, "ok", "", nil)})},
+		{"gemini", NewGeminiHarness(HarnessConfig{Model: "model-b", Runner: captureRunner(&runnerCapture{}, "ok", "", nil)})},
+		{"codex", NewCodexHarness(HarnessConfig{Model: "model-c", Runner: captureRunner(&runnerCapture{}, "ok", "", nil)})},
+		{"opencode", NewOpenCodeHarness(HarnessConfig{Model: "model-d", Runner: captureRunner(&runnerCapture{}, "ok", "", nil)})},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			capture := &runnerCapture{}
+			switch tc.name {
+			case "claude":
+				tc.harness = NewClaudeHarness(HarnessConfig{Model: "model-a", Runner: captureRunner(capture, "ok", "", nil)})
+			case "gemini":
+				tc.harness = NewGeminiHarness(HarnessConfig{Model: "model-b", Runner: captureRunner(capture, "ok", "", nil)})
+			case "codex":
+				tc.harness = NewCodexHarness(HarnessConfig{Model: "model-c", Runner: captureRunner(capture, "ok", "", nil)})
+			case "opencode":
+				tc.harness = NewOpenCodeHarness(HarnessConfig{Model: "model-d", Runner: captureRunner(capture, "ok", "", nil)})
+			}
+
+			_, err := tc.harness.Execute(context.Background(), "test")
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			switch tc.name {
+			case "claude":
+				assertFlagValue(t, capture.args, "--model", "model-a")
+			case "gemini":
+				assertFlagValue(t, capture.args, "--model", "model-b")
+			case "codex":
+				assertFlagValue(t, capture.args, "--model", "model-c")
+			case "opencode":
+				assertFlagValue(t, capture.args, "--model", "model-d")
+			}
+		})
 	}
 }
 
@@ -1415,6 +1473,7 @@ func TestRegressionHarnessConfigFields(t *testing.T) {
 	config := HarnessConfig{
 		Name:           "test",
 		Command:        "cmd",
+		Model:          "model",
 		WorkDir:        "/tmp",
 		Timeout:        time.Second,
 		AutomationMode: AutomationYolo,
@@ -1430,6 +1489,9 @@ func TestRegressionHarnessConfigFields(t *testing.T) {
 	}
 	if config.Command == "" {
 		t.Error("REGRESSION: HarnessConfig.Command field removed or renamed")
+	}
+	if config.Model == "" {
+		t.Error("REGRESSION: HarnessConfig.Model field removed or renamed")
 	}
 	if config.WorkDir == "" {
 		t.Error("REGRESSION: HarnessConfig.WorkDir field removed or renamed")

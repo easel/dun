@@ -1317,6 +1317,9 @@ func TestRunHelpIncludesLoop(t *testing.T) {
 	if !strings.Contains(output, "--harness") {
 		t.Fatalf("help should document harness option")
 	}
+	if !strings.Contains(output, "--model") {
+		t.Fatalf("help should document model option")
+	}
 	if !strings.Contains(output, "--max-iterations") {
 		t.Fatalf("help should document max-iterations option")
 	}

@@ -208,6 +208,8 @@ $ dun check --prompt
 **Options**:
 - `--config` : Path to config file (default `.dun/config.yaml` if present)
 - `--harness` : Agent harness (`codex`, `claude`, `gemini`, `opencode`, default from config)
+- `--model` : Model override for selected harness(es)
+- `--models` : Per-harness model overrides (e.g., `codex:o3,claude:sonnet`)
 - `--automation` : Automation mode (`manual`, `plan`, `auto`, `yolo`, default `auto`)
 - `--max-iterations` : Maximum iterations before stopping (default `100`)
 - `--dry-run` : Print prompt without calling harness
