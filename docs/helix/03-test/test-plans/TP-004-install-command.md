@@ -1,3 +1,9 @@
+---
+dun:
+  id: TP-004
+  depends_on:
+  - TD-004
+---
 # TP-004: Install Command Test Plan
 
 **User Story**: US-004 - Install AGENTS Guidance

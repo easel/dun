@@ -1,3 +1,9 @@
+---
+dun:
+  id: US-006
+  depends_on:
+  - F-007
+---
 # US-006: Control Autonomy With an Automation Slider
 
 As a maintainer, I want to choose how much autonomy Dun has so I can require

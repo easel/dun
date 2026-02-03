@@ -1,3 +1,9 @@
+---
+dun:
+  id: US-012
+  depends_on:
+  - F-020
+---
 # US-012: Generic Command Checks
 
 ## User Story

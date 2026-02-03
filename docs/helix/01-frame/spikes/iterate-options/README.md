@@ -84,6 +84,13 @@ ANTHROPIC_API_KEY=sk-... go run measure-context.go --provider anthropic
 OPENAI_API_KEY=sk-... go run measure-context.go --provider openai
 ```
 
+### CLI Control Notes
+
+- Use stdin for large prompts to avoid OS argument length limits.
+- Claude: `claude --print --input-format text --output-format text`
+- Gemini: `gemini --prompt "" --output-format text`
+- Codex: `codex exec -`
+
 ## Test Results
 
 ### Task Tool (Option C) - Tested

@@ -1,3 +1,9 @@
+---
+dun:
+  id: SD-012
+  depends_on:
+  - F-020
+---
 # SD-012: Generic Command Checks
 
 ## Overview

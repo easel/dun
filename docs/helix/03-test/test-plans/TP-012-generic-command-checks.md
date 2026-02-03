@@ -1,3 +1,9 @@
+---
+dun:
+  id: TP-012
+  depends_on:
+  - TD-012
+---
 # Test Plan: TP-012 Generic Command Checks
 
 ## Summary

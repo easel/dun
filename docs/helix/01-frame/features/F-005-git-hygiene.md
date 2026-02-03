@@ -1,3 +1,13 @@
+---
+dun:
+  id: F-005
+  depends_on:
+    - helix.prd
+  review:
+    self_hash: b98c3a3624a6c461688e617b70892cd2bbb0cf1b990ebefdbf350ee1fa8c6cdc
+    deps:
+      helix.prd: 58d3c4be8edb0a0be9d01a3325824c9b350f758a998d02f16208525949c4f1ad
+---
 # Feature Spec: F-005 Git Hygiene and Hook Checks
 
 ## Summary
@@ -16,7 +26,16 @@ committing after manual approval.
   command.
 - If a hook tool is configured but missing, emit a warning with a clear next
   step (install tool or skip).
-- Keep the check fast and local-only.
+- Keep the check fast, local-only, and deterministic.
+
+## Gaps & Conflicts
+
+- Exit code behavior for warning-only checks is not defined in the PRD or
+  F-015; confirm whether warnings should still return exit code 0.
+- Hook support beyond lefthook and pre-commit (for example, husky or
+  lint-staged) is not specified.
+- The PRD does not specify whether a dirty working tree should be a warning or
+  failure; this spec defaults to **warn** so other checks can still run.
 
 ## Detection
 
@@ -31,7 +50,7 @@ committing after manual approval.
 
 - Use `git status --porcelain` to detect uncommitted changes.
 - **Pass**: no changes.
-- **Fail**: working tree dirty; include a list of changed paths in issues.
+- **Warn**: working tree dirty; include a list of changed paths in issues.
 
 ### Hook Check (Optional)
 

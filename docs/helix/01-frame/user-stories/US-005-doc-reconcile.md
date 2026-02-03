@@ -1,3 +1,9 @@
+---
+dun:
+  id: US-005
+  depends_on:
+  - F-006
+---
 # US-005: Reconcile PRD Changes Through the Stack
 
 As an agent operator, I want Dun to detect when the PRD changes and produce a

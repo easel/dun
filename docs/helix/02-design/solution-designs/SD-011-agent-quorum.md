@@ -1,3 +1,9 @@
+---
+dun:
+  id: SD-011
+  depends_on:
+  - F-018
+---
 # SD-011: Agent Quorum Solution Design
 
 **User Story**: US-011 - Use Agent Quorum for High-Confidence Decisions
@@ -611,7 +617,7 @@ dun loop [existing flags] [quorum flags]
 Quorum Flags:
   --quorum <strategy|N>   Quorum strategy: any, majority, unanimous, or number
                           (default: none - single harness mode)
-  --harness <list>        Comma-separated harness names (default: claude)
+  --harness <list>        Comma-separated harness names (default: from config)
   --cost-mode             Run harnesses sequentially, stop on quorum
   --escalate              Pause for human review on conflict
   --prefer <harness>      Use this harness response on conflict

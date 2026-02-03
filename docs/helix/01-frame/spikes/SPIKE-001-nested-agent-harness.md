@@ -263,8 +263,8 @@ while true; do
         break
     fi
 
-    # Spawn fresh Claude
-    claude -p "$PROMPT" \
+    # Spawn fresh Claude (stdin avoids argument length limits)
+    printf "%s" "$PROMPT" | claude --print --input-format text \
         --allowedTools "Edit,Read,Write,Bash(go *),Bash(git add),Bash(git commit)" \
         --output-format json \
         > /tmp/claude-output.json

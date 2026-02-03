@@ -1,3 +1,9 @@
+---
+dun:
+  id: US-008
+  depends_on:
+  - F-005
+---
 # US-008: Keep Git Hygiene and Hook Checks
 
 As an agent operator, I want Dun to flag dirty working trees and run configured

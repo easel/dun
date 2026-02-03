@@ -1,3 +1,9 @@
+---
+dun:
+  id: helix.architecture
+  depends_on:
+  - helix.prd
+---
 # Architecture
 
 ## Overview

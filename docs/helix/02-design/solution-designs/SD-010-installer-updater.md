@@ -1,3 +1,9 @@
+---
+dun:
+  id: SD-010
+  depends_on:
+  - F-019
+---
 # SD-010: Installer and Self-Updater
 
 ## Overview

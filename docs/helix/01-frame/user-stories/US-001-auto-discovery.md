@@ -1,3 +1,9 @@
+---
+dun:
+  id: US-001
+  depends_on:
+  - F-001
+---
 # US-001: Auto-Discover Repo Checks
 
 As an agent operator, I want Dun to detect the right checks from repo signals

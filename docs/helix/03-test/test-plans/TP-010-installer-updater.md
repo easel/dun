@@ -1,3 +1,9 @@
+---
+dun:
+  id: TP-010
+  depends_on:
+  - TD-010
+---
 # TP-010: Installer and Self-Updater Test Plan
 
 **User Story**: US-010 - User-Friendly Installer and Self-Updater

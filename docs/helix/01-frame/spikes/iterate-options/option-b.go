@@ -38,13 +38,15 @@ type ClaudeResponse struct {
 
 func runClaude(prompt string) (string, error) {
 	cmd := exec.Command("claude",
-		"-p", prompt,
+		"--print",
+		"--input-format", "text",
 		"--output-format", "text",
 	)
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
+	cmd.Stdin = strings.NewReader(prompt)
 
 	err := cmd.Run()
 	if err != nil {

@@ -1,3 +1,9 @@
+---
+dun:
+  id: TP-006
+  depends_on:
+  - TD-006
+---
 # TP-006: Test Plan for Automation Slider
 
 **User Story:** US-006 - Control Autonomy With an Automation Slider

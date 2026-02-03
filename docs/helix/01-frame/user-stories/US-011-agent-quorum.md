@@ -1,3 +1,9 @@
+---
+dun:
+  id: US-011
+  depends_on:
+  - F-018
+---
 # US-011: Use Agent Quorum for High-Confidence Decisions
 
 As a maintainer, I want to run tasks through multiple agents and require

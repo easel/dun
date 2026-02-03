@@ -1,3 +1,9 @@
+---
+dun:
+  id: US-013
+  depends_on:
+  - F-016
+---
 # US-013: Doc DAG With Review Stamps
 
 As an agent operator, I want Dun to track documentation dependencies via

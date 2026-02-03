@@ -1,3 +1,9 @@
+---
+dun:
+  id: US-004
+  depends_on:
+  - F-004
+---
 # US-004: Install AGENTS Guidance
 
 As a maintainer, I want a `dun install` command to seed AGENTS guidance so

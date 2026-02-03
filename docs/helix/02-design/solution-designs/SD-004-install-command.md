@@ -1,3 +1,9 @@
+---
+dun:
+  id: SD-004
+  depends_on:
+  - F-004
+---
 # Solution Design: Install Command
 
 ## Problem

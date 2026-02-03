@@ -1,3 +1,9 @@
+---
+dun:
+  id: US-009
+  depends_on:
+  - F-017
+---
 # US-009: Run Autonomous Iteration Loop
 
 As a developer, I want Dun to present available work and let an agent iterate

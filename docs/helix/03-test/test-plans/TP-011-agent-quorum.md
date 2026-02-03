@@ -1,3 +1,9 @@
+---
+dun:
+  id: TP-011
+  depends_on:
+  - TD-011
+---
 # TP-011: Agent Quorum Test Plan
 
 **User Story**: US-011 - Use Agent Quorum for High-Confidence Decisions

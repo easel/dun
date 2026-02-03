@@ -1,3 +1,9 @@
+---
+dun:
+  id: TP-003
+  depends_on:
+  - TD-003
+---
 # TP-003: Plugin System Test Plan
 
 **User Story**: [US-003: Extend Checks with Plugin Manifests](../../01-frame/user-stories/US-003-plugin-system.md)

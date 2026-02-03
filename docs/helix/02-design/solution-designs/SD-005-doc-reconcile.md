@@ -1,3 +1,9 @@
+---
+dun:
+  id: SD-005
+  depends_on:
+  - F-006
+---
 # Solution Design: Doc and Code Reconciliation
 
 ## Problem

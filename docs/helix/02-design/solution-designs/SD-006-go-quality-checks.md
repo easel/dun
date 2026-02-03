@@ -1,3 +1,9 @@
+---
+dun:
+  id: SD-006
+  depends_on:
+  - F-014
+---
 # Solution Design: Go Quality Checks
 
 ## Goal

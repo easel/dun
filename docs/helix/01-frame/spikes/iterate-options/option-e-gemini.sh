@@ -29,7 +29,9 @@ echo "=== Option E: Gemini CLI ==="
 # Check for gemini CLI
 if command -v gemini &> /dev/null; then
     echo "Running gemini..."
-    gemini "$PROMPT"
+    # Use stdin to avoid argument length limits. --prompt forces non-interactive mode.
+    # For yolo: add --approval-mode yolo (or --yolo)
+    printf "%s" "$PROMPT" | gemini --prompt "" --output-format text
 elif command -v python3 &> /dev/null; then
     echo "Using Python SDK..."
     python3 << 'PYTHON'

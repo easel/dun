@@ -1,3 +1,9 @@
+---
+dun:
+  id: TP-013
+  depends_on:
+  - TD-013
+---
 # TP-013: Doc DAG + Review Stamps
 
 **User Story**: US-013
@@ -41,6 +47,9 @@ No existing tests cover doc-DAG behavior. All acceptance criteria are gaps.
 | GAP-002 | No test for missing required roots | P0 | AC-2 |
 | GAP-003 | No test for prompt envelope content | P0 | AC-3 |
 | GAP-004 | No test for dynamic input selector resolution | P0 | AC-4 |
+| GAP-007 | No test for invalid selectors/inputs | P0 | AC-4 |
+| GAP-008 | No test for invalid frontmatter handling | P0 | AC-1, AC-4 |
+| GAP-009 | No test for YAML canonicalization | P0 | AC-1 |
 
 ### 3.2 Secondary Gaps (P1)
 
@@ -78,6 +87,18 @@ func TestHashExcludesReviewSection(t *testing.T) {
 }
 ```
 
+#### TC-002b: Canonical YAML Hashing
+**File**: `internal/dun/hash_test.go`
+**Priority**: P0
+**Covers**: AC-1
+
+```go
+func TestHashCanonicalizesFrontmatter(t *testing.T) {
+    // Given: equivalent frontmatter with different key ordering/formatting
+    // Then: hashes are identical (canonicalization applied)
+}
+```
+
 #### TC-003: Missing Required Root
 **File**: `internal/dun/doc_dag_test.go`
 **Priority**: P0
@@ -102,6 +123,30 @@ func TestInputSelectorsResolveDeterministically(t *testing.T) {
 }
 ```
 
+#### TC-004b: Invalid Selector and Input Handling
+**File**: `internal/dun/input_resolver_test.go`
+**Priority**: P0
+**Covers**: AC-4
+
+```go
+func TestInputSelectorsRejectInvalidInputs(t *testing.T) {
+    // Given: selectors with unknown prefixes, unresolved IDs, and unmatched globs
+    // Then: invalid-selector/invalid-input issues are emitted
+}
+```
+
+#### TC-004c: Invalid Frontmatter Blocks Hashing
+**File**: `internal/dun/hash_test.go`
+**Priority**: P0
+**Covers**: AC-1, AC-4
+
+```go
+func TestHashRejectsInvalidFrontmatter(t *testing.T) {
+    // Given: invalid YAML frontmatter
+    // Then: hashing fails and invalid-frontmatter issue is emitted
+}
+```
+
 #### TC-005: Stamp Updates Review Deps
 **File**: `internal/dun/stamp_test.go`
 **Priority**: P1
@@ -112,6 +157,18 @@ func TestStampUpdatesReviewDeps(t *testing.T) {
     // Given: parent + child
     // When: dun stamp runs on child
     // Then: review.deps[parent] matches current parent hash
+}
+```
+
+#### TC-005b: Unstamped Docs Are Stale
+**File**: `internal/dun/doc_dag_test.go`
+**Priority**: P0
+**Covers**: AC-1
+
+```go
+func TestDocDagUnstampedDocsAreStale(t *testing.T) {
+    // Given: a node without dun.review
+    // Then: stale issue is emitted
 }
 ```
 

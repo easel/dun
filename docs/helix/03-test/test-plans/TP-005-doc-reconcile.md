@@ -1,3 +1,9 @@
+---
+dun:
+  id: TP-005
+  depends_on:
+  - TD-005
+---
 # TP-005: Reconcile PRD Changes Through the Stack
 
 **User Story**: US-005

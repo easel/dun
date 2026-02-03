@@ -1,3 +1,9 @@
+---
+dun:
+  id: SD-007
+  depends_on:
+  - F-005
+---
 # Solution Design: Git Hygiene and Hook Checks
 
 ## Problem

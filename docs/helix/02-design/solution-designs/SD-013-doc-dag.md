@@ -1,3 +1,10 @@
+---
+dun:
+  id: SD-013
+  depends_on:
+  - F-016
+  - ADR-007
+---
 # Solution Design: Doc DAG + Review Stamps
 
 ## Problem
@@ -15,18 +22,23 @@ which artifacts are missing or stale when upstream docs change.
 ## Approach
 
 1. **Frontmatter parsing**: read `dun` blocks from Markdown to register nodes.
-2. **Optional graph defaults**: load `.dun/graphs/*.yaml` for required roots
+2. **Optional graph defaults**: load `.dun/graphs/*.yaml` for required roots,
    ID mappings, and default prompts for missing docs.
 3. **Input resolution**: resolve deterministic inputs via selectors:
    `node:<id>`, `refs:<id>`, `code_refs:<id>`, `paths:<glob>`.
-4. **Hashing**: compute a stable hash of each doc including frontmatter,
-   excluding `dun.review`.
-5. **Staleness**: compare parent hashes to `dun.review.deps`.
-6. **Missing detection**: flag required roots or required descendants with no
+4. **Validation**: emit issues for unknown selectors, unresolved IDs, or
+   unmatched globs; do not silently drop inputs.
+5. **Hashing**: compute a stable hash of each doc including frontmatter,
+   excluding `dun.review`, with canonicalization per ADR-007.
+6. **Staleness**: compare parent hashes to `dun.review.deps`; unstamped docs
+   are stale.
+7. **Missing detection**: flag required roots or required descendants with no
    files.
-7. **Prompting**: emit prompts for missing or stale docs with parent inputs
+8. **Prompting**: emit prompts for missing or stale docs with parent inputs
    and require gaps/conflicts to be flagged before implementation steps.
-8. **Stamping**: `dun stamp` writes updated review hashes to frontmatter.
+   Only actionable frontier docs (no stale ancestors) are surfaced for work;
+   downstream stale docs are deferred until parents are updated.
+9. **Stamping**: `dun stamp` writes updated review hashes to frontmatter.
 
 ## Components
 
@@ -51,16 +63,35 @@ which artifacts are missing or stale when upstream docs change.
 
 - **Node**: id, path, depends_on, prompt, inputs, review
 - **Input selector**: node, refs, code_refs, paths
-- **Review**: self_hash, deps map, reviewed_at
+- **Review**: self_hash, deps map, optional reviewed_at
 - **Edge**: parent -> child from `depends_on`
+
+## Selector Semantics
+
+- `node:<id>`: resolve to the document path for `<id>` via registry or `id_map`.
+- `refs:<id>`: load `<id>` and expand its `dun.depends_on` list to document
+  paths (direct references only).
+- `code_refs:<id>`: load `<id>` and extract code paths from backticked or
+  Markdown-linked paths, then resolve them to files.
+- `paths:<glob>`: expand glob patterns relative to repo root to file paths.
+- All expansions are sorted and de-duplicated for deterministic ordering.
 
 ## Hashing Rules
 
 - Hash includes:
   - Markdown body
-  - Frontmatter contents excluding `dun.review`
+  - Canonicalized frontmatter excluding `dun.review` (ADR-007)
 - Normalize line endings to `\n`.
-- Use a stable YAML encoding for the remaining frontmatter.
+- Canonicalization sorts mapping keys but preserves sequence order.
+
+## Error Handling
+
+- Unknown selector prefixes produce `invalid-selector` issues.
+- Unresolved IDs or unmatched globs produce `invalid-input` issues.
+- Invalid YAML frontmatter or graph files produce `invalid-frontmatter` or
+  `invalid-graph` issues.
+- When validation fails, the check reports the issue and does not silently
+  omit inputs.
 
 ## Interface Changes
 
@@ -81,4 +112,3 @@ which artifacts are missing or stale when upstream docs change.
 ## Open Questions
 
 - Should `reviewed_at` be used for display only, or validated?
-- How should collection nodes (e.g., US-* chains) map IDs deterministically?

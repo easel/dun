@@ -1,3 +1,9 @@
+---
+dun:
+  id: TP-002
+  depends_on:
+  - TD-002
+---
 # TP-002: Output Formats Test Plan
 
 Test plan for US-002: Emit Output Formats for Agents and Tools.

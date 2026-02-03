@@ -1,3 +1,9 @@
+---
+dun:
+  id: US-010
+  depends_on:
+  - F-019
+---
 # US-010: User-Friendly Installer and Self-Updater
 
 As a developer, I want a simple way to install and update Dun so I can get

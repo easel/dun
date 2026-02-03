@@ -1,3 +1,9 @@
+---
+dun:
+  id: TP-008
+  depends_on:
+  - TD-008
+---
 # TP-008: Git Hygiene Test Plan
 
 **User Story:** US-008 - Keep Git Hygiene and Hook Checks

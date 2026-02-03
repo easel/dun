@@ -29,7 +29,9 @@ echo "=== Option F: OpenAI/Codex CLI ==="
 # Check for codex CLI
 if command -v codex &> /dev/null; then
     echo "Running codex..."
-    codex "$PROMPT"
+    # Use stdin to avoid argument length limits for large prompts.
+    # For yolo: add --full-auto
+    printf "%s" "$PROMPT" | codex exec -
 elif command -v python3 &> /dev/null; then
     echo "Using Python SDK..."
     python3 << 'PYTHON'

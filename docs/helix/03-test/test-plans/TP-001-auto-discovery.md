@@ -1,3 +1,9 @@
+---
+dun:
+  id: TP-001
+  depends_on:
+  - TD-001
+---
 # TP-001: Auto-Discover Repo Checks
 
 ## User Story Reference

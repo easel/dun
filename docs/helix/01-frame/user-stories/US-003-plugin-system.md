@@ -1,3 +1,9 @@
+---
+dun:
+  id: US-003
+  depends_on:
+  - F-003
+---
 # US-003: Extend Checks with Plugin Manifests
 
 As an engineering lead, I want Dun to load built-in plugin manifests so

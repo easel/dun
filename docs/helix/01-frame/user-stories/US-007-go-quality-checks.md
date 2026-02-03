@@ -1,3 +1,9 @@
+---
+dun:
+  id: US-007
+  depends_on:
+  - F-014
+---
 # US-007: Enforce Go Quality Checks
 
 As an agent operator, I want Dun to run Go tests, coverage, and static analysis

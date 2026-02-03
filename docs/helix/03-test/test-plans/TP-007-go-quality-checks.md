@@ -1,3 +1,9 @@
+---
+dun:
+  id: TP-007
+  depends_on:
+  - TD-007
+---
 # TP-007: Go Quality Checks Test Plan
 
 **User Story:** US-007 - Enforce Go Quality Checks

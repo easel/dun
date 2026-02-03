@@ -26,7 +26,9 @@ echo "Running claude with prompt..."
 echo
 
 # Single iteration (remove 'exit' for loop)
-claude -p "$PROMPT" --output-format text 2>/dev/null
+# Use stdin to avoid OS argument length limits for large prompts.
+# For yolo: add --dangerously-skip-permissions
+printf "%s" "$PROMPT" | claude --print --input-format text --output-format text 2>/dev/null
 
 echo
 echo "=== Done ==="
