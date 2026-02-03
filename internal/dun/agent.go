@@ -232,6 +232,9 @@ func resolveInputs(root string, inputs []string) ([]PromptInput, error) {
 	for _, path := range files {
 		content, err := os.ReadFile(path)
 		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
 			return nil, err
 		}
 		rel, err := relPath(root, path)

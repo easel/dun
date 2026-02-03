@@ -100,9 +100,12 @@ func TestResolveInputsGlobAndMissing(t *testing.T) {
 		t.Fatalf("expected 2 inputs, got %d", len(inputs))
 	}
 
-	_, err = resolveInputs(dir, []string{"missing.txt"})
-	if err == nil {
-		t.Fatalf("expected error for missing input")
+	inputs, err = resolveInputs(dir, []string{"missing.txt"})
+	if err != nil {
+		t.Fatalf("resolve missing input: %v", err)
+	}
+	if len(inputs) != 0 {
+		t.Fatalf("expected no inputs for missing file, got %d", len(inputs))
 	}
 }
 
@@ -298,14 +301,24 @@ func TestRunAgentCheckAutoSuccessAndInvalidResponse(t *testing.T) {
 	}
 }
 
-func TestRunAgentCheckBuildPromptEnvelopeError(t *testing.T) {
+func TestRunAgentCheckBuildPromptEnvelopeSkipsMissingInputs(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "prompt.md"), "hi")
 	plugin := Plugin{FS: os.DirFS(dir), Base: "."}
 	check := Check{ID: "test", Prompt: "prompt.md", Inputs: []string{"missing.txt"}}
 	opts := Options{AgentMode: "prompt", AutomationMode: "auto"}
-	if _, err := runAgentCheck(dir, plugin, check, opts); err == nil {
-		t.Fatalf("expected build prompt error")
+	res, err := runAgentCheck(dir, plugin, check, opts)
+	if err != nil {
+		t.Fatalf("run agent check: %v", err)
+	}
+	if res.Status != "prompt" {
+		t.Fatalf("expected prompt, got %s", res.Status)
+	}
+	if res.Prompt == nil {
+		t.Fatalf("expected prompt envelope")
+	}
+	if len(res.Prompt.Inputs) != 0 {
+		t.Fatalf("expected no inputs, got %v", res.Prompt.Inputs)
 	}
 }
 
@@ -359,8 +372,12 @@ func TestBuildPromptEnvelopeMissingInput(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "prompt.md"), "hello")
 	plugin := Plugin{FS: os.DirFS(dir), Base: "."}
 	check := Check{ID: "id", Prompt: "prompt.md", Inputs: []string{"missing.txt"}}
-	if _, err := buildPromptEnvelope(dir, plugin, check, "auto"); err == nil {
-		t.Fatalf("expected missing input error")
+	envelope, err := buildPromptEnvelope(dir, plugin, check, "auto")
+	if err != nil {
+		t.Fatalf("build prompt envelope: %v", err)
+	}
+	if len(envelope.Inputs) != 0 {
+		t.Fatalf("expected no inputs, got %v", envelope.Inputs)
 	}
 }
 
