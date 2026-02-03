@@ -19,3 +19,8 @@ This registry tracks the core Dun features and their current status.
 | F-013 | Reserved | - | Planned | (no spec file yet) |
 | F-014 | Go Quality Checks | P0 | In progress | Tests, coverage, vet, staticcheck |
 | F-016 | Doc DAG + Review Stamps | P0 | Planned | Frontmatter DAG, stale detection, stamp command |
+| F-017 | Autonomous iteration loop | P0 | Planned | `dun check --prompt` + `dun loop` |
+| F-018 | Agent quorum | P1 | Planned | Quorum-based loop decisions |
+| F-019 | Installer + self-updater | P1 | Planned | One-line install + `dun update` |
+| F-020 | Generic command checks | P1 | Planned | Command checks + external plugin loading |
+| F-021 | Beads work routing | P1 | Planned | Surface ready Beads tasks in prompts |

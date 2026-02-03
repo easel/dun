@@ -1,3 +1,8 @@
+---
+dun:
+  id: helix.prd
+  depends_on: []
+---
 # PRD: Dun
 
 This PRD is the Helix framing artifact for Dun. It summarizes the product
@@ -26,6 +31,7 @@ In scope:
 - Doc-to-code reconciliation with plan and yolo modes.
 - `dun install` to seed AGENTS guidance in repos.
 - Git hygiene and hook checks for clean commits.
+- Beads-aware work routing when `.beads/` is present.
 
 Out of scope:
 - Replacing CI/CD.
