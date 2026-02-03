@@ -41,6 +41,9 @@ func main() {
 }
 
 func run(args []string, stdout io.Writer, stderr io.Writer) int {
+	harnessModel = ""
+	harnessModelOverrides = nil
+
 	if len(args) < 1 {
 		return runCheck(args, stdout, stderr)
 	}
@@ -98,6 +101,7 @@ REVIEW MODE:
   single response using the synthesis harness.
 
   Options:
+    --config     Config file path (default .dun/config.yaml; also loads user config)
     --principles  Path to principles document (default docs/helix/01-frame/principles.md)
     --harnesses   Comma-separated list of review harnesses (default: codex,claude,gemini)
     --synth-harness Harness to synthesize final review (default: first harness)
@@ -111,6 +115,7 @@ CHECK MODE:
   dun check [options]
 
   Options:
+    --config     Config file path (default .dun/config.yaml; also loads user config)
     --prompt     Output the loop prompt for the current repo state
     --all        Include passing checks in prompt output
     --format     Output format: prompt, llm, json
@@ -124,6 +129,7 @@ LOOP MODE:
   and repeats until all checks pass or max iterations is reached.
 
   Options:
+    --config     Config file path (default .dun/config.yaml; also loads user config)
     --harness     Agent to use: codex, claude, gemini, opencode (default: from config)
     --model       Model override for selected harness(es)
     --models      Per-harness model overrides (e.g., codex:o3,claude:sonnet)
@@ -204,7 +210,7 @@ func runCheck(args []string, stdout io.Writer, stderr io.Writer) int {
 
 	fs := flag.NewFlagSet("check", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	configPath := fs.String("config", explicitConfig, "path to config file (default .dun/config.yaml if present)")
+	configPath := fs.String("config", explicitConfig, "path to config file (default .dun/config.yaml if present; also loads user config)")
 	format := fs.String("format", "prompt", "output format (prompt|llm|json)")
 	promptOut := fs.Bool("prompt", false, "output loop prompt")
 	allChecks := fs.Bool("all", false, "include passing checks in prompt output")
@@ -284,7 +290,7 @@ func runList(args []string, stdout io.Writer, stderr io.Writer) int {
 	fs := flag.NewFlagSet("list", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	format := fs.String("format", "text", "output format (text|json)")
-	configPath := fs.String("config", "", "path to config file (default .dun/config.yaml if present)")
+	configPath := fs.String("config", "", "path to config file (default .dun/config.yaml if present; also loads user config)")
 	if err := fs.Parse(args); err != nil {
 		return dun.ExitUsageError
 	}
@@ -319,7 +325,7 @@ func runExplain(args []string, stdout io.Writer, stderr io.Writer) int {
 	fs := flag.NewFlagSet("explain", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	format := fs.String("format", "text", "output format (text|json)")
-	configPath := fs.String("config", "", "path to config file (default .dun/config.yaml if present)")
+	configPath := fs.String("config", "", "path to config file (default .dun/config.yaml if present; also loads user config)")
 	if err := fs.Parse(args); err != nil {
 		return dun.ExitUsageError
 	}
@@ -505,7 +511,7 @@ func runLoop(args []string, stdout io.Writer, stderr io.Writer) int {
 
 	fs := flag.NewFlagSet("loop", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	configPath := fs.String("config", explicitConfig, "path to config file")
+	configPath := fs.String("config", explicitConfig, "path to config file (default .dun/config.yaml if present; also loads user config)")
 	harness := fs.String("harness", "", "agent harness (codex|claude|gemini|opencode); default from config")
 	model := fs.String("model", opts.AgentModel, "model override for selected harness(es)")
 	models := fs.String("models", "", "per-harness model overrides (e.g., codex:o3,claude:sonnet)")

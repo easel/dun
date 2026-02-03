@@ -27,7 +27,7 @@ $ dun [command] [options] [arguments]
 - `--timeout` : Global timeout in seconds (default `600`)
 - `--check-timeout` : Per-check timeout in seconds (default `120`)
 - `--workers` : Max concurrent checks (default `min(4, CPU)`)
-- `--config` : Path to config file (default `.dun/config.yaml` if present)
+- `--config` : Path to config file (default `.dun/config.yaml` if present; also loads user config from `$XDG_CONFIG_HOME/dun/config.yaml`, `~/.config/dun/config.yaml`, or `~/.dun/config.yaml`)
 - `--agent-cmd` : Command to run agent checks (optional, used with `--agent-mode=auto`)
 - `--agent-timeout` : Agent check timeout in seconds (default `300`)
 - `--agent-mode` : Agent mode (`prompt` or `auto`, default `prompt`)

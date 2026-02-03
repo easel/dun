@@ -7,7 +7,16 @@ import (
 	"time"
 )
 
+func setTempUserConfig(t *testing.T) string {
+	t.Helper()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg"))
+	return home
+}
+
 func TestLoadConfigDefaultPath(t *testing.T) {
+	_ = setTempUserConfig(t)
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, DefaultConfigPath)
 	if err := os.MkdirAll(filepath.Dir(cfgPath), 0755); err != nil {
@@ -55,6 +64,7 @@ func TestLoadConfigDefaultPath(t *testing.T) {
 }
 
 func TestLoadConfigAbsent(t *testing.T) {
+	_ = setTempUserConfig(t)
 	dir := t.TempDir()
 	_, loaded, err := LoadConfig(dir, "")
 	if err != nil {
@@ -66,6 +76,7 @@ func TestLoadConfigAbsent(t *testing.T) {
 }
 
 func TestLoadConfigExplicitMissing(t *testing.T) {
+	_ = setTempUserConfig(t)
 	dir := t.TempDir()
 	_, _, err := LoadConfig(dir, "missing.yaml")
 	if err == nil {
@@ -74,6 +85,7 @@ func TestLoadConfigExplicitMissing(t *testing.T) {
 }
 
 func TestNormalizeAutomationModeDefault(t *testing.T) {
+	_ = setTempUserConfig(t)
 	mode, err := normalizeAutomationMode("")
 	if err != nil {
 		t.Fatalf("normalize automation: %v", err)
@@ -84,6 +96,7 @@ func TestNormalizeAutomationModeDefault(t *testing.T) {
 }
 
 func TestLoadConfigInvalidYAML(t *testing.T) {
+	_ = setTempUserConfig(t)
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, ".dun", "config.yaml")
 	if err := os.MkdirAll(filepath.Dir(cfgPath), 0755); err != nil {
@@ -99,6 +112,7 @@ func TestLoadConfigInvalidYAML(t *testing.T) {
 }
 
 func TestLoadConfigReadError(t *testing.T) {
+	_ = setTempUserConfig(t)
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "config.yaml")
 	if err := os.MkdirAll(cfgPath, 0755); err != nil {
@@ -111,6 +125,7 @@ func TestLoadConfigReadError(t *testing.T) {
 }
 
 func TestLoadConfigRelativePath(t *testing.T) {
+	_ = setTempUserConfig(t)
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "custom.yaml")
 	if err := os.WriteFile(cfgPath, []byte("agent:\n  automation: manual\n"), 0644); err != nil {
@@ -130,6 +145,7 @@ func TestLoadConfigRelativePath(t *testing.T) {
 }
 
 func TestLoadConfigDefaultPathStatError(t *testing.T) {
+	_ = setTempUserConfig(t)
 	dir := t.TempDir()
 	dunPath := filepath.Join(dir, ".dun")
 	if err := os.WriteFile(dunPath, []byte("not a dir"), 0644); err != nil {
@@ -142,6 +158,7 @@ func TestLoadConfigDefaultPathStatError(t *testing.T) {
 }
 
 func TestLoadConfigAbsolutePath(t *testing.T) {
+	_ = setTempUserConfig(t)
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "abs.yaml")
 	if err := os.WriteFile(cfgPath, []byte("agent:\n  automation: manual\n"), 0644); err != nil {
@@ -157,5 +174,99 @@ func TestLoadConfigAbsolutePath(t *testing.T) {
 	opts := ApplyConfig(DefaultOptions(), cfg)
 	if opts.AutomationMode != "manual" {
 		t.Fatalf("expected manual, got %q", opts.AutomationMode)
+	}
+}
+
+func TestLoadConfigUserOnly(t *testing.T) {
+	_ = setTempUserConfig(t)
+	dir := t.TempDir()
+	userCfgPath := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "dun", "config.yaml")
+	if err := os.MkdirAll(filepath.Dir(userCfgPath), 0755); err != nil {
+		t.Fatalf("mkdir user config dir: %v", err)
+	}
+	content := "agent:\n  harness: claude\n  model: user-model\n  models:\n    codex: user-codex\n"
+	if err := os.WriteFile(userCfgPath, []byte(content), 0644); err != nil {
+		t.Fatalf("write user config: %v", err)
+	}
+
+	cfg, loaded, err := LoadConfig(dir, "")
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if !loaded {
+		t.Fatalf("expected user config to load")
+	}
+	if cfg.Agent.Harness != "claude" {
+		t.Fatalf("expected harness claude, got %q", cfg.Agent.Harness)
+	}
+	if cfg.Agent.Model != "user-model" {
+		t.Fatalf("expected model user-model, got %q", cfg.Agent.Model)
+	}
+	if cfg.Agent.Models["codex"] != "user-codex" {
+		t.Fatalf("expected user codex model, got %q", cfg.Agent.Models["codex"])
+	}
+}
+
+func TestLoadConfigUserAndProjectMerge(t *testing.T) {
+	_ = setTempUserConfig(t)
+	dir := t.TempDir()
+	userCfgPath := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "dun", "config.yaml")
+	if err := os.MkdirAll(filepath.Dir(userCfgPath), 0755); err != nil {
+		t.Fatalf("mkdir user config dir: %v", err)
+	}
+	userContent := "agent:\n  harness: gemini\n  model: user-model\n  models:\n    codex: user-codex\n    claude: user-claude\n" +
+		"go:\n  coverage_threshold: 70\n"
+	if err := os.WriteFile(userCfgPath, []byte(userContent), 0644); err != nil {
+		t.Fatalf("write user config: %v", err)
+	}
+
+	projectCfgPath := filepath.Join(dir, DefaultConfigPath)
+	if err := os.MkdirAll(filepath.Dir(projectCfgPath), 0755); err != nil {
+		t.Fatalf("mkdir project config dir: %v", err)
+	}
+	projectContent := "agent:\n  harness: codex\n  model: project-model\n  models:\n    codex: project-codex\n" +
+		"go:\n  coverage_threshold: 90\n"
+	if err := os.WriteFile(projectCfgPath, []byte(projectContent), 0644); err != nil {
+		t.Fatalf("write project config: %v", err)
+	}
+
+	cfg, loaded, err := LoadConfig(dir, "")
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if !loaded {
+		t.Fatalf("expected merged config to load")
+	}
+	if cfg.Agent.Harness != "codex" {
+		t.Fatalf("expected harness codex, got %q", cfg.Agent.Harness)
+	}
+	if cfg.Agent.Model != "project-model" {
+		t.Fatalf("expected model project-model, got %q", cfg.Agent.Model)
+	}
+	if cfg.Agent.Models["codex"] != "project-codex" {
+		t.Fatalf("expected project codex model, got %q", cfg.Agent.Models["codex"])
+	}
+	if cfg.Agent.Models["claude"] != "user-claude" {
+		t.Fatalf("expected user claude model, got %q", cfg.Agent.Models["claude"])
+	}
+	if cfg.Go.CoverageThreshold != 90 {
+		t.Fatalf("expected coverage 90, got %d", cfg.Go.CoverageThreshold)
+	}
+}
+
+func TestLoadConfigUserInvalid(t *testing.T) {
+	_ = setTempUserConfig(t)
+	dir := t.TempDir()
+	userCfgPath := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "dun", "config.yaml")
+	if err := os.MkdirAll(filepath.Dir(userCfgPath), 0755); err != nil {
+		t.Fatalf("mkdir user config dir: %v", err)
+	}
+	if err := os.WriteFile(userCfgPath, []byte("agent:\n  cmd: ["), 0644); err != nil {
+		t.Fatalf("write user config: %v", err)
+	}
+
+	_, _, err := LoadConfig(dir, "")
+	if err == nil {
+		t.Fatalf("expected user config parse error")
 	}
 }

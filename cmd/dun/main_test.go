@@ -16,6 +16,15 @@ import (
 	"github.com/easel/dun/internal/dun"
 )
 
+func TestMain(m *testing.M) {
+	tmp, err := os.MkdirTemp("", "dun-user-config-")
+	if err == nil {
+		_ = os.Setenv("HOME", tmp)
+		_ = os.Setenv("XDG_CONFIG_HOME", filepath.Join(tmp, "xdg"))
+	}
+	os.Exit(m.Run())
+}
+
 func TestCheckUsesConfigAgentAuto(t *testing.T) {
 	root := setupRepoFromFixture(t, "helix-alignment")
 	agentCmd := "test-agent-cmd"

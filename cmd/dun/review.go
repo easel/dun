@@ -39,7 +39,7 @@ func runReview(args []string, stdout io.Writer, stderr io.Writer) int {
 
 	fs := flag.NewFlagSet("review", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	configPath := fs.String("config", explicitConfig, "path to config file")
+	configPath := fs.String("config", explicitConfig, "path to config file (default .dun/config.yaml if present; also loads user config)")
 	principlesPath := fs.String("principles", "docs/helix/01-frame/principles.md", "path to principles document")
 	harnessesFlag := fs.String("harnesses", "codex,claude,gemini", "comma-separated list of review harnesses")
 	synthHarness := fs.String("synth-harness", "", "harness used to synthesize final review (default: first harness)")
