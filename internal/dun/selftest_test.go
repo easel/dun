@@ -97,7 +97,7 @@ func TestRunSelfTestCheckWithBrokenRegistry(t *testing.T) {
 		factories: make(map[string]HarnessFactory),
 	}
 	DefaultRegistry.Register("mock", NewMockHarness)
-	// Missing claude, gemini, codex
+	// Missing claude, gemini, codex, opencode
 
 	check := Check{
 		ID:   "self-test-broken",
@@ -113,8 +113,8 @@ func TestRunSelfTestCheckWithBrokenRegistry(t *testing.T) {
 		t.Errorf("expected status 'fail' with broken registry, got %q", result.Status)
 	}
 
-	if len(result.Issues) < 3 {
-		t.Errorf("expected at least 3 issues for missing harnesses, got %d", len(result.Issues))
+	if len(result.Issues) < 4 {
+		t.Errorf("expected at least 4 issues for missing harnesses, got %d", len(result.Issues))
 	}
 
 	// Verify issues mention missing harnesses
@@ -123,7 +123,7 @@ func TestRunSelfTestCheckWithBrokenRegistry(t *testing.T) {
 		issueText += issue.Summary + " "
 	}
 
-	for _, missing := range []string{"claude", "gemini", "codex"} {
+	for _, missing := range []string{"claude", "gemini", "codex", "opencode"} {
 		if !strings.Contains(issueText, missing) {
 			t.Errorf("expected issues to mention missing %q harness", missing)
 		}
@@ -257,9 +257,11 @@ type wrongNameHarness struct {
 	name string
 }
 
-func (h *wrongNameHarness) Name() string                                      { return h.name }
-func (h *wrongNameHarness) Execute(ctx context.Context, prompt string) (string, error) { return "ok", nil }
-func (h *wrongNameHarness) SupportsAutomation(mode AutomationMode) bool       { return true }
+func (h *wrongNameHarness) Name() string { return h.name }
+func (h *wrongNameHarness) Execute(ctx context.Context, prompt string) (string, error) {
+	return "ok", nil
+}
+func (h *wrongNameHarness) SupportsAutomation(mode AutomationMode) bool { return true }
 
 // TestSelfTestCheckWithUnexpectedResponse tests detection of unexpected mock response.
 func TestSelfTestCheckWithUnexpectedResponse(t *testing.T) {
@@ -309,9 +311,11 @@ func TestSelfTestCheckWithUnexpectedResponse(t *testing.T) {
 // badMockHarness always returns "wrong-response" regardless of config.
 type badMockHarness struct{}
 
-func (h *badMockHarness) Name() string                                      { return "mock" }
-func (h *badMockHarness) Execute(ctx context.Context, prompt string) (string, error) { return "wrong-response", nil }
-func (h *badMockHarness) SupportsAutomation(mode AutomationMode) bool       { return true }
+func (h *badMockHarness) Name() string { return "mock" }
+func (h *badMockHarness) Execute(ctx context.Context, prompt string) (string, error) {
+	return "wrong-response", nil
+}
+func (h *badMockHarness) SupportsAutomation(mode AutomationMode) bool { return true }
 
 // TestSelfTestCheckWithNonCancellingHarness tests detection of harness that ignores cancellation.
 func TestSelfTestCheckWithNonCancellingHarness(t *testing.T) {
@@ -362,9 +366,11 @@ type nonCancellingHarness struct {
 	response string
 }
 
-func (h *nonCancellingHarness) Name() string                                      { return "mock" }
-func (h *nonCancellingHarness) Execute(ctx context.Context, prompt string) (string, error) { return h.response, nil }
-func (h *nonCancellingHarness) SupportsAutomation(mode AutomationMode) bool       { return true }
+func (h *nonCancellingHarness) Name() string { return "mock" }
+func (h *nonCancellingHarness) Execute(ctx context.Context, prompt string) (string, error) {
+	return h.response, nil
+}
+func (h *nonCancellingHarness) SupportsAutomation(mode AutomationMode) bool { return true }
 
 // TestSelfTestCheckWithNoErrorHarness tests detection of harness that ignores configured error.
 func TestSelfTestCheckWithNoErrorHarness(t *testing.T) {
@@ -413,9 +419,11 @@ func TestSelfTestCheckWithNoErrorHarness(t *testing.T) {
 // noErrorHarness ignores MockError config - never returns errors.
 type noErrorHarness struct{}
 
-func (h *noErrorHarness) Name() string                                      { return "mock" }
-func (h *noErrorHarness) Execute(ctx context.Context, prompt string) (string, error) { return "ok", nil }
-func (h *noErrorHarness) SupportsAutomation(mode AutomationMode) bool       { return true }
+func (h *noErrorHarness) Name() string { return "mock" }
+func (h *noErrorHarness) Execute(ctx context.Context, prompt string) (string, error) {
+	return "ok", nil
+}
+func (h *noErrorHarness) SupportsAutomation(mode AutomationMode) bool { return true }
 
 // TestSelfTestCheckWithUnsupportedModes tests detection of harness without mode support.
 func TestSelfTestCheckWithUnsupportedModes(t *testing.T) {
@@ -464,8 +472,10 @@ func TestSelfTestCheckWithUnsupportedModes(t *testing.T) {
 // limitedModeHarness only supports manual mode.
 type limitedModeHarness struct{}
 
-func (h *limitedModeHarness) Name() string                                      { return "claude" }
-func (h *limitedModeHarness) Execute(ctx context.Context, prompt string) (string, error) { return "ok", nil }
+func (h *limitedModeHarness) Name() string { return "claude" }
+func (h *limitedModeHarness) Execute(ctx context.Context, prompt string) (string, error) {
+	return "ok", nil
+}
 func (h *limitedModeHarness) SupportsAutomation(mode AutomationMode) bool {
 	return mode == AutomationManual // Only supports manual
 }

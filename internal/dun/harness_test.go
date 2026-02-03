@@ -1,8 +1,10 @@
 package dun
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -230,11 +232,11 @@ func TestHarnessRegistryList(t *testing.T) {
 	registry := NewHarnessRegistry()
 
 	names := registry.List()
-	if len(names) < 4 {
-		t.Fatalf("expected at least 4 default harnesses, got %d", len(names))
+	if len(names) < 5 {
+		t.Fatalf("expected at least 5 default harnesses, got %d", len(names))
 	}
 
-	expected := map[string]bool{"claude": true, "gemini": true, "codex": true, "mock": true}
+	expected := map[string]bool{"claude": true, "gemini": true, "codex": true, "opencode": true, "mock": true}
 	for _, name := range names {
 		if !expected[name] {
 			continue // Allow additional harnesses
@@ -341,6 +343,32 @@ func TestCodexHarnessSupportsAutomation(t *testing.T) {
 	}
 }
 
+// TestOpenCodeHarnessName verifies opencode harness returns correct name.
+func TestOpenCodeHarnessName(t *testing.T) {
+	harness := NewOpenCodeHarness(HarnessConfig{})
+	if harness.Name() != "opencode" {
+		t.Fatalf("expected name 'opencode', got %q", harness.Name())
+	}
+}
+
+// TestOpenCodeHarnessSupportsAutomation verifies opencode harness supports all modes.
+func TestOpenCodeHarnessSupportsAutomation(t *testing.T) {
+	harness := NewOpenCodeHarness(HarnessConfig{})
+
+	modes := []AutomationMode{
+		AutomationManual,
+		AutomationPlan,
+		AutomationAuto,
+		AutomationYolo,
+	}
+
+	for _, mode := range modes {
+		if !harness.SupportsAutomation(mode) {
+			t.Fatalf("opencode harness should support mode %s", mode)
+		}
+	}
+}
+
 // TestExecuteHarnessWithMock verifies ExecuteHarness convenience function works.
 func TestExecuteHarnessWithMock(t *testing.T) {
 	// Temporarily register a mock that we control
@@ -441,6 +469,12 @@ func TestHarnessConfigDefaults(t *testing.T) {
 	if codexHarness.config.Command != "codex" {
 		t.Fatalf("expected default command 'codex', got %q", codexHarness.config.Command)
 	}
+
+	// OpenCode harness should default to "opencode" command
+	openCodeHarness := NewOpenCodeHarness(HarnessConfig{}).(*OpenCodeHarness)
+	if openCodeHarness.config.Command != "opencode" {
+		t.Fatalf("expected default command 'opencode', got %q", openCodeHarness.config.Command)
+	}
 }
 
 // TestHarnessConfigOverride verifies harnesses respect config overrides.
@@ -485,7 +519,7 @@ func TestDefaultRegistryInitialized(t *testing.T) {
 		t.Fatal("DefaultRegistry should be initialized")
 	}
 
-	expectedHarnesses := []string{"claude", "gemini", "codex", "mock"}
+	expectedHarnesses := []string{"claude", "gemini", "codex", "opencode", "mock"}
 	for _, name := range expectedHarnesses {
 		if !DefaultRegistry.Has(name) {
 			t.Fatalf("DefaultRegistry should have '%s' harness", name)
@@ -502,6 +536,7 @@ func TestDefaultRegistryCanCreateHarnesses(t *testing.T) {
 		{"claude", "claude"},
 		{"gemini", "gemini"},
 		{"codex", "codex"},
+		{"opencode", "opencode"},
 		{"mock", "mock"},
 	}
 
@@ -589,6 +624,25 @@ func TestCodexHarnessExecuteWithEcho(t *testing.T) {
 	}
 }
 
+// TestOpenCodeHarnessExecuteWithEcho tests OpenCode harness with echo command.
+func TestOpenCodeHarnessExecuteWithEcho(t *testing.T) {
+	capture := &runnerCapture{}
+	harness := NewOpenCodeHarness(HarnessConfig{
+		Runner: captureRunner(capture, "ok", "", nil),
+	})
+
+	ctx := context.Background()
+	_, err := harness.Execute(ctx, "test")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assertArgsContain(t, capture.args, []string{"run"})
+	assertArgsContain(t, capture.args, []string{"test"})
+	if capture.stdin != "test" {
+		t.Fatalf("expected stdin to be %q, got %q", "test", capture.stdin)
+	}
+}
+
 // TestHarnessExecuteWithTimeout tests harness respects timeout.
 func TestHarnessExecuteWithTimeout(t *testing.T) {
 	capture := &runnerCapture{}
@@ -603,6 +657,34 @@ func TestHarnessExecuteWithTimeout(t *testing.T) {
 		t.Fatal("expected timeout error")
 	}
 	// The error should be about the command being killed or timing out
+}
+
+// TestRunHarnessCommandStreamingCapturesOutput verifies streaming preserves stdout and stdin.
+func TestRunHarnessCommandStreamingCapturesOutput(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("streaming test relies on cat")
+	}
+
+	var streamed bytes.Buffer
+	var streamedErr bytes.Buffer
+	prompt := "streaming-stdin"
+
+	out, err := runHarnessCommand(context.Background(), HarnessConfig{
+		StdoutWriter: &streamed,
+		StderrWriter: &streamedErr,
+	}, "cat", prompt, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if out != prompt {
+		t.Fatalf("expected stdout %q, got %q", prompt, out)
+	}
+	if streamed.String() != prompt {
+		t.Fatalf("expected streamed stdout %q, got %q", prompt, streamed.String())
+	}
+	if streamedErr.Len() != 0 {
+		t.Fatalf("expected no stderr output, got %q", streamedErr.String())
+	}
 }
 
 // TestAutomationModeConstants verifies automation mode constants are correct.
@@ -780,6 +862,19 @@ func TestGeminiHarnessAutonomousArgs(t *testing.T) {
 	}
 
 	assertArgsContain(t, capture.args, required)
+	promptIndex := -1
+	for i, arg := range capture.args {
+		if arg == "--prompt" {
+			promptIndex = i
+			break
+		}
+	}
+	if promptIndex == -1 || promptIndex+1 >= len(capture.args) {
+		t.Fatalf("expected --prompt flag to include an empty argument, got %v", capture.args)
+	}
+	if capture.args[promptIndex+1] != "" {
+		t.Fatalf("expected --prompt to be followed by empty string, got %q", capture.args[promptIndex+1])
+	}
 	if capture.stdin != "multi-step task" {
 		t.Fatalf("expected stdin to be %q, got %q", "multi-step task", capture.stdin)
 	}
@@ -812,6 +907,31 @@ func TestCodexHarnessAutonomousArgs(t *testing.T) {
 	}
 }
 
+// TestOpenCodeHarnessAutonomousArgs verifies OpenCode harness uses correct autonomous flags.
+func TestOpenCodeHarnessAutonomousArgs(t *testing.T) {
+	capture := &runnerCapture{}
+	harness := NewOpenCodeHarness(HarnessConfig{
+		Runner: captureRunner(capture, "ok", "", nil),
+	})
+
+	ctx := context.Background()
+	_, err := harness.Execute(ctx, "multi-step task")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Verify required arguments are present
+	required := []string{
+		"run",
+		"multi-step task",
+	}
+
+	assertArgsContain(t, capture.args, required)
+	if capture.stdin != "multi-step task" {
+		t.Fatalf("expected stdin to be %q, got %q", "multi-step task", capture.stdin)
+	}
+}
+
 // TestAllHarnessesHaveAutonomousMode verifies all harnesses support autonomous execution.
 func TestAllHarnessesHaveAutonomousMode(t *testing.T) {
 	harnesses := []struct {
@@ -821,6 +941,7 @@ func TestAllHarnessesHaveAutonomousMode(t *testing.T) {
 		{"claude", NewClaudeHarness(HarnessConfig{})},
 		{"gemini", NewGeminiHarness(HarnessConfig{})},
 		{"codex", NewCodexHarness(HarnessConfig{})},
+		{"opencode", NewOpenCodeHarness(HarnessConfig{})},
 		{"mock", NewMockHarness(HarnessConfig{})},
 	}
 
@@ -851,7 +972,7 @@ Step 3: Validate the schema
 Step 4: Apply the changes`
 
 	ctx := context.Background()
-	for _, name := range []string{"claude", "gemini", "codex"} {
+	for _, name := range []string{"claude", "gemini", "codex", "opencode"} {
 		t.Run(name, func(t *testing.T) {
 			capture := &runnerCapture{}
 			var harness Harness
@@ -862,6 +983,8 @@ Step 4: Apply the changes`
 				harness = NewGeminiHarness(HarnessConfig{Runner: captureRunner(capture, "ok", "", nil)})
 			case "codex":
 				harness = NewCodexHarness(HarnessConfig{Runner: captureRunner(capture, "ok", "", nil)})
+			case "opencode":
+				harness = NewOpenCodeHarness(HarnessConfig{Runner: captureRunner(capture, "ok", "", nil)})
 			}
 			_, err := harness.Execute(ctx, complexPrompt)
 			if err != nil {
@@ -892,6 +1015,7 @@ func TestHarnessConsistentInterface(t *testing.T) {
 		{"claude", NewClaudeHarness},
 		{"gemini", NewGeminiHarness},
 		{"codex", NewCodexHarness},
+		{"opencode", NewOpenCodeHarness},
 		{"mock", NewMockHarness},
 	}
 
@@ -923,9 +1047,10 @@ func TestCrossAgentExecutionConsistency(t *testing.T) {
 		harness Harness
 		capture *runnerCapture
 	}{
-		"claude": {NewClaudeHarness(HarnessConfig{Runner: captureRunner(&runnerCapture{}, "ok", "", nil)}), &runnerCapture{}},
-		"gemini": {NewGeminiHarness(HarnessConfig{Runner: captureRunner(&runnerCapture{}, "ok", "", nil)}), &runnerCapture{}},
-		"codex":  {NewCodexHarness(HarnessConfig{Runner: captureRunner(&runnerCapture{}, "ok", "", nil)}), &runnerCapture{}},
+		"claude":   {NewClaudeHarness(HarnessConfig{Runner: captureRunner(&runnerCapture{}, "ok", "", nil)}), &runnerCapture{}},
+		"gemini":   {NewGeminiHarness(HarnessConfig{Runner: captureRunner(&runnerCapture{}, "ok", "", nil)}), &runnerCapture{}},
+		"codex":    {NewCodexHarness(HarnessConfig{Runner: captureRunner(&runnerCapture{}, "ok", "", nil)}), &runnerCapture{}},
+		"opencode": {NewOpenCodeHarness(HarnessConfig{Runner: captureRunner(&runnerCapture{}, "ok", "", nil)}), &runnerCapture{}},
 	}
 
 	ctx := context.Background()
@@ -940,6 +1065,8 @@ func TestCrossAgentExecutionConsistency(t *testing.T) {
 			entry.harness = NewGeminiHarness(HarnessConfig{Runner: captureRunner(capture, "ok", "", nil)})
 		case "codex":
 			entry.harness = NewCodexHarness(HarnessConfig{Runner: captureRunner(capture, "ok", "", nil)})
+		case "opencode":
+			entry.harness = NewOpenCodeHarness(HarnessConfig{Runner: captureRunner(capture, "ok", "", nil)})
 		}
 		_, err := entry.harness.Execute(ctx, prompt)
 		if err != nil {
@@ -965,6 +1092,7 @@ func TestHarnessErrorHandlingConsistency(t *testing.T) {
 		{"claude", NewClaudeHarness(HarnessConfig{Runner: captureRunner(&runnerCapture{}, "", "", errors.New("fail"))})},
 		{"gemini", NewGeminiHarness(HarnessConfig{Runner: captureRunner(&runnerCapture{}, "", "", errors.New("fail"))})},
 		{"codex", NewCodexHarness(HarnessConfig{Runner: captureRunner(&runnerCapture{}, "", "", errors.New("fail"))})},
+		{"opencode", NewOpenCodeHarness(HarnessConfig{Runner: captureRunner(&runnerCapture{}, "", "", errors.New("fail"))})},
 	}
 
 	ctx := context.Background()
@@ -990,6 +1118,7 @@ func TestHarnessTimeoutConsistency(t *testing.T) {
 		{"claude", NewClaudeHarness(HarnessConfig{Timeout: timeout, Runner: blockingRunner(&runnerCapture{})})},
 		{"gemini", NewGeminiHarness(HarnessConfig{Timeout: timeout, Runner: blockingRunner(&runnerCapture{})})},
 		{"codex", NewCodexHarness(HarnessConfig{Timeout: timeout, Runner: blockingRunner(&runnerCapture{})})},
+		{"opencode", NewOpenCodeHarness(HarnessConfig{Timeout: timeout, Runner: blockingRunner(&runnerCapture{})})},
 	}
 
 	ctx := context.Background()
@@ -1082,6 +1211,16 @@ func TestRegressionGeminiFlags(t *testing.T) {
 			t.Errorf("REGRESSION: Gemini missing required flag %q (%s)", flag, reason)
 		}
 	}
+	for i, arg := range capture.args {
+		if arg == "--prompt" {
+			if i+1 >= len(capture.args) {
+				t.Error("REGRESSION: Gemini --prompt flag missing value")
+			} else if capture.args[i+1] != "" {
+				t.Errorf("REGRESSION: Gemini --prompt should be followed by empty string, got %q", capture.args[i+1])
+			}
+			break
+		}
+	}
 }
 
 // TestRegressionCodexFlags guards against changes to Codex non-interactive flags.
@@ -1130,6 +1269,7 @@ func TestRegressionDefaultCommands(t *testing.T) {
 		{"claude", NewClaudeHarness, "claude"},
 		{"gemini", NewGeminiHarness, "gemini"}, // Changed from python3 to gemini CLI
 		{"codex", NewCodexHarness, "codex"},
+		{"opencode", NewOpenCodeHarness, "opencode"},
 	}
 
 	for _, tc := range tests {
@@ -1144,6 +1284,8 @@ func TestRegressionDefaultCommands(t *testing.T) {
 			case *GeminiHarness:
 				command = h.config.Command
 			case *CodexHarness:
+				command = h.config.Command
+			case *OpenCodeHarness:
 				command = h.config.Command
 			}
 
@@ -1164,6 +1306,7 @@ func TestRegressionHarnessNames(t *testing.T) {
 		{NewClaudeHarness, "claude"},
 		{NewGeminiHarness, "gemini"},
 		{NewCodexHarness, "codex"},
+		{NewOpenCodeHarness, "opencode"},
 		{NewMockHarness, "mock"},
 	}
 
@@ -1183,7 +1326,7 @@ func TestRegressionRegistryHarnesses(t *testing.T) {
 	registry := NewHarnessRegistry()
 
 	// These harnesses MUST be registered by default
-	requiredHarnesses := []string{"claude", "gemini", "codex", "mock"}
+	requiredHarnesses := []string{"claude", "gemini", "codex", "opencode", "mock"}
 
 	for _, name := range requiredHarnesses {
 		if !registry.Has(name) {
@@ -1201,6 +1344,7 @@ func TestRegressionAllHarnessesAutonomous(t *testing.T) {
 		{"claude", NewClaudeHarness(HarnessConfig{})},
 		{"gemini", NewGeminiHarness(HarnessConfig{})},
 		{"codex", NewCodexHarness(HarnessConfig{})},
+		{"opencode", NewOpenCodeHarness(HarnessConfig{})},
 	}
 
 	// All real harnesses MUST support all automation modes

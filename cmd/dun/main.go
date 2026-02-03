@@ -120,7 +120,7 @@ LOOP MODE:
   and repeats until all checks pass or max iterations is reached.
 
   Options:
-    --harness     Agent to use: codex, claude, gemini (default: from config)
+    --harness     Agent to use: codex, claude, gemini, opencode (default: from config)
     --automation  Mode: manual, plan, auto, yolo (default: auto)
     --max-iterations  Safety limit (default: 100)
     --dry-run     Show prompt without calling agent
@@ -130,7 +130,7 @@ LOOP MODE:
 
   Quorum Options (multi-agent consensus):
     --quorum      Strategy: any, majority, unanimous, or number (e.g., 2)
-    --harnesses   Comma-separated list of harnesses (e.g., codex,claude,gemini)
+    --harnesses   Comma-separated list of harnesses (e.g., codex,claude,gemini,opencode)
     --cost-mode   Run harnesses sequentially to minimize cost
     --escalate    Pause for human review on conflict
     --prefer      Preferred harness on conflict (e.g., codex)
@@ -142,7 +142,7 @@ LOOP MODE:
     dun loop --automation yolo            # Allow autonomous edits
     dun loop --dry-run                    # Preview prompt
     dun loop --verbose                    # Show prompt and responses
-    dun loop --quorum majority --harnesses codex,claude,gemini
+    dun loop --quorum majority --harnesses codex,claude,gemini,opencode
     dun loop --quorum 2 --harnesses codex,claude --prefer codex
 
 VERSION:
@@ -500,7 +500,7 @@ func runLoop(args []string, stdout io.Writer, stderr io.Writer) int {
 	fs := flag.NewFlagSet("loop", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	configPath := fs.String("config", explicitConfig, "path to config file")
-	harness := fs.String("harness", "", "agent harness (codex|claude|gemini); default from config")
+	harness := fs.String("harness", "", "agent harness (codex|claude|gemini|opencode); default from config")
 	automation := fs.String("automation", opts.AutomationMode, "automation mode (manual|plan|auto|yolo)")
 	maxIterations := fs.Int("max-iterations", 100, "maximum iterations before stopping")
 	dryRun := fs.Bool("dry-run", false, "print prompt without calling harness")

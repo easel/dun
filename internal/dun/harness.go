@@ -107,6 +107,7 @@ func NewHarnessRegistry() *HarnessRegistry {
 	r.Register("claude", NewClaudeHarness)
 	r.Register("gemini", NewGeminiHarness)
 	r.Register("codex", NewCodexHarness)
+	r.Register("opencode", NewOpenCodeHarness)
 	r.Register("mock", NewMockHarness)
 	return r
 }
@@ -297,6 +298,44 @@ func (h *CodexHarness) SupportsAutomation(mode AutomationMode) bool {
 }
 
 func (h *CodexHarness) runCommand(ctx context.Context, name string, stdin string, args ...string) (string, error) {
+	return runHarnessCommand(ctx, h.config, name, stdin, args)
+}
+
+// OpenCodeHarness wraps the OpenCode CLI for agent execution.
+type OpenCodeHarness struct {
+	config HarnessConfig
+}
+
+// NewOpenCodeHarness creates a new OpenCode harness.
+func NewOpenCodeHarness(config HarnessConfig) Harness {
+	if config.Command == "" {
+		config.Command = "opencode"
+	}
+	if config.AutomationMode == "" {
+		config.AutomationMode = AutomationAuto
+	}
+	return &OpenCodeHarness{config: config}
+}
+
+// Name returns "opencode".
+func (h *OpenCodeHarness) Name() string {
+	return "opencode"
+}
+
+// Execute runs the OpenCode CLI with the given prompt.
+// OpenCode expects the prompt as a positional message for `opencode run`.
+func (h *OpenCodeHarness) Execute(ctx context.Context, prompt string) (string, error) {
+	args := []string{"run", prompt}
+
+	return h.runCommand(ctx, h.config.Command, prompt, args...)
+}
+
+// SupportsAutomation returns true for all automation modes.
+func (h *OpenCodeHarness) SupportsAutomation(mode AutomationMode) bool {
+	return true
+}
+
+func (h *OpenCodeHarness) runCommand(ctx context.Context, name string, stdin string, args ...string) (string, error) {
 	return runHarnessCommand(ctx, h.config, name, stdin, args)
 }
 
