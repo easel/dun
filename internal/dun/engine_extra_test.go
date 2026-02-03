@@ -102,6 +102,23 @@ func TestCheckRepoReturnsError(t *testing.T) {
 	}
 }
 
+func TestCheckRepoEmptyFolder(t *testing.T) {
+	root := t.TempDir()
+	if _, err := CheckRepo(root, Options{}); err != nil {
+		t.Fatalf("check repo empty: %v", err)
+	}
+}
+
+func TestCheckRepoDocsHelixEmpty(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "docs", "helix"), 0755); err != nil {
+		t.Fatalf("mkdir docs/helix: %v", err)
+	}
+	if _, err := CheckRepo(root, Options{}); err != nil {
+		t.Fatalf("check repo helix empty: %v", err)
+	}
+}
+
 func TestCheckRepoRunCheckError(t *testing.T) {
 	orig := loadBuiltins
 	loadBuiltins = func() ([]Plugin, error) {
