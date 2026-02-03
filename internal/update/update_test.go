@@ -1,6 +1,10 @@
 package update
 
 import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -154,11 +158,19 @@ func TestCheckForUpdateInvalidJSON(t *testing.T) {
 }
 
 func TestDownloadRelease(t *testing.T) {
-	binaryContent := []byte("#!/bin/bash\necho hello")
+	binaryContent := []byte("#!/bin/sh\necho hello")
+	version := "1.2.0"
+	archiveName := fmt.Sprintf("dun_%s_%s_%s.tar.gz", version, runtime.GOOS, runtime.GOARCH)
+	archiveBytes := buildTarGz(t, "dun", binaryContent)
+	checksums := fmt.Sprintf("%x  %s\n", sha256Sum(archiveBytes), archiveName)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/download/dun-linux-amd64" {
-			w.Write(binaryContent)
+		switch r.URL.Path {
+		case "/download/" + archiveName:
+			w.Write(archiveBytes)
+			return
+		case "/download/checksums.txt":
+			w.Write([]byte(checksums))
 			return
 		}
 		http.NotFound(w, r)
@@ -169,9 +181,13 @@ func TestDownloadRelease(t *testing.T) {
 		TagName: "v1.2.0",
 		Assets: []Asset{
 			{
-				Name:        fmt.Sprintf("dun-%s-%s", runtime.GOOS, runtime.GOARCH),
-				DownloadURL: server.URL + "/download/dun-linux-amd64",
-				Size:        int64(len(binaryContent)),
+				Name:        archiveName,
+				DownloadURL: server.URL + "/download/" + archiveName,
+				Size:        int64(len(archiveBytes)),
+			},
+			{
+				Name:        "checksums.txt",
+				DownloadURL: server.URL + "/download/checksums.txt",
 			},
 		},
 	}
@@ -220,8 +236,21 @@ func TestDownloadReleaseNoAsset(t *testing.T) {
 }
 
 func TestDownloadReleaseSizeMismatch(t *testing.T) {
+	version := "1.2.0"
+	archiveName := fmt.Sprintf("dun_%s_%s_%s.tar.gz", version, runtime.GOOS, runtime.GOARCH)
+	archiveBytes := buildTarGz(t, "dun", []byte("binary"))
+	checksums := fmt.Sprintf("%x  %s\n", sha256Sum(archiveBytes), archiveName)
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("short"))
+		switch r.URL.Path {
+		case "/download/" + archiveName:
+			w.Write(archiveBytes)
+			return
+		case "/download/checksums.txt":
+			w.Write([]byte(checksums))
+			return
+		}
+		http.NotFound(w, r)
 	}))
 	defer server.Close()
 
@@ -229,9 +258,13 @@ func TestDownloadReleaseSizeMismatch(t *testing.T) {
 		TagName: "v1.2.0",
 		Assets: []Asset{
 			{
-				Name:        fmt.Sprintf("dun-%s-%s", runtime.GOOS, runtime.GOARCH),
-				DownloadURL: server.URL + "/download",
+				Name:        archiveName,
+				DownloadURL: server.URL + "/download/" + archiveName,
 				Size:        1000, // Much larger than actual
+			},
+			{
+				Name:        "checksums.txt",
+				DownloadURL: server.URL + "/download/checksums.txt",
 			},
 		},
 	}
@@ -254,8 +287,21 @@ func TestDownloadReleaseSizeMismatch(t *testing.T) {
 }
 
 func TestDownloadReleaseServerError(t *testing.T) {
+	version := "1.2.0"
+	archiveName := fmt.Sprintf("dun_%s_%s_%s.tar.gz", version, runtime.GOOS, runtime.GOARCH)
+	archiveBytes := buildTarGz(t, "dun", []byte("binary"))
+	checksums := fmt.Sprintf("%x  %s\n", sha256Sum(archiveBytes), archiveName)
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
+		switch r.URL.Path {
+		case "/download/" + archiveName:
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		case "/download/checksums.txt":
+			w.Write([]byte(checksums))
+			return
+		}
+		http.NotFound(w, r)
 	}))
 	defer server.Close()
 
@@ -263,9 +309,13 @@ func TestDownloadReleaseServerError(t *testing.T) {
 		TagName: "v1.2.0",
 		Assets: []Asset{
 			{
-				Name:        fmt.Sprintf("dun-%s-%s", runtime.GOOS, runtime.GOARCH),
-				DownloadURL: server.URL + "/download",
-				Size:        100,
+				Name:        archiveName,
+				DownloadURL: server.URL + "/download/" + archiveName,
+				Size:        int64(len(archiveBytes)),
+			},
+			{
+				Name:        "checksums.txt",
+				DownloadURL: server.URL + "/download/checksums.txt",
 			},
 		},
 	}
@@ -282,6 +332,39 @@ func TestDownloadReleaseServerError(t *testing.T) {
 	if err == nil {
 		t.Error("expected error for server error")
 	}
+}
+
+func buildTarGz(t *testing.T, name string, content []byte) []byte {
+	t.Helper()
+
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gz)
+
+	hdr := &tar.Header{
+		Name: name,
+		Mode: 0755,
+		Size: int64(len(content)),
+	}
+	if err := tw.WriteHeader(hdr); err != nil {
+		t.Fatalf("write tar header: %v", err)
+	}
+	if _, err := tw.Write(content); err != nil {
+		t.Fatalf("write tar content: %v", err)
+	}
+	if err := tw.Close(); err != nil {
+		t.Fatalf("close tar: %v", err)
+	}
+	if err := gz.Close(); err != nil {
+		t.Fatalf("close gzip: %v", err)
+	}
+	return buf.Bytes()
+}
+
+func sha256Sum(data []byte) []byte {
+	h := sha256.New()
+	h.Write(data)
+	return h.Sum(nil)
 }
 
 func TestApplyUpdate(t *testing.T) {
@@ -641,13 +724,19 @@ func (c *errorClient) Do(req *http.Request) (*http.Response, error) {
 }
 
 func TestDownloadReleaseNetworkError(t *testing.T) {
+	version := "1.2.0"
+	archiveName := fmt.Sprintf("dun_%s_%s_%s.tar.gz", version, runtime.GOOS, runtime.GOARCH)
 	release := &Release{
 		TagName: "v1.2.0",
 		Assets: []Asset{
 			{
-				Name:        fmt.Sprintf("dun-%s-%s", runtime.GOOS, runtime.GOARCH),
+				Name:        archiveName,
 				DownloadURL: "http://invalid.invalid/download",
 				Size:        100,
+			},
+			{
+				Name:        "checksums.txt",
+				DownloadURL: "http://invalid.invalid/checksums.txt",
 			},
 		},
 	}
@@ -720,9 +809,21 @@ func TestVerifyBinaryMachO32Reverse(t *testing.T) {
 }
 
 func TestDownloadReleaseZeroSize(t *testing.T) {
+	version := "1.2.0"
+	archiveName := fmt.Sprintf("dun_%s_%s_%s.tar.gz", version, runtime.GOOS, runtime.GOARCH)
 	content := []byte("binary content")
+	archiveBytes := buildTarGz(t, "dun", content)
+	checksums := fmt.Sprintf("%x  %s\n", sha256Sum(archiveBytes), archiveName)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write(content)
+		switch r.URL.Path {
+		case "/download/" + archiveName:
+			w.Write(archiveBytes)
+			return
+		case "/download/checksums.txt":
+			w.Write([]byte(checksums))
+			return
+		}
+		http.NotFound(w, r)
 	}))
 	defer server.Close()
 
@@ -730,9 +831,13 @@ func TestDownloadReleaseZeroSize(t *testing.T) {
 		TagName: "v1.2.0",
 		Assets: []Asset{
 			{
-				Name:        fmt.Sprintf("dun-%s-%s", runtime.GOOS, runtime.GOARCH),
-				DownloadURL: server.URL + "/download",
+				Name:        archiveName,
+				DownloadURL: server.URL + "/download/" + archiveName,
 				Size:        0, // Zero means no size check
+			},
+			{
+				Name:        "checksums.txt",
+				DownloadURL: server.URL + "/download/checksums.txt",
 			},
 		},
 	}
@@ -760,9 +865,9 @@ func TestFindAssetSkipSigAndAsc(t *testing.T) {
 
 	release := &Release{
 		Assets: []Asset{
-			{Name: fmt.Sprintf("dun-%s-%s.sig", runtime.GOOS, runtime.GOARCH), DownloadURL: "url1"},
-			{Name: fmt.Sprintf("dun-%s-%s.asc", runtime.GOOS, runtime.GOARCH), DownloadURL: "url2"},
-			{Name: fmt.Sprintf("dun-%s-%s", runtime.GOOS, runtime.GOARCH), DownloadURL: "url3"},
+			{Name: fmt.Sprintf("dun_%s_%s_%s.sig", "1.0.0", runtime.GOOS, runtime.GOARCH), DownloadURL: "url1"},
+			{Name: fmt.Sprintf("dun_%s_%s_%s.asc", "1.0.0", runtime.GOOS, runtime.GOARCH), DownloadURL: "url2"},
+			{Name: fmt.Sprintf("dun_%s_%s_%s.tar.gz", "1.0.0", runtime.GOOS, runtime.GOARCH), DownloadURL: "url3"},
 		},
 	}
 
@@ -776,11 +881,22 @@ func TestFindAssetSkipSigAndAsc(t *testing.T) {
 }
 
 func TestDownloadReleaseBodyReadError(t *testing.T) {
+	version := "1.2.0"
+	archiveName := fmt.Sprintf("dun_%s_%s_%s.tar.gz", version, runtime.GOOS, runtime.GOARCH)
+	archiveBytes := buildTarGz(t, "dun", []byte("binary content"))
+	checksums := fmt.Sprintf("%x  %s\n", sha256Sum(archiveBytes), archiveName)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Length", "1000")
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("partial"))
-		// Connection will be closed, causing read error
+		switch r.URL.Path {
+		case "/download/" + archiveName:
+			w.Header().Set("Content-Length", "1000")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("partial"))
+			return
+		case "/download/checksums.txt":
+			w.Write([]byte(checksums))
+			return
+		}
+		http.NotFound(w, r)
 	}))
 	defer server.Close()
 
@@ -788,9 +904,13 @@ func TestDownloadReleaseBodyReadError(t *testing.T) {
 		TagName: "v1.2.0",
 		Assets: []Asset{
 			{
-				Name:        fmt.Sprintf("dun-%s-%s", runtime.GOOS, runtime.GOARCH),
-				DownloadURL: server.URL + "/download",
+				Name:        archiveName,
+				DownloadURL: server.URL + "/download/" + archiveName,
 				Size:        1000,
+			},
+			{
+				Name:        "checksums.txt",
+				DownloadURL: server.URL + "/download/checksums.txt",
 			},
 		},
 	}

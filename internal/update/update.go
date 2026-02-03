@@ -2,6 +2,8 @@
 package update
 
 import (
+	"archive/tar"
+	"compress/gzip"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -101,6 +103,15 @@ func (u *Updater) DownloadRelease(release *Release) (string, error) {
 		return "", fmt.Errorf("no asset found for %s/%s", runtime.GOOS, runtime.GOARCH)
 	}
 
+	checksums, err := u.downloadChecksums(release)
+	if err != nil {
+		return "", err
+	}
+	expectedChecksum := checksums[asset.Name]
+	if expectedChecksum == "" {
+		return "", fmt.Errorf("checksum not found for %s", asset.Name)
+	}
+
 	req, err := http.NewRequest(http.MethodGet, asset.DownloadURL, nil)
 	if err != nil {
 		return "", fmt.Errorf("create request: %w", err)
@@ -136,6 +147,22 @@ func (u *Updater) DownloadRelease(release *Release) (string, error) {
 	if asset.Size > 0 && written != asset.Size {
 		os.Remove(tmpFile.Name())
 		return "", fmt.Errorf("size mismatch: expected %d, got %d", asset.Size, written)
+	}
+
+	actualChecksum := hex.EncodeToString(hasher.Sum(nil))
+	if !strings.EqualFold(actualChecksum, expectedChecksum) {
+		os.Remove(tmpFile.Name())
+		return "", fmt.Errorf("checksum mismatch for %s", asset.Name)
+	}
+
+	if strings.HasSuffix(strings.ToLower(asset.Name), ".tar.gz") {
+		path, err := extractArchiveBinary(tmpFile.Name(), u.BinaryName)
+		if err != nil {
+			os.Remove(tmpFile.Name())
+			return "", err
+		}
+		os.Remove(tmpFile.Name())
+		return path, nil
 	}
 
 	return tmpFile.Name(), nil
@@ -263,12 +290,14 @@ func (u *Updater) findAsset(release *Release) *Asset {
 		aliases = []string{archName}
 	}
 
+	var fallback *Asset
 	for i := range release.Assets {
 		asset := &release.Assets[i]
 		name := strings.ToLower(asset.Name)
 
 		// Skip checksums and signatures
-		if strings.HasSuffix(name, ".sha256") ||
+		if name == "checksums.txt" ||
+			strings.HasSuffix(name, ".sha256") ||
 			strings.HasSuffix(name, ".sig") ||
 			strings.HasSuffix(name, ".asc") {
 			continue
@@ -280,12 +309,18 @@ func (u *Updater) findAsset(release *Release) *Asset {
 
 		for _, arch := range aliases {
 			if strings.Contains(name, arch) {
-				return asset
+				if strings.HasSuffix(name, ".tar.gz") {
+					return asset
+				}
+				if fallback == nil {
+					fallback = asset
+				}
+				break
 			}
 		}
 	}
 
-	return nil
+	return fallback
 }
 
 func (u *Updater) httpClient() HTTPClient {
@@ -386,4 +421,107 @@ func ComputeChecksum(path string) (string, error) {
 	}
 
 	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+func (u *Updater) downloadChecksums(release *Release) (map[string]string, error) {
+	asset := findChecksumsAsset(release)
+	if asset == nil {
+		return nil, errors.New("checksums.txt not found in release assets")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, asset.DownloadURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("create checksums request: %w", err)
+	}
+	req.Header.Set("User-Agent", fmt.Sprintf("%s-updater", u.BinaryName))
+
+	client := u.httpClient()
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("download checksums: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("checksums status: %d", resp.StatusCode)
+	}
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read checksums: %w", err)
+	}
+
+	return parseChecksums(data), nil
+}
+
+func findChecksumsAsset(release *Release) *Asset {
+	for i := range release.Assets {
+		asset := &release.Assets[i]
+		if strings.EqualFold(asset.Name, "checksums.txt") {
+			return asset
+		}
+	}
+	return nil
+}
+
+func parseChecksums(data []byte) map[string]string {
+	out := make(map[string]string)
+	lines := strings.Split(string(data), "\n")
+	for _, line := range lines {
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		out[fields[1]] = fields[0]
+	}
+	return out
+}
+
+func extractArchiveBinary(archivePath, binaryName string) (string, error) {
+	f, err := os.Open(archivePath)
+	if err != nil {
+		return "", fmt.Errorf("open archive: %w", err)
+	}
+	defer f.Close()
+
+	gz, err := gzip.NewReader(f)
+	if err != nil {
+		return "", fmt.Errorf("read gzip: %w", err)
+	}
+	defer gz.Close()
+
+	tr := tar.NewReader(gz)
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return "", fmt.Errorf("read tar: %w", err)
+		}
+		if hdr.Typeflag != tar.TypeReg {
+			continue
+		}
+		if filepath.Base(hdr.Name) != binaryName {
+			continue
+		}
+
+		tmpFile, err := os.CreateTemp("", fmt.Sprintf("%s-extract-*", binaryName))
+		if err != nil {
+			return "", fmt.Errorf("create temp file: %w", err)
+		}
+		defer tmpFile.Close()
+
+		if _, err := io.Copy(tmpFile, tr); err != nil {
+			os.Remove(tmpFile.Name())
+			return "", fmt.Errorf("extract binary: %w", err)
+		}
+		if err := tmpFile.Chmod(0755); err != nil {
+			os.Remove(tmpFile.Name())
+			return "", fmt.Errorf("chmod extracted binary: %w", err)
+		}
+		return tmpFile.Name(), nil
+	}
+
+	return "", fmt.Errorf("binary %s not found in archive", binaryName)
 }
