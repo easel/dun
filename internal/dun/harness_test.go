@@ -11,16 +11,18 @@ import (
 type runnerCapture struct {
 	name    string
 	args    []string
+	stdin   string
 	workDir string
 	env     map[string]string
 	calls   int
 }
 
 func captureRunner(capture *runnerCapture, stdout string, stderr string, err error) CommandRunner {
-	return func(_ context.Context, name string, args []string, workDir string, env map[string]string) (string, string, error) {
+	return func(_ context.Context, name string, args []string, workDir string, env map[string]string, stdin string) (string, string, error) {
 		capture.calls++
 		capture.name = name
 		capture.args = append([]string(nil), args...)
+		capture.stdin = stdin
 		capture.workDir = workDir
 		if env != nil {
 			capture.env = make(map[string]string, len(env))
@@ -35,10 +37,11 @@ func captureRunner(capture *runnerCapture, stdout string, stderr string, err err
 }
 
 func blockingRunner(capture *runnerCapture) CommandRunner {
-	return func(ctx context.Context, name string, args []string, workDir string, env map[string]string) (string, string, error) {
+	return func(ctx context.Context, name string, args []string, workDir string, env map[string]string, stdin string) (string, string, error) {
 		capture.calls++
 		capture.name = name
 		capture.args = append([]string(nil), args...)
+		capture.stdin = stdin
 		capture.workDir = workDir
 		if env != nil {
 			capture.env = make(map[string]string, len(env))
@@ -78,7 +81,6 @@ func assertArgsContainSubstring(t *testing.T, args []string, needle string) {
 	}
 	t.Fatalf("expected args to contain %q, got %v", needle, args)
 }
-
 
 // TestMockHarnessName verifies the mock harness returns correct name.
 func TestMockHarnessName(t *testing.T) {
@@ -563,7 +565,10 @@ func TestClaudeHarnessExecuteWithEcho(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	assertArgsContain(t, capture.args, []string{"--dangerously-skip-permissions", "--output-format", "text", "-p", "test"})
+	assertArgsContain(t, capture.args, []string{"--print", "--input-format", "text", "--output-format", "text"})
+	if capture.stdin != "test" {
+		t.Fatalf("expected stdin to be %q, got %q", "test", capture.stdin)
+	}
 }
 
 // TestCodexHarnessExecuteWithEcho tests Codex harness with echo command.
@@ -578,7 +583,10 @@ func TestCodexHarnessExecuteWithEcho(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	assertArgsContain(t, capture.args, []string{"exec", "--full-auto", "test"})
+	assertArgsContain(t, capture.args, []string{"exec", "--full-auto", "-"})
+	if capture.stdin != "test" {
+		t.Fatalf("expected stdin to be %q, got %q", "test", capture.stdin)
+	}
 }
 
 // TestHarnessExecuteWithTimeout tests harness respects timeout.
@@ -628,6 +636,9 @@ func TestClaudeHarnessYoloArgs(t *testing.T) {
 	}
 	// In yolo mode, should include --dangerously-skip-permissions
 	assertArgsContain(t, capture.args, []string{"--dangerously-skip-permissions"})
+	if capture.stdin != "test" {
+		t.Fatalf("expected stdin to be %q, got %q", "test", capture.stdin)
+	}
 }
 
 // TestCodexHarnessYoloArgs tests that yolo mode adds correct arguments.
@@ -647,6 +658,10 @@ func TestCodexHarnessYoloArgs(t *testing.T) {
 	}
 	// In yolo mode, should include --full-auto
 	assertArgsContain(t, capture.args, []string{"--full-auto"})
+	assertArgsContain(t, capture.args, []string{"-"})
+	if capture.stdin != "test" {
+		t.Fatalf("expected stdin to be %q, got %q", "test", capture.stdin)
+	}
 }
 
 // TestHarnessWorkDir tests that working directory is respected.
@@ -692,14 +707,18 @@ func TestGeminiHarnessPromptEscaping(t *testing.T) {
 	_, err := harness.Execute(ctx, `test """quote""" test`)
 	// Ensure prompt is preserved in args and no panic
 	if err == nil {
-		assertArgsContain(t, capture.args, []string{`test """quote""" test`})
+		if capture.stdin != `test """quote""" test` {
+			t.Fatalf("expected stdin to contain prompt, got %q", capture.stdin)
+		}
 		return
 	}
 	// Error should be about command execution, not panic
 	if strings.Contains(err.Error(), "unknown harness") {
 		t.Fatalf("gemini should be a known harness")
 	}
-	assertArgsContain(t, capture.args, []string{`test """quote""" test`})
+	if capture.stdin != `test """quote""" test` {
+		t.Fatalf("expected stdin to contain prompt, got %q", capture.stdin)
+	}
 }
 
 // =============================================================================
@@ -722,16 +741,19 @@ func TestClaudeHarnessAutonomousArgs(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Verify all required autonomous mode flags are present
+	// Verify all required non-interactive flags are present
 	required := []string{
-		"--dangerously-skip-permissions", // Required for multi-step execution
-		"--output-format",                // Needed for parseable output
-		"text",                           // Text output format
-		"-p",                             // Prompt flag
-		"multi-step task",                // The actual prompt
+		"--print",
+		"--input-format",
+		"text",
+		"--output-format",
+		"text",
 	}
 
 	assertArgsContain(t, capture.args, required)
+	if capture.stdin != "multi-step task" {
+		t.Fatalf("expected stdin to be %q, got %q", "multi-step task", capture.stdin)
+	}
 }
 
 // TestGeminiHarnessAutonomousArgs verifies Gemini harness uses correct autonomous flags.
@@ -748,14 +770,19 @@ func TestGeminiHarnessAutonomousArgs(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Verify all required autonomous mode flags are present
+	// Verify all required non-interactive flags are present
 	required := []string{
-		"--yolo",          // Required for autonomous tool approval
-		"-p",              // Prompt flag
-		"multi-step task", // The actual prompt
+		"--prompt",
+		"--approval-mode",
+		"auto_edit",
+		"--output-format",
+		"text",
 	}
 
 	assertArgsContain(t, capture.args, required)
+	if capture.stdin != "multi-step task" {
+		t.Fatalf("expected stdin to be %q, got %q", "multi-step task", capture.stdin)
+	}
 }
 
 // TestCodexHarnessAutonomousArgs verifies Codex harness uses correct autonomous flags.
@@ -772,21 +799,16 @@ func TestCodexHarnessAutonomousArgs(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Verify all required autonomous mode flags are present
+	// Verify all required non-interactive flags are present
 	required := []string{
-		"exec",            // Codex subcommand
-		"--full-auto",     // Required for autonomous execution
-		"multi-step task", // Positional prompt argument (not -p)
+		"exec",
+		"--full-auto",
+		"-",
 	}
 
 	assertArgsContain(t, capture.args, required)
-
-	// Codex should NOT use -p flag (uses positional argument)
-	for _, arg := range capture.args {
-		if arg == "-p" {
-			t.Errorf("codex should not use -p flag, uses positional argument: %v", capture.args)
-			break
-		}
+	if capture.stdin != "multi-step task" {
+		t.Fatalf("expected stdin to be %q, got %q", "multi-step task", capture.stdin)
 	}
 }
 
@@ -846,8 +868,10 @@ Step 4: Apply the changes`
 				t.Fatalf("unexpected error: %v", err)
 			}
 
-			// The multi-line prompt should be preserved in the command
-			assertArgsContainSubstring(t, capture.args, "Step 1: Read the file config.yaml")
+			// The multi-line prompt should be preserved in stdin
+			if !strings.Contains(capture.stdin, "Step 1: Read the file config.yaml") {
+				t.Fatalf("expected prompt to be preserved in stdin, got %q", capture.stdin)
+			}
 		})
 	}
 }
@@ -905,7 +929,7 @@ func TestCrossAgentExecutionConsistency(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	results := make(map[string][]string)
+	results := make(map[string]string)
 
 	for name, entry := range harnesses {
 		capture := &runnerCapture{}
@@ -921,20 +945,13 @@ func TestCrossAgentExecutionConsistency(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: unexpected error: %v", name, err)
 		}
-		results[name] = capture.args
+		results[name] = capture.stdin
 	}
 
 	// All harnesses should include the prompt in their output
 	for name, result := range results {
-		found := false
-		for _, arg := range result {
-			if strings.Contains(arg, "analyze") {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Errorf("%s: prompt not found in command args: %v", name, result)
+		if !strings.Contains(result, "analyze") {
+			t.Errorf("%s: prompt not found in stdin: %q", name, result)
 		}
 	}
 }
@@ -999,11 +1016,11 @@ func TestHarnessTimeoutConsistency(t *testing.T) {
 // These tests prevent regressions in harness behavior across agent types.
 // If any test fails, it indicates a breaking change in agent invocation.
 
-// TestRegressionClaudeFlags guards against changes to Claude autonomous mode flags.
-// These exact flags are required for multi-step execution:
-// - --dangerously-skip-permissions: Required for autonomous tool execution
+// TestRegressionClaudeFlags guards against changes to Claude non-interactive flags.
+// These exact flags are required for non-interactive execution:
+// - --print: Non-interactive output
+// - --input-format text: Read prompt from stdin
 // - --output-format text: Parseable output format
-// - -p: Prompt flag
 func TestRegressionClaudeFlags(t *testing.T) {
 	capture := &runnerCapture{}
 	harness := NewClaudeHarness(HarnessConfig{Runner: captureRunner(capture, "ok", "", nil)})
@@ -1013,10 +1030,10 @@ func TestRegressionClaudeFlags(t *testing.T) {
 
 	// These flags MUST NOT change without explicit decision
 	requiredFlags := map[string]string{
-		"--dangerously-skip-permissions": "required for autonomous tool execution",
-		"--output-format":                "required for parseable output",
-		"text":                           "text output format",
-		"-p":                             "prompt flag",
+		"--print":         "required for non-interactive mode",
+		"--input-format":  "required to read stdin",
+		"--output-format": "required for parseable output",
+		"text":            "text output format",
 	}
 
 	for flag, reason := range requiredFlags {
@@ -1033,10 +1050,10 @@ func TestRegressionClaudeFlags(t *testing.T) {
 	}
 }
 
-// TestRegressionGeminiFlags guards against changes to Gemini autonomous mode flags.
-// These exact flags are required for multi-step execution:
-// - --yolo: Required for autonomous tool approval
-// - -p: Prompt flag
+// TestRegressionGeminiFlags guards against changes to Gemini non-interactive flags.
+// These exact flags are required for non-interactive execution:
+// - --prompt: Non-interactive mode
+// - --output-format text: Parseable output format
 func TestRegressionGeminiFlags(t *testing.T) {
 	capture := &runnerCapture{}
 	harness := NewGeminiHarness(HarnessConfig{Runner: captureRunner(capture, "ok", "", nil)})
@@ -1046,8 +1063,11 @@ func TestRegressionGeminiFlags(t *testing.T) {
 
 	// These flags MUST NOT change without explicit decision
 	requiredFlags := map[string]string{
-		"--yolo": "required for autonomous tool approval",
-		"-p":     "prompt flag",
+		"--prompt":        "required for non-interactive mode",
+		"--approval-mode": "required for automation policy",
+		"auto_edit":       "default automation policy for auto mode",
+		"--output-format": "required for parseable output",
+		"text":            "text output format",
 	}
 
 	for flag, reason := range requiredFlags {
@@ -1064,11 +1084,10 @@ func TestRegressionGeminiFlags(t *testing.T) {
 	}
 }
 
-// TestRegressionCodexFlags guards against changes to Codex autonomous mode flags.
-// These exact flags are required for multi-step execution:
+// TestRegressionCodexFlags guards against changes to Codex non-interactive flags.
+// These exact flags are required for non-interactive execution:
 // - exec: Codex subcommand
-// - --full-auto: Required for autonomous execution
-// - Positional prompt (NOT -p flag)
+// - -: Read prompt from stdin
 func TestRegressionCodexFlags(t *testing.T) {
 	capture := &runnerCapture{}
 	harness := NewCodexHarness(HarnessConfig{Runner: captureRunner(capture, "ok", "", nil)})
@@ -1078,8 +1097,9 @@ func TestRegressionCodexFlags(t *testing.T) {
 
 	// These flags MUST NOT change without explicit decision
 	requiredFlags := map[string]string{
-		"exec":       "codex subcommand",
-		"--full-auto": "required for autonomous execution",
+		"exec":        "codex subcommand",
+		"--full-auto": "default automation mode",
+		"-":           "read prompt from stdin",
 	}
 
 	for flag, reason := range requiredFlags {
@@ -1095,12 +1115,8 @@ func TestRegressionCodexFlags(t *testing.T) {
 		}
 	}
 
-	// Codex uses positional argument, NOT -p flag
-	for _, arg := range capture.args {
-		if arg == "-p" {
-			t.Error("REGRESSION: Codex should use positional prompt, not -p flag")
-			break
-		}
+	if capture.stdin == "" {
+		t.Error("REGRESSION: Codex should receive prompt via stdin")
 	}
 }
 

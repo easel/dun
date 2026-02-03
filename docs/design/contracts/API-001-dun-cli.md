@@ -207,7 +207,7 @@ $ dun check --prompt
 
 **Options**:
 - `--config` : Path to config file (default `.dun/config.yaml` if present)
-- `--harness` : Agent harness (`claude`, `gemini`, `codex`, default `claude`)
+- `--harness` : Agent harness (`codex`, `claude`, `gemini`, default from config)
 - `--automation` : Automation mode (`manual`, `plan`, `auto`, `yolo`, default `auto`)
 - `--max-iterations` : Maximum iterations before stopping (default `100`)
 - `--dry-run` : Print prompt without calling harness
@@ -293,6 +293,7 @@ equivalent JSON shape.
       "properties": {
         "cmd": { "type": "string" },
         "timeout_ms": { "type": "integer", "minimum": 1000 },
+        "harness": { "type": "string" },
         "response_format": { "type": "string", "enum": ["json"] },
         "mode": { "type": "string", "enum": ["prompt", "auto"] },
         "automation": { "type": "string", "enum": ["manual", "plan", "auto", "yolo"] }

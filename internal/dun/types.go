@@ -7,6 +7,7 @@ import (
 
 type Options struct {
 	AgentCmd          string
+	AgentHarness      string
 	AgentTimeout      time.Duration
 	AgentMode         string
 	AutomationMode    string

@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 	"time"
 )
@@ -46,7 +48,7 @@ type HarnessResult struct {
 
 // CommandRunner executes a CLI command for a harness.
 // It returns stdout, stderr, and any execution error.
-type CommandRunner func(ctx context.Context, name string, args []string, workDir string, env map[string]string) (string, string, error)
+type CommandRunner func(ctx context.Context, name string, args []string, workDir string, env map[string]string, stdin string) (string, string, error)
 
 // HarnessConfig holds configuration for initializing a harness.
 type HarnessConfig struct {
@@ -70,6 +72,12 @@ type HarnessConfig struct {
 
 	// Runner overrides command execution for tests.
 	Runner CommandRunner
+
+	// StdoutWriter streams command stdout when set.
+	StdoutWriter io.Writer
+
+	// StderrWriter streams command stderr when set.
+	StderrWriter io.Writer
 
 	// MockResponse is used by MockHarness for testing
 	MockResponse string
@@ -155,6 +163,9 @@ func NewClaudeHarness(config HarnessConfig) Harness {
 	if config.Command == "" {
 		config.Command = "claude"
 	}
+	if config.AutomationMode == "" {
+		config.AutomationMode = AutomationAuto
+	}
 	return &ClaudeHarness{config: config}
 }
 
@@ -168,12 +179,18 @@ func (h *ClaudeHarness) Name() string {
 // Reference: ralph-orchestrator/crates/ralph-adapters/src/cli_backend.rs
 func (h *ClaudeHarness) Execute(ctx context.Context, prompt string) (string, error) {
 	args := []string{
-		"--dangerously-skip-permissions",
+		"--print",
+		"--input-format", "text",
 		"--output-format", "text",
-		"-p", prompt,
+	}
+	switch h.config.AutomationMode {
+	case AutomationPlan:
+		args = append(args, "--permission-mode", "plan")
+	case AutomationYolo:
+		args = append(args, "--dangerously-skip-permissions")
 	}
 
-	return h.runCommand(ctx, h.config.Command, args...)
+	return h.runCommand(ctx, h.config.Command, prompt, args...)
 }
 
 // SupportsAutomation returns true for all automation modes.
@@ -181,8 +198,8 @@ func (h *ClaudeHarness) SupportsAutomation(mode AutomationMode) bool {
 	return true
 }
 
-func (h *ClaudeHarness) runCommand(ctx context.Context, name string, args ...string) (string, error) {
-	return runHarnessCommand(ctx, h.config, name, args)
+func (h *ClaudeHarness) runCommand(ctx context.Context, name string, stdin string, args ...string) (string, error) {
+	return runHarnessCommand(ctx, h.config, name, stdin, args)
 }
 
 // GeminiHarness wraps the Gemini API via Python for agent execution.
@@ -195,6 +212,9 @@ type GeminiHarness struct {
 func NewGeminiHarness(config HarnessConfig) Harness {
 	if config.Command == "" {
 		config.Command = "gemini"
+	}
+	if config.AutomationMode == "" {
+		config.AutomationMode = AutomationAuto
 	}
 	return &GeminiHarness{config: config}
 }
@@ -209,11 +229,19 @@ func (h *GeminiHarness) Name() string {
 // Reference: ralph-orchestrator/crates/ralph-adapters/src/cli_backend.rs
 func (h *GeminiHarness) Execute(ctx context.Context, prompt string) (string, error) {
 	args := []string{
-		"--yolo",
-		"-p", prompt,
+		"--prompt", "",
+		"--output-format", "text",
+	}
+	switch h.config.AutomationMode {
+	case AutomationPlan:
+		args = append(args, "--approval-mode", "plan")
+	case AutomationYolo:
+		args = append(args, "--approval-mode", "yolo")
+	case AutomationAuto:
+		args = append(args, "--approval-mode", "auto_edit")
 	}
 
-	return h.runCommand(ctx, h.config.Command, args...)
+	return h.runCommand(ctx, h.config.Command, prompt, args...)
 }
 
 // SupportsAutomation returns true for all automation modes.
@@ -222,8 +250,8 @@ func (h *GeminiHarness) SupportsAutomation(mode AutomationMode) bool {
 	return true
 }
 
-func (h *GeminiHarness) runCommand(ctx context.Context, name string, args ...string) (string, error) {
-	return runHarnessCommand(ctx, h.config, name, args)
+func (h *GeminiHarness) runCommand(ctx context.Context, name string, stdin string, args ...string) (string, error) {
+	return runHarnessCommand(ctx, h.config, name, stdin, args)
 }
 
 // CodexHarness wraps the Codex CLI for agent execution.
@@ -235,6 +263,9 @@ type CodexHarness struct {
 func NewCodexHarness(config HarnessConfig) Harness {
 	if config.Command == "" {
 		config.Command = "codex"
+	}
+	if config.AutomationMode == "" {
+		config.AutomationMode = AutomationAuto
 	}
 	return &CodexHarness{config: config}
 }
@@ -248,13 +279,16 @@ func (h *CodexHarness) Name() string {
 // Uses exec --full-auto for autonomous execution.
 // Reference: ralph-orchestrator/crates/ralph-adapters/src/cli_backend.rs
 func (h *CodexHarness) Execute(ctx context.Context, prompt string) (string, error) {
-	args := []string{
-		"exec",
-		"--full-auto",
-		prompt, // Codex uses positional argument, not -p flag
+	args := []string{"exec"}
+	switch h.config.AutomationMode {
+	case AutomationPlan:
+		args = append(args, "--sandbox", "read-only")
+	case AutomationAuto, AutomationYolo:
+		args = append(args, "--full-auto")
 	}
+	args = append(args, "-")
 
-	return h.runCommand(ctx, h.config.Command, args...)
+	return h.runCommand(ctx, h.config.Command, prompt, args...)
 }
 
 // SupportsAutomation returns true for all automation modes.
@@ -262,8 +296,8 @@ func (h *CodexHarness) SupportsAutomation(mode AutomationMode) bool {
 	return true
 }
 
-func (h *CodexHarness) runCommand(ctx context.Context, name string, args ...string) (string, error) {
-	return runHarnessCommand(ctx, h.config, name, args)
+func (h *CodexHarness) runCommand(ctx context.Context, name string, stdin string, args ...string) (string, error) {
+	return runHarnessCommand(ctx, h.config, name, stdin, args)
 }
 
 // MockHarness is a harness for testing that returns configurable responses.
@@ -304,7 +338,7 @@ func (h *MockHarness) SupportsAutomation(mode AutomationMode) bool {
 	return true
 }
 
-func runHarnessCommand(ctx context.Context, config HarnessConfig, name string, args []string) (string, error) {
+func runHarnessCommand(ctx context.Context, config HarnessConfig, name string, stdin string, args []string) (string, error) {
 	if config.Timeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, config.Timeout)
@@ -313,10 +347,20 @@ func runHarnessCommand(ctx context.Context, config HarnessConfig, name string, a
 
 	runner := config.Runner
 	if runner == nil {
+		if config.StdoutWriter != nil || config.StderrWriter != nil {
+			stdout, stderr, err := defaultCommandRunnerStreaming(ctx, name, args, config.WorkDir, config.Env, stdin, config.StdoutWriter, config.StderrWriter)
+			if err != nil {
+				if stderr != "" {
+					return "", fmt.Errorf("%v: %s", err, stderr)
+				}
+				return "", err
+			}
+			return stdout, nil
+		}
 		runner = defaultCommandRunner
 	}
 
-	stdout, stderr, err := runner(ctx, name, args, config.WorkDir, config.Env)
+	stdout, stderr, err := runner(ctx, name, args, config.WorkDir, config.Env, stdin)
 	if err != nil {
 		if stderr != "" {
 			return "", fmt.Errorf("%v: %s", err, stderr)
@@ -327,7 +371,7 @@ func runHarnessCommand(ctx context.Context, config HarnessConfig, name string, a
 	return stdout, nil
 }
 
-func defaultCommandRunner(ctx context.Context, name string, args []string, workDir string, env map[string]string) (string, string, error) {
+func defaultCommandRunner(ctx context.Context, name string, args []string, workDir string, env map[string]string, stdin string) (string, string, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
 
 	if workDir != "" {
@@ -341,6 +385,36 @@ func defaultCommandRunner(ctx context.Context, name string, args []string, workD
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
+	cmd.Stdin = strings.NewReader(stdin)
+
+	err := cmd.Run()
+	return stdout.String(), stderr.String(), err
+}
+
+func defaultCommandRunnerStreaming(ctx context.Context, name string, args []string, workDir string, env map[string]string, stdin string, stdoutWriter io.Writer, stderrWriter io.Writer) (string, string, error) {
+	cmd := exec.CommandContext(ctx, name, args...)
+
+	if workDir != "" {
+		cmd.Dir = workDir
+	}
+
+	if len(env) > 0 {
+		cmd.Env = append(os.Environ(), formatEnv(env)...)
+	}
+
+	var stdout, stderr bytes.Buffer
+	out := io.Writer(&stdout)
+	errOut := io.Writer(&stderr)
+	if stdoutWriter != nil {
+		out = io.MultiWriter(&stdout, stdoutWriter)
+	}
+	if stderrWriter != nil {
+		errOut = io.MultiWriter(&stderr, stderrWriter)
+	}
+
+	cmd.Stdout = out
+	cmd.Stderr = errOut
+	cmd.Stdin = strings.NewReader(stdin)
 
 	err := cmd.Run()
 	return stdout.String(), stderr.String(), err
@@ -365,6 +439,48 @@ func ExecuteHarness(ctx context.Context, harnessName, prompt string, automationM
 		Name:           harnessName,
 		WorkDir:        workDir,
 		AutomationMode: automationMode,
+	}
+
+	harness, err := DefaultRegistry.Get(harnessName, config)
+	if err != nil {
+		return HarnessResult{
+			Harness:   harnessName,
+			Error:     err,
+			Duration:  time.Since(start),
+			Timestamp: start,
+		}, err
+	}
+
+	if !harness.SupportsAutomation(automationMode) {
+		err := fmt.Errorf("harness %s does not support automation mode %s", harnessName, automationMode)
+		return HarnessResult{
+			Harness:   harnessName,
+			Error:     err,
+			Duration:  time.Since(start),
+			Timestamp: start,
+		}, err
+	}
+
+	response, err := harness.Execute(ctx, prompt)
+	return HarnessResult{
+		Harness:   harnessName,
+		Response:  response,
+		Error:     err,
+		Duration:  time.Since(start),
+		Timestamp: start,
+	}, err
+}
+
+// ExecuteHarnessWithOutput streams harness output while capturing the full response.
+func ExecuteHarnessWithOutput(ctx context.Context, harnessName, prompt string, automationMode AutomationMode, workDir string, stdoutWriter io.Writer, stderrWriter io.Writer) (HarnessResult, error) {
+	start := time.Now()
+
+	config := HarnessConfig{
+		Name:           harnessName,
+		WorkDir:        workDir,
+		AutomationMode: automationMode,
+		StdoutWriter:   stdoutWriter,
+		StderrWriter:   stderrWriter,
 	}
 
 	harness, err := DefaultRegistry.Get(harnessName, config)

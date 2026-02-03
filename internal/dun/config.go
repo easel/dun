@@ -17,6 +17,7 @@ type Config struct {
 
 type AgentConfig struct {
 	Cmd        string `yaml:"cmd"`
+	Harness    string `yaml:"harness"`
 	TimeoutMS  int    `yaml:"timeout_ms"`
 	Mode       string `yaml:"mode"`
 	Automation string `yaml:"automation"`
@@ -30,6 +31,7 @@ const DefaultConfigPath = ".dun/config.yaml"
 
 const DefaultConfigYAML = `version: "1"
 agent:
+  harness: codex
   automation: auto
   mode: auto
   timeout_ms: 300000
@@ -48,6 +50,9 @@ func DefaultOptions() Options {
 func ApplyConfig(opts Options, cfg Config) Options {
 	if cfg.Agent.Cmd != "" {
 		opts.AgentCmd = cfg.Agent.Cmd
+	}
+	if cfg.Agent.Harness != "" {
+		opts.AgentHarness = cfg.Agent.Harness
 	}
 	if cfg.Agent.TimeoutMS > 0 {
 		opts.AgentTimeout = time.Duration(cfg.Agent.TimeoutMS) * time.Millisecond

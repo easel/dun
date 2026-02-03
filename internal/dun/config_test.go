@@ -13,7 +13,7 @@ func TestLoadConfigDefaultPath(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(cfgPath), 0755); err != nil {
 		t.Fatalf("mkdir config dir: %v", err)
 	}
-	content := "agent:\n  cmd: echo hi\n  timeout_ms: 120000\n  mode: auto\n  automation: plan\n" +
+	content := "agent:\n  cmd: echo hi\n  harness: codex\n  timeout_ms: 120000\n  mode: auto\n  automation: plan\n" +
 		"go:\n  coverage_threshold: 95\n"
 	if err := os.WriteFile(cfgPath, []byte(content), 0644); err != nil {
 		t.Fatalf("write config: %v", err)
@@ -30,6 +30,9 @@ func TestLoadConfigDefaultPath(t *testing.T) {
 	opts := ApplyConfig(DefaultOptions(), cfg)
 	if opts.AgentCmd != "echo hi" {
 		t.Fatalf("expected agent cmd, got %q", opts.AgentCmd)
+	}
+	if opts.AgentHarness != "codex" {
+		t.Fatalf("expected agent harness codex, got %q", opts.AgentHarness)
 	}
 	if opts.AgentTimeout != 120*time.Second {
 		t.Fatalf("expected timeout 120s, got %s", opts.AgentTimeout)
