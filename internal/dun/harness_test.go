@@ -74,16 +74,6 @@ func assertArgsContain(t *testing.T, args []string, required []string) {
 	}
 }
 
-func assertArgsContainSubstring(t *testing.T, args []string, needle string) {
-	t.Helper()
-	for _, arg := range args {
-		if strings.Contains(arg, needle) {
-			return
-		}
-	}
-	t.Fatalf("expected args to contain %q, got %v", needle, args)
-}
-
 func assertFlagValue(t *testing.T, args []string, flag string, value string) {
 	t.Helper()
 	for i, arg := range args {

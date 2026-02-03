@@ -1193,8 +1193,8 @@ func TestExtractIssuesFromJSON_NilData(t *testing.T) {
 	}
 
 	issues := extractIssuesFromJSON(check, nil)
-	if issues != nil && len(issues) != 0 {
-		t.Errorf("expected nil or empty issues for nil data, got %v", issues)
+	if len(issues) != 0 {
+		t.Errorf("expected no issues for nil data, got %v", issues)
 	}
 }
 

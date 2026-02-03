@@ -19,6 +19,9 @@ coverage.html
 !/.dun/
 !/.dun/graphs/
 !/.dun/graphs/**
+!internal/testdata/repos/**/.dun/
+!internal/testdata/repos/**/.dun/graphs/
+!internal/testdata/repos/**/.dun/graphs/**
 /.dun/config.yaml
 test_repo/
 

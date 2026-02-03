@@ -111,7 +111,7 @@ func TestDocDagCascadeStale(t *testing.T) {
 	if !containsStringSlice(check.Prompt.Inputs, "docs/helix/01-frame/prd.md") {
 		t.Fatalf("expected PRD input, got %+v", check.Prompt.Inputs)
 	}
-	if !containsStringSlice(check.Prompt.Inputs, "docs/helix/02-design/adrs/ADR-001.md") {
+	if !containsStringSlice(check.Prompt.Inputs, "docs/helix/02-design/adr/ADR-001.md") {
 		t.Fatalf("expected ADR input, got %+v", check.Prompt.Inputs)
 	}
 	if !containsStringSlice(check.Prompt.Inputs, "internal/feature/feature.go") {

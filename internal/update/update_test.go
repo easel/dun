@@ -3,7 +3,6 @@ package update
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -849,15 +848,6 @@ func TestCheckForUpdateDevVersion(t *testing.T) {
 	if !hasUpdate {
 		t.Error("expected update available for dev version")
 	}
-}
-
-// mockReadCloser for testing body read failures
-type mockReadCloser struct {
-	io.Reader
-}
-
-func (m *mockReadCloser) Close() error {
-	return nil
 }
 
 // Test ApplyUpdateToPath with invalid download path

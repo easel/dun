@@ -472,7 +472,6 @@ func detectImpactedArtifacts(root string) ([]string, error) {
 	type orderedArtifact struct {
 		path     string
 		priority int
-		subOrder int // For deterministic ordering within category
 	}
 
 	var ordered []orderedArtifact

@@ -1,0 +1,15 @@
+required_roots:
+  - helix.prd
+id_map:
+  helix.prd: docs/helix/01-frame/prd.md
+  helix.architecture: docs/helix/02-design/architecture.md
+  helix.test-plan: docs/helix/03-test/test-plan.md
+  F-{id}: docs/helix/01-frame/features/F-{id}-*.md
+  US-{id}: docs/helix/01-frame/user-stories/US-{id}-*.md
+  SD-{id}: docs/helix/02-design/solution-designs/SD-{id}-*.md
+  TP-{id}: docs/helix/03-test/test-plans/TP-{id}-*.md
+  IP-{id}: docs/helix/04-build/implementation-plans/IP-{id}-*.md
+  ADR-{id}: docs/helix/02-design/adr/ADR-{id}.md
+prompt_defaults:
+  helix.prd: prompts/implementation-plan.md
+default_prompt: prompts/implementation-plan.md

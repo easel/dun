@@ -150,7 +150,7 @@ func TestSplitEvidence(t *testing.T) {
 	if path != "docs/a.md" || anchor != "Section One" {
 		t.Fatalf("unexpected split: %s %s", path, anchor)
 	}
-	path, anchor = splitEvidence("docs/a.md")
+	_, anchor = splitEvidence("docs/a.md")
 	if anchor != "" {
 		t.Fatalf("expected empty anchor")
 	}

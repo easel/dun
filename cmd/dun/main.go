@@ -219,7 +219,7 @@ func runCheck(args []string, stdout io.Writer, stderr io.Writer) int {
 	if err := fs.Parse(args); err != nil {
 		return dun.ExitUsageError
 	}
-	explicitConfig = *configPath
+	_ = *configPath
 
 	opts.AgentMode = "prompt"
 	opts.AutomationMode = *automation
