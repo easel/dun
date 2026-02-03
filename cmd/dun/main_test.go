@@ -2103,7 +2103,7 @@ func TestRunLoopQuorumCostMode(t *testing.T) {
 		"--max-iterations", "2",
 		"--harnesses", "mock1,mock2",
 		"--quorum", "any",
-		"--cost-mode",
+		"--cost-optimized",
 	}, &stdout, &stderr)
 	if code != dun.ExitSuccess {
 		t.Fatalf("expected code %d, got %d: stdout=%s stderr=%s", dun.ExitSuccess, code, stdout.String(), stderr.String())

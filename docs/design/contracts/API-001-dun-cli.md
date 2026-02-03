@@ -218,7 +218,7 @@ proceeding (quorum is applied to the iteration prompt, not per-check prompts).
 - `--verbose` : Print prompts sent to harnesses and responses received
 - `--quorum` : Quorum strategy (`any`, `majority`, `unanimous`, or number)
 - `--harnesses` : Comma-separated harness list for quorum (supports `name@persona`)
-- `--cost-mode` : Run harnesses sequentially to minimize cost
+- `--cost-optimized` : Run harnesses sequentially to minimize cost
 - `--escalate` : Pause for human review on conflict
 - `--prefer` : Preferred harness on conflict
 - `--similarity` : Similarity threshold for conflict detection (default `0.8`)
@@ -261,7 +261,7 @@ $ dun loop --verbose
 - `--task` : Task prompt (string)
 - `--quorum` : Quorum strategy (`any`, `majority`, `unanimous`, or number)
 - `--harnesses` : Comma-separated harness list (supports `name@persona`)
-- `--cost-mode` : Run harnesses sequentially to minimize cost
+- `--cost-optimized` : Run harnesses sequentially to minimize cost
 - `--escalate` : Pause for human review on conflict
 - `--prefer` : Preferred harness on conflict
 - `--similarity` : Similarity threshold for conflict detection (default `0.8`)

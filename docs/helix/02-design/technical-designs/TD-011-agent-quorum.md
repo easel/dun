@@ -58,7 +58,7 @@ dun:
 ## Interfaces and Config
 
 - CLI:
-  - `dun loop --quorum`, `--harnesses`, `--cost-mode`, `--escalate`.
+  - `dun loop --quorum`, `--harnesses`, `--cost-optimized`, `--escalate`.
   - `dun quorum [--synthesize] --task "<prompt>" --harnesses ...`
   - `dun synth` = `dun quorum --synthesize`
 - Config: default quorum strategy, similarity threshold, harness personas,
@@ -79,7 +79,7 @@ dun:
 ## Risks and Mitigations
 
 - **Risk**: Conflicts slow down loops. **Mitigation**: allow `--prefer` and
-  `--cost-mode` options.
+  `--cost-optimized` options.
 
 ## Rollout / Compatibility
 

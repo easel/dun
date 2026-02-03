@@ -51,7 +51,7 @@ dun:
 
 1. **Add new command surface**
    - Files: `cmd/dun/main.go`, new `cmd/dun/quorum.go`
-   - Implement `dun quorum` with `--task`, `--quorum`, `--harnesses`, `--cost-mode`,
+   - Implement `dun quorum` with `--task`, `--quorum`, `--harnesses`, `--cost-optimized`,
      `--escalate`, `--prefer`, `--similarity`, `--synthesize`, `--synthesizer`.
    - Implement `dun synth` as shorthand for `dun quorum --synthesize`.
 

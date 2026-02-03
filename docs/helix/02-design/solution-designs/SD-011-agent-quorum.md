@@ -637,7 +637,7 @@ as task prompts to the harnesses.
 | P7.1 | Implement sequential execution | `quorum.go` | 3h |
 | P7.2 | Add early exit optimization | `quorum.go` | 2h |
 
-**Deliverable**: `--cost-mode` runs harnesses sequentially with early exit.
+**Deliverable**: `--cost-optimized` runs harnesses sequentially with early exit.
 
 ### Phase 8: Statistics Tracking (2 tasks)
 
@@ -669,7 +669,7 @@ Quorum Flags:
   --quorum <strategy|N>   Quorum strategy: any, majority, unanimous, or number
                           (default: none - single harness mode)
   --harnesses <list>      Comma-separated harness names (supports name@persona)
-  --cost-mode             Run harnesses sequentially, stop on quorum
+  --cost-optimized             Run harnesses sequentially, stop on quorum
   --escalate              Pause for human review on conflict
   --prefer <harness>      Use this harness response on conflict
   --similarity <float>    Semantic similarity threshold (default: 0.95)
@@ -685,7 +685,7 @@ dun loop --harnesses claude,gemini,codex --quorum 2
 dun loop --harnesses claude,gemini --quorum unanimous
 
 # Cost-optimized: stop when 2 agree
-dun loop --harnesses claude,gemini,codex --quorum 2 --cost-mode
+dun loop --harnesses claude,gemini,codex --quorum 2 --cost-optimized
 
 # With escalation on conflict
 dun loop --harnesses claude,gemini --quorum unanimous --escalate
@@ -751,7 +751,7 @@ dun synth --task \"Write the quorum spec\" --harnesses codex@architect,claude@cr
 
 | Risk | Impact | Likelihood | Mitigation |
 |------|--------|------------|------------|
-| 3x cost increase with quorum | Unexpected bills | High | Clear documentation, cost-mode default |
+| 3x cost increase with quorum | Unexpected bills | High | Clear documentation, cost-optimized default |
 | User confusion on conflict resolution | Stuck loops | Medium | Good defaults, clear prompts |
 | Stats storage grows unbounded | Disk usage | Low | Retention policy, compaction |
 

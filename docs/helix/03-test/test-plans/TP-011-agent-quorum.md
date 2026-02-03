@@ -185,9 +185,9 @@ commands.
 
 | Test | Condition | Expected |
 |------|-----------|----------|
-| TC-011-13a | `--cost-mode`, quorum 2, first 2 agree | Third harness not invoked |
-| TC-011-13b | `--cost-mode`, quorum 2, first 2 disagree | Third harness invoked |
-| TC-011-13c | `--cost-mode`, unanimous, first disagrees | Remaining harnesses not invoked |
+| TC-011-13a | `--cost-optimized`, quorum 2, first 2 agree | Third harness not invoked |
+| TC-011-13b | `--cost-optimized`, quorum 2, first 2 disagree | Third harness invoked |
+| TC-011-13c | `--cost-optimized`, unanimous, first disagrees | Remaining harnesses not invoked |
 
 ### TC-011-14: Agreement Tracking
 

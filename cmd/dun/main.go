@@ -143,7 +143,7 @@ LOOP MODE:
   Quorum Options (multi-agent consensus):
     --quorum      Strategy: any, majority, unanimous, or number (e.g., 2)
     --harnesses   Comma-separated list of harnesses (e.g., codex,claude,gemini,opencode)
-    --cost-mode   Run harnesses sequentially to minimize cost
+    --cost-optimized   Run harnesses sequentially to minimize cost
     --escalate    Pause for human review on conflict
     --prefer      Preferred harness on conflict (e.g., codex)
     --similarity  Similarity threshold for conflict detection (default: 0.8)
@@ -525,7 +525,7 @@ func runLoop(args []string, stdout io.Writer, stderr io.Writer) int {
 	// Quorum flags
 	quorumFlag := fs.String("quorum", "", "quorum strategy: any, majority, unanimous, or number")
 	harnessesFlag := fs.String("harnesses", "", "comma-separated list of harnesses for quorum")
-	costMode := fs.Bool("cost-mode", false, "run harnesses sequentially to minimize cost")
+	costMode := fs.Bool("cost-optimized", false, "run harnesses sequentially to minimize cost")
 	escalate := fs.Bool("escalate", false, "pause for human review on conflict")
 	prefer := fs.String("prefer", "", "preferred harness on conflict")
 	similarity := fs.Float64("similarity", 0.8, "similarity threshold for conflict detection")
