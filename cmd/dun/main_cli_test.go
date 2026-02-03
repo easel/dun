@@ -84,3 +84,15 @@ func TestCallHarnessCodexYolo(t *testing.T) {
 		t.Fatalf("codex should be a known harness")
 	}
 }
+
+func TestCallHarnessPi(t *testing.T) {
+	// This test verifies the command construction for pi harness
+	_, err := callHarness("pi", "test prompt", "auto")
+	// We expect an error since pi CLI is likely not installed
+	if err == nil {
+		return
+	}
+	if strings.Contains(err.Error(), "unknown harness") {
+		t.Fatalf("pi should be a known harness")
+	}
+}

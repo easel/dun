@@ -53,6 +53,7 @@ func TestRunSelfTestCheckDetails(t *testing.T) {
 		"Harness registered: claude",
 		"Harness registered: gemini",
 		"Harness registered: codex",
+		"Harness registered: pi",
 		"Harness registered: mock",
 		"Harness creates correctly",
 		"automation modes",
@@ -97,7 +98,7 @@ func TestRunSelfTestCheckWithBrokenRegistry(t *testing.T) {
 		factories: make(map[string]HarnessFactory),
 	}
 	DefaultRegistry.Register("mock", NewMockHarness)
-	// Missing claude, gemini, codex, opencode
+	// Missing claude, gemini, codex, opencode, pi
 
 	check := Check{
 		ID:   "self-test-broken",
@@ -113,8 +114,8 @@ func TestRunSelfTestCheckWithBrokenRegistry(t *testing.T) {
 		t.Errorf("expected status 'fail' with broken registry, got %q", result.Status)
 	}
 
-	if len(result.Issues) < 4 {
-		t.Errorf("expected at least 4 issues for missing harnesses, got %d", len(result.Issues))
+	if len(result.Issues) < 5 {
+		t.Errorf("expected at least 5 issues for missing harnesses, got %d", len(result.Issues))
 	}
 
 	// Verify issues mention missing harnesses
@@ -123,7 +124,7 @@ func TestRunSelfTestCheckWithBrokenRegistry(t *testing.T) {
 		issueText += issue.Summary + " "
 	}
 
-	for _, missing := range []string{"claude", "gemini", "codex", "opencode"} {
+	for _, missing := range []string{"claude", "gemini", "codex", "opencode", "pi"} {
 		if !strings.Contains(issueText, missing) {
 			t.Errorf("expected issues to mention missing %q harness", missing)
 		}

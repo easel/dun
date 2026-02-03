@@ -33,6 +33,7 @@ const (
   - ` + "`dun loop --harness claude`" + ` - Run autonomous loop with Claude
   - ` + "`dun loop --harness gemini`" + ` - Run autonomous loop with Gemini
   - ` + "`dun loop --harness opencode`" + ` - Run autonomous loop with OpenCode
+  - ` + "`dun loop --harness pi`" + ` - Run autonomous loop with Pi
   - ` + "`dun help`" + ` - Full documentation
 
   Autonomous iteration pattern:

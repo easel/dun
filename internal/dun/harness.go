@@ -52,7 +52,7 @@ type CommandRunner func(ctx context.Context, name string, args []string, workDir
 
 // HarnessConfig holds configuration for initializing a harness.
 type HarnessConfig struct {
-	// Name is the harness identifier (e.g., "claude", "gemini", "codex")
+	// Name is the harness identifier (e.g., "claude", "gemini", "codex", "pi")
 	Name string
 
 	// Command is the base command to execute (optional, uses default if empty)
@@ -111,6 +111,7 @@ func NewHarnessRegistry() *HarnessRegistry {
 	r.Register("gemini", NewGeminiHarness)
 	r.Register("codex", NewCodexHarness)
 	r.Register("opencode", NewOpenCodeHarness)
+	r.Register("pi", NewPiHarness)
 	r.Register("mock", NewMockHarness)
 	return r
 }
@@ -354,6 +355,58 @@ func (h *OpenCodeHarness) SupportsAutomation(mode AutomationMode) bool {
 
 func (h *OpenCodeHarness) runCommand(ctx context.Context, name string, stdin string, args ...string) (string, error) {
 	return runHarnessCommand(ctx, h.config, name, stdin, args)
+}
+
+// PiHarness wraps the Pi CLI for agent execution.
+type PiHarness struct {
+	config HarnessConfig
+}
+
+// NewPiHarness creates a new Pi harness.
+func NewPiHarness(config HarnessConfig) Harness {
+	if config.Command == "" {
+		config.Command = "pi"
+	}
+	if config.AutomationMode == "" {
+		config.AutomationMode = AutomationAuto
+	}
+	return &PiHarness{config: config}
+}
+
+// Name returns "pi".
+func (h *PiHarness) Name() string {
+	return "pi"
+}
+
+// Execute runs the Pi CLI with the given prompt.
+// Uses --print for non-interactive execution and passes the prompt as a positional argument.
+func (h *PiHarness) Execute(ctx context.Context, prompt string) (string, error) {
+	args := []string{"--print"}
+	if h.config.Model != "" {
+		args = append(args, "--model", h.config.Model)
+	}
+	args = append(args, sanitizePiPrompt(prompt))
+
+	return h.runCommand(ctx, h.config.Command, "", args...)
+}
+
+// SupportsAutomation returns true for all automation modes.
+func (h *PiHarness) SupportsAutomation(mode AutomationMode) bool {
+	return true
+}
+
+func (h *PiHarness) runCommand(ctx context.Context, name string, stdin string, args ...string) (string, error) {
+	return runHarnessCommand(ctx, h.config, name, stdin, args)
+}
+
+func sanitizePiPrompt(prompt string) string {
+	if prompt == "" {
+		return prompt
+	}
+	if strings.HasPrefix(prompt, "-") {
+		return " " + prompt
+	}
+	return prompt
 }
 
 // MockHarness is a harness for testing that returns configurable responses.

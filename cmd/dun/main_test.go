@@ -1332,7 +1332,7 @@ func TestRunHelpIncludesLoop(t *testing.T) {
 	if !strings.Contains(output, "--max-iterations") {
 		t.Fatalf("help should document max-iterations option")
 	}
-	if !strings.Contains(output, "codex, claude, gemini, opencode") {
+	if !strings.Contains(output, "codex, claude, gemini, opencode, pi") {
 		t.Fatalf("help should list available harnesses")
 	}
 }
