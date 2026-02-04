@@ -15,6 +15,12 @@ func TestRunDoctorWritesCache(t *testing.T) {
 		t.Fatalf("write go.mod: %v", err)
 	}
 
+	origLiveness := harnessLivenessFn
+	harnessLivenessFn = func(_ string) (bool, string, string) {
+		return true, "test-model", ""
+	}
+	t.Cleanup(func() { harnessLivenessFn = origLiveness })
+
 	report, err := RunDoctor(root)
 	if err != nil {
 		t.Fatalf("run doctor: %v", err)

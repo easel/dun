@@ -265,6 +265,7 @@ $ dun loop --verbose
 **Output**:
 - Format: Human-readable status report
 - Side effects: writes harness cache to `~/.dun/harnesses.json`
+- Behavior: performs harness liveness pings to confirm the CLIs respond
 
 **Exit Codes**:
 - `0`: Success

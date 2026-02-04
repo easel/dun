@@ -1,6 +1,8 @@
 package dun
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -22,10 +24,13 @@ type DoctorReport struct {
 
 // HarnessStatus reports availability of a harness CLI.
 type HarnessStatus struct {
-	Name      string `json:"name"`
-	Command   string `json:"command"`
-	Available bool   `json:"available"`
-	Detail    string `json:"detail"`
+	Name       string `json:"name"`
+	Command    string `json:"command"`
+	Available  bool   `json:"available"`
+	Detail     string `json:"detail"`
+	Live       bool   `json:"live"`
+	Model      string `json:"model,omitempty"`
+	LiveDetail string `json:"live_detail,omitempty"`
 }
 
 // HelperStatus reports availability of project helper tools.
@@ -61,6 +66,8 @@ func RunDoctor(root string) (DoctorReport, error) {
 	return report, nil
 }
 
+var harnessLivenessFn = checkHarnessLiveness
+
 func checkHarnesses() []HarnessStatus {
 	names := DefaultRegistry.List()
 	sort.Strings(names)
@@ -75,10 +82,15 @@ func checkHarnesses() []HarnessStatus {
 		if err != nil {
 			status.Available = false
 			status.Detail = "command not found"
-		} else {
-			status.Available = true
-			status.Detail = "found " + path
+			statuses = append(statuses, status)
+			continue
 		}
+		status.Available = true
+		status.Detail = "found " + path
+		live, model, detail := harnessLivenessFn(name)
+		status.Live = live
+		status.Model = model
+		status.LiveDetail = detail
 		statuses = append(statuses, status)
 	}
 	return statuses
@@ -91,6 +103,84 @@ func defaultHarnessCommand(name string) string {
 	default:
 		return name
 	}
+}
+
+const doctorHarnessTimeout = 30 * time.Second
+
+const doctorPrompt = `Reply with JSON on one line: {"ok":true,"model":"<model name>"}. If unknown, use "unknown".`
+
+type doctorPing struct {
+	OK    bool   `json:"ok"`
+	Model string `json:"model"`
+}
+
+func checkHarnessLiveness(name string) (bool, string, string) {
+	ctx, cancel := context.WithTimeout(context.Background(), doctorHarnessTimeout)
+	defer cancel()
+
+	harness, err := DefaultRegistry.Get(name, HarnessConfig{
+		Name:           name,
+		AutomationMode: AutomationAuto,
+		Timeout:        doctorHarnessTimeout,
+	})
+	if err != nil {
+		return false, "", err.Error()
+	}
+
+	response, err := harness.Execute(ctx, doctorPrompt)
+	if err != nil {
+		return false, "", err.Error()
+	}
+
+	model, detail := parseDoctorResponse(response)
+	return true, model, detail
+}
+
+func parseDoctorResponse(response string) (string, string) {
+	candidate := extractJSON(response)
+	if candidate != "" {
+		var ping doctorPing
+		if err := json.Unmarshal([]byte(candidate), &ping); err == nil {
+			model := strings.TrimSpace(ping.Model)
+			if model == "" {
+				model = "unknown"
+			}
+			return model, ""
+		}
+	}
+	model := extractModelHint(response)
+	if model != "" {
+		return model, "non-json response"
+	}
+	return "", "unexpected response"
+}
+
+func extractJSON(response string) string {
+	start := strings.Index(response, "{")
+	end := strings.LastIndex(response, "}")
+	if start == -1 || end == -1 || end <= start {
+		return ""
+	}
+	return response[start : end+1]
+}
+
+func extractModelHint(response string) string {
+	lower := strings.ToLower(response)
+	for _, key := range []string{"model:", "model="} {
+		if idx := strings.Index(lower, key); idx != -1 {
+			fragment := response[idx+len(key):]
+			fragment = strings.TrimSpace(fragment)
+			if fragment == "" {
+				return ""
+			}
+			fields := strings.Fields(fragment)
+			if len(fields) == 0 {
+				return ""
+			}
+			return strings.Trim(fields[0], "\"',.")
+		}
+	}
+	return ""
 }
 
 func checkProjectHelpers(root string) []HelperStatus {
@@ -244,6 +334,23 @@ func FormatDoctorReport(report DoctorReport) string {
 				b.WriteString(" (")
 				b.WriteString(harness.Detail)
 				b.WriteString(")")
+			}
+			if harness.Available {
+				liveStatus := "fail"
+				if harness.Live {
+					liveStatus = "ok"
+				}
+				b.WriteString("; live: ")
+				b.WriteString(liveStatus)
+				if harness.Model != "" {
+					b.WriteString(" (model: ")
+					b.WriteString(harness.Model)
+					b.WriteString(")")
+				} else if harness.LiveDetail != "" {
+					b.WriteString(" (")
+					b.WriteString(harness.LiveDetail)
+					b.WriteString(")")
+				}
 			}
 			b.WriteString("\n")
 		}

@@ -79,7 +79,7 @@ func (c *HarnessCache) SaveTo(path string) error {
 func (c HarnessCache) AvailableHarnesses() []string {
 	var names []string
 	for _, harness := range c.Harnesses {
-		if harness.Available {
+		if harness.Available && harness.Live {
 			names = append(names, harness.Name)
 		}
 	}
