@@ -38,7 +38,9 @@ $ dun [command] [options] [arguments]
 - Schema: See Data Contracts (config schema)
 
 **Output**:
-- Format: `llm` text blocks or JSON
+- Format: prompt-as-data JSON by default (prompt payloads omitted; use
+  `dun task <id> --prompt` to fetch), `llm` text for `--format=llm`, JSON for
+  `--format=json`
 - Schema: See Data Contracts (output schema)
 
 **Exit Codes**:
@@ -52,7 +54,7 @@ $ dun [command] [options] [arguments]
 ```bash
 # Default prompt-as-data output
 $ dun check
-{"checks":[{"id":"helix-create-architecture","status":"prompt","signal":"agent prompt ready","prompt":{"kind":"dun.prompt.v1","id":"helix-create-architecture","prompt":"Check-ID: helix-create-architecture\n...","callback":{"command":"dun respond --id helix-create-architecture --response -","stdin":true}}}]}
+{"checks":[{"id":"helix-create-architecture","status":"prompt","signal":"agent prompt ready","prompt":{"kind":"dun.prompt.v1","id":"helix-create-architecture","prompt":"Prompt omitted. Run `dun task helix-create-architecture@abcd123 --prompt` to view full prompt.","callback":{"command":"dun respond --id helix-create-architecture --response -","stdin":true}}}]}
 
 # LLM output
 $ dun check --format=llm
@@ -432,6 +434,10 @@ equivalent JSON shape.
   "required": ["checks"]
 }
 ```
+
+**Note**: When emitted via `dun check`, `prompt.prompt` may contain a compact
+placeholder instead of the full prompt. Use `dun task <id> --prompt` to
+retrieve the full prompt payload.
 
 ### Output Schema (list)
 ```json

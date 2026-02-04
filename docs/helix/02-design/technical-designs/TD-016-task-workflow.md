@@ -39,6 +39,7 @@ full prompt payloads to a follow-up `dun task` command.
 **File**: `cmd/dun/task.go`
 
 - Add `dun task <task-id>` to emit task summary metadata.
+- Ensure task summaries never include full prompt payloads.
 - Add `--prompt` flag to print the full prompt.
 - Re-run checks to resolve the selected task in the current state.
 

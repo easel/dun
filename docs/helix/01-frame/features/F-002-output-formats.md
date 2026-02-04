@@ -4,9 +4,9 @@ dun:
   depends_on:
     - helix.prd
   review:
-    self_hash: 83b2a3c2ac4e9a760bd04598c3ff9c3ea3504c0f49e8d246cd9a61d540e87898
+    self_hash: 5d4226456b8fd1dca4daae652bbcd24fb50d14f2b1e01193db67cd5a5cf2da35
     deps:
-      helix.prd: 58d3c4be8edb0a0be9d01a3325824c9b350f758a998d02f16208525949c4f1ad
+      helix.prd: 07d49919dec51a33254b7630622ee086a5108ed5deecd456f7228f03712e699d
 ---
 # Feature Spec: F-002 Output Formats
 
@@ -17,7 +17,8 @@ consumption by humans and tools.
 
 ## Requirements
 
-- Default output format is prompt envelopes for agent checks.
+- Default output format is prompt envelopes for agent checks, but `dun check`
+  omits full prompt payloads (prompt field contains a task hint).
 - Provide `--format=llm` for concise human-readable summaries.
 - Provide `--format=json` for structured results.
 - The decision prompt (`dun check --prompt`) must list tasks without inlining
@@ -41,7 +42,8 @@ consumption by humans and tools.
 
 ## Acceptance Criteria
 
-- `dun check` emits prompt envelopes by default when agent checks are present.
+- `dun check` emits prompt envelope metadata by default when agent checks are
+  present; prompt payloads are omitted and replaced with a task hint.
 - `dun check --format=llm` prints concise summaries.
 - `dun check --format=json` emits structured JSON output.
 - `dun check --prompt` emits a compact, bounded task list (no inline prompt
@@ -50,8 +52,8 @@ consumption by humans and tools.
 - Default limits: top 10 tasks per check; summary <= 200 bytes; reason <= 160
   bytes; truncation uses `...`.
 - Task IDs include the repo-state hash and are rejected if stale.
-- JSON output remains a full check result (including prompt envelopes where
-  available); it is not size-bounded like the decision prompt.
+- JSON output remains structured and deterministic but omits full prompt
+  payloads; it is not size-bounded like the decision prompt.
 
 ## Gaps & Conflicts
 

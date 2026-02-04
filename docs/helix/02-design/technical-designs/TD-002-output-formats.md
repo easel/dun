@@ -17,6 +17,8 @@ dun:
 - Provide prompt, LLM, and JSON output formats for check results.
 - Keep output deterministic and stable for automation.
 - Allow format selection via CLI flags and config.
+- Omit full prompt payloads from `dun check` output and expose them via
+  `dun task <id> --prompt`.
 
 ## Non-Goals
 
@@ -35,6 +37,8 @@ dun:
 ### Key Decisions
 
 - Default to `prompt` format for agent loops.
+- `dun check` output uses prompt placeholders; full prompts are retrieved via
+  `dun task`.
 - JSON output should be schema-stable to avoid breaking integrations.
 
 ## Component Changes

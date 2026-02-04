@@ -257,6 +257,51 @@ func TestRunTaskPrompt(t *testing.T) {
 	}
 }
 
+func TestRunCheckJSONOmitsPromptContent(t *testing.T) {
+	root := setupEmptyRepo(t)
+	origCheck := checkRepo
+	origHash := repoStateHashFn
+	repoStateHashFn = func(string) string { return "deadbeef" }
+	checkRepo = func(_ string, _ dun.Options) (dun.Result, error) {
+		return dun.Result{
+			Checks: []dun.CheckResult{
+				{
+					ID:     "agent-check",
+					Status: "prompt",
+					Signal: "prompt signal",
+					Prompt: &dun.PromptEnvelope{
+						Kind:   "dun.prompt.v1",
+						ID:     "agent-check",
+						Prompt: "Check-ID: agent-check\n\nThis is a big prompt.",
+						Callback: dun.PromptCallback{
+							Command: "dun respond --id agent-check --response -",
+							Stdin:   true,
+						},
+					},
+				},
+			},
+		}, nil
+	}
+	t.Cleanup(func() {
+		checkRepo = origCheck
+		repoStateHashFn = origHash
+	})
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := runInDirWithWriters(t, root, []string{"check", "--format=json"}, &stdout, &stderr)
+	if code != dun.ExitSuccess {
+		t.Fatalf("expected success, got %d: %s", code, stderr.String())
+	}
+	output := stdout.String()
+	if strings.Contains(output, "This is a big prompt.") {
+		t.Fatalf("expected prompt content to be omitted")
+	}
+	if !strings.Contains(output, "dun task agent-check@deadbeef --prompt") {
+		t.Fatalf("expected prompt hint to include task id")
+	}
+}
+
 func TestRunCheckJSONEncodeError(t *testing.T) {
 	root := setupEmptyRepo(t)
 	errWriter := &failWriter{err: errors.New("write failed")}

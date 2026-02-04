@@ -28,6 +28,7 @@ command to fetch full prompts,
 
 ### AC-3: Task Prompt Retrieval
 - [ ] `dun task <task-id>` prints a concise task summary.
+- [ ] Task summaries never include full prompt payloads.
 - [ ] `dun task <task-id> --prompt` prints the full prompt payload.
 - [ ] Decision prompt hints how to fetch the full prompt.
 

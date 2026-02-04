@@ -31,7 +31,7 @@ This test plan verifies the IP-016 task workflow changes:
 | AC-1 | `dun check --prompt` lists bounded tasks with summaries + reasons |
 | AC-2 | Decision prompt omits full prompt payloads |
 | AC-3 | Task IDs include repo-state hash and are rejected when stale |
-| AC-4 | `dun task <task-id>` prints task summary metadata |
+| AC-4 | `dun task <task-id>` prints task summary metadata without full prompt payloads |
 | AC-5 | `dun task <task-id> --prompt` prints the full prompt |
 | AC-6 | Summary/reason text is truncated to configured byte limits |
 
@@ -53,7 +53,7 @@ This test plan verifies the IP-016 task workflow changes:
 | GAP-016-01 | Enforce max tasks per check (top N) | P1 | AC-1 |
 | GAP-016-02 | Stale task ID rejection (state mismatch) | P0 | AC-3 |
 | GAP-016-03 | Invalid task ID formatting errors | P1 | AC-3 |
-| GAP-016-04 | `dun task` summary output assertions | P1 | AC-4 |
+| GAP-016-04 | `dun task` summary output omits prompt payloads | P1 | AC-4 |
 | GAP-016-05 | Summary/reason truncation limits | P1 | AC-6 |
 
 ## 5. Proposed Test Cases
@@ -118,7 +118,7 @@ func TestRunTaskRejectsInvalidID(t *testing.T) {
 ```go
 func TestRunTaskSummaryOutput(t *testing.T) {
     // Given: a task ID for an issue
-    // Then: output includes summary, status, and check metadata
+    // Then: output includes summary, status, and check metadata without prompt payloads
 }
 ```
 

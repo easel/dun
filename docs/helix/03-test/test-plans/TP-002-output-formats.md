@@ -12,7 +12,7 @@ Test plan for US-002: Emit Output Formats for Agents and Tools.
 
 | ID | Criterion | Status |
 |----|-----------|--------|
-| AC-1 | `dun check` emits prompt envelopes by default when agent checks are present | Partially Covered |
+| AC-1 | `dun check` emits prompt envelopes by default when agent checks are present (prompt payloads omitted) | Partially Covered |
 | AC-2 | `dun check --format=llm` prints concise summaries for humans | Covered |
 | AC-3 | `dun check --format=json` emits structured JSON output | Covered |
 | AC-4 | Output is deterministic for a given repo state | Gap |
@@ -37,6 +37,7 @@ Test plan for US-002: Emit Output Formats for Agents and Tools.
 - No test verifies prompt envelope `kind` field is always `dun.prompt.v1`
 - No test verifies callback command format is correct across all agent checks
 - No test verifies prompt envelope contains required fields (id, prompt, callback)
+- No test verifies prompt payloads are omitted from `dun check` output
 
 ### AC-2: LLM Format Output
 
@@ -106,7 +107,7 @@ func TestCheckDefaultFormatIsPrompt(t *testing.T) {
         t.Fatalf("expected success, got %d", code)
     }
 
-    // Default output should be parseable as JSON with prompt envelope
+    // Default output should be parseable as JSON with prompt envelope placeholder
     var result dun.Result
     if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
         t.Fatalf("expected JSON output by default: %v", err)
@@ -119,6 +120,9 @@ func TestCheckDefaultFormatIsPrompt(t *testing.T) {
     }
     if check.Prompt == nil {
         t.Fatalf("expected prompt envelope in default output")
+    }
+    if !strings.Contains(check.Prompt.Prompt, "Prompt omitted") {
+        t.Fatalf("expected compact prompt placeholder, not full prompt payload")
     }
 }
 ```

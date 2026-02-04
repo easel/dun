@@ -4,9 +4,9 @@ dun:
   depends_on:
     - F-002
   review:
-    self_hash: f543f44dd37dea76fd38919c5f15a737ba8fbb46e621a5a1c83c526892fb0757
+    self_hash: 8c32ec1de236d13a6d5cbd49f766f542ae1222821a9de0fe451079e7ec351af0
     deps:
-      F-002: 83b2a3c2ac4e9a760bd04598c3ff9c3ea3504c0f49e8d246cd9a61d540e87898
+      F-002: 5d4226456b8fd1dca4daae652bbcd24fb50d14f2b1e01193db67cd5a5cf2da35
 ---
 # Solution Design: Output Formats
 
@@ -17,7 +17,8 @@ remain deterministic and easy to parse.
 
 ## Goals
 
-- Emit prompt envelopes by default for agent checks.
+- Emit prompt envelopes by default for agent checks, omitting full prompt
+  payloads from `dun check` output.
 - Provide `--format=llm` for concise human-readable summaries.
 - Provide `--format=json` for structured results.
 - Preserve deterministic ordering and stable results for a given repo state.
@@ -48,7 +49,7 @@ remain deterministic and easy to parse.
 ## Components
 
 - Result Model: canonical representation of check outcomes.
-- Prompt Emitter: renders prompt envelopes.
+- Prompt Emitter: renders prompt envelopes with compact prompt placeholders.
 - LLM Renderer: emits concise summaries.
 - JSON Renderer: emits structured machine output.
 - Output Selector: chooses renderer based on CLI flags.

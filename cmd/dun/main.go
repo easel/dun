@@ -292,7 +292,8 @@ func runCheck(args []string, stdout io.Writer, stderr io.Writer) int {
 	case "llm":
 		printLLM(stdout, result)
 	case "json", "prompt":
-		if err := json.NewEncoder(stdout).Encode(result); err != nil {
+		compact := compactResultForOutput(result, root)
+		if err := json.NewEncoder(stdout).Encode(compact); err != nil {
 			fmt.Fprintf(stderr, "encode json: %v\n", err)
 			return dun.ExitCheckFailed
 		}
@@ -1155,6 +1156,32 @@ func printLLM(stdout io.Writer, result dun.Result) {
 		}
 		fmt.Fprintln(stdout)
 	}
+}
+
+func compactResultForOutput(result dun.Result, root string) dun.Result {
+	stateHash := repoStateHashFn(root)
+	out := dun.Result{Checks: make([]dun.CheckResult, len(result.Checks))}
+	for i, check := range result.Checks {
+		out.Checks[i] = check
+		if check.Prompt == nil {
+			continue
+		}
+		compact := *check.Prompt
+		taskHint := "Prompt omitted. Run `dun check --prompt` to get task IDs, then `dun task <id> --prompt`."
+		if stateHash != "" {
+			group := buildTaskGroup(check, stateHash)
+			taskID := ""
+			if len(group.Tasks) > 0 {
+				taskID = group.Tasks[0].ID
+			}
+			if taskID != "" {
+				taskHint = fmt.Sprintf("Prompt omitted. Run `dun task %s --prompt` to view full prompt.", taskID)
+			}
+		}
+		compact.Prompt = taskHint
+		out.Checks[i].Prompt = &compact
+	}
+	return out
 }
 
 func runVersion(args []string, stdout io.Writer, stderr io.Writer) int {
