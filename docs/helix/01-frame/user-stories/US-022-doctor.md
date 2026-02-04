@@ -1,10 +1,10 @@
 ---
 dun:
-  id: US-015
+  id: US-022
   depends_on:
   - F-022
 ---
-# US-015: Diagnose Tooling Readiness
+# US-022: Diagnose Tooling Readiness
 
 As a user, I want to know if all supporting tools I need to use Dun are
 available, with help fixing them when they are missing.
