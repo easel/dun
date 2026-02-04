@@ -31,7 +31,7 @@ func runSelfTestCheck(root string, check Check) (CheckResult, error) {
 	details = append(details, "✓ DefaultRegistry initialized")
 
 	// Test 2: Verify all required harnesses are registered
-	requiredHarnesses := []string{"claude", "gemini", "codex", "opencode", "mock"}
+	requiredHarnesses := []string{"claude", "gemini", "codex", "opencode", "pi", "cursor", "mock"}
 	for _, name := range requiredHarnesses {
 		if !DefaultRegistry.Has(name) {
 			issues = append(issues, Issue{
@@ -52,6 +52,8 @@ func runSelfTestCheck(root string, check Check) (CheckResult, error) {
 		{"gemini", "gemini"},
 		{"codex", "codex"},
 		{"opencode", "opencode"},
+		{"pi", "pi"},
+		{"cursor", "cursor"},
 		{"mock", "mock"},
 	}
 

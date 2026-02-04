@@ -11,8 +11,8 @@ func TestHarnessCacheSaveLoad(t *testing.T) {
 	cache := HarnessCache{
 		LastCheck: time.Now().UTC(),
 		Harnesses: []HarnessStatus{
-			{Name: "codex", Command: "codex", Available: true},
-			{Name: "gemini", Command: "gemini", Available: false},
+			{Name: "codex", Command: "codex", Available: true, Live: true},
+			{Name: "gemini", Command: "gemini", Available: false, Live: false},
 		},
 	}
 	if err := cache.Save(); err != nil {

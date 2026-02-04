@@ -143,7 +143,7 @@ LOOP MODE:
 
   Options:
     --config     Config file path (default .dun/config.yaml; also loads user config)
-    --harness     Agent to use: codex, claude, gemini, opencode (default: from config)
+    --harness     Agent to use: codex, claude, gemini, opencode, pi, cursor (default: from config)
     --model       Model override for selected harness(es)
     --models      Per-harness model overrides (e.g., codex:o3,claude:sonnet)
     --automation  Mode: manual, plan, auto, yolo (default: auto)
@@ -155,7 +155,7 @@ LOOP MODE:
 
   Quorum Options (multi-agent consensus):
     --quorum      Strategy: any, majority, unanimous, or number (e.g., 2)
-    --harnesses   Comma-separated list of harnesses (default: cached or codex,claude,gemini)
+    --harnesses   Comma-separated list of harnesses (default: cached or codex,claude,gemini; supports codex,claude,gemini,opencode,pi,cursor)
     --cost-optimized   Run harnesses sequentially to minimize cost
     --escalate    Pause for human review on conflict
     --prefer      Preferred harness on conflict (e.g., codex)
@@ -167,7 +167,7 @@ LOOP MODE:
     dun loop --automation yolo            # Allow autonomous edits
     dun loop --dry-run                    # Preview prompt
     dun loop --verbose                    # Show prompt and responses
-    dun loop --quorum majority --harnesses codex,claude,gemini,opencode
+    dun loop --quorum majority --harnesses codex,claude,gemini,opencode,pi,cursor
     dun loop --quorum 2 --harnesses codex,claude --prefer codex
 
 VERSION:
@@ -530,7 +530,7 @@ func runLoop(args []string, stdout io.Writer, stderr io.Writer) int {
 	fs := flag.NewFlagSet("loop", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	configPath := fs.String("config", explicitConfig, "path to config file (default .dun/config.yaml if present; also loads user config)")
-	harness := fs.String("harness", "", "agent harness (codex|claude|gemini|opencode); default from config")
+	harness := fs.String("harness", "", "agent harness (codex|claude|gemini|opencode|pi|cursor); default from config")
 	model := fs.String("model", opts.AgentModel, "model override for selected harness(es)")
 	models := fs.String("models", "", "per-harness model overrides (e.g., codex:o3,claude:sonnet)")
 	automation := fs.String("automation", opts.AutomationMode, "automation mode (manual|plan|auto|yolo)")

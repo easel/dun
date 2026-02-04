@@ -14,7 +14,7 @@ func TestRunLoopQuorumUsesCachedHarnesses(t *testing.T) {
 
 	cache := dun.HarnessCache{
 		LastCheck: time.Now(),
-		Harnesses: []dun.HarnessStatus{{Name: "codex", Command: "codex", Available: true}},
+		Harnesses: []dun.HarnessStatus{{Name: "codex", Command: "codex", Available: true, Live: true}},
 	}
 	if err := cache.Save(); err != nil {
 		t.Fatalf("save cache: %v", err)

@@ -1,6 +1,7 @@
 package dun
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -22,10 +23,13 @@ type DoctorReport struct {
 
 // HarnessStatus reports availability of a harness CLI.
 type HarnessStatus struct {
-	Name      string `json:"name"`
-	Command   string `json:"command"`
-	Available bool   `json:"available"`
-	Detail    string `json:"detail"`
+	Name       string `json:"name"`
+	Command    string `json:"command"`
+	Available  bool   `json:"available"`
+	Detail     string `json:"detail"`
+	Live       bool   `json:"live"`
+	Model      string `json:"model,omitempty"`
+	LiveDetail string `json:"live_detail,omitempty"`
 }
 
 // HelperStatus reports availability of project helper tools.
@@ -61,6 +65,8 @@ func RunDoctor(root string) (DoctorReport, error) {
 	return report, nil
 }
 
+var harnessLivenessFn = checkHarnessLiveness
+
 func checkHarnesses() []HarnessStatus {
 	names := DefaultRegistry.List()
 	sort.Strings(names)
@@ -75,10 +81,15 @@ func checkHarnesses() []HarnessStatus {
 		if err != nil {
 			status.Available = false
 			status.Detail = "command not found"
-		} else {
-			status.Available = true
-			status.Detail = "found " + path
+			statuses = append(statuses, status)
+			continue
 		}
+		status.Available = true
+		status.Detail = "found " + path
+		live, model, detail := harnessLivenessFn(name)
+		status.Live = live
+		status.Model = model
+		status.LiveDetail = detail
 		statuses = append(statuses, status)
 	}
 	return statuses
@@ -91,6 +102,17 @@ func defaultHarnessCommand(name string) string {
 	default:
 		return name
 	}
+}
+
+func checkHarnessLiveness(name string) (bool, string, string) {
+	result, err := PingHarness(context.Background(), name, HarnessConfig{
+		Name:           name,
+		AutomationMode: AutomationAuto,
+	})
+	if err != nil && result.Detail == "" {
+		result.Detail = err.Error()
+	}
+	return result.Live, result.Model, result.Detail
 }
 
 func checkProjectHelpers(root string) []HelperStatus {
@@ -244,6 +266,23 @@ func FormatDoctorReport(report DoctorReport) string {
 				b.WriteString(" (")
 				b.WriteString(harness.Detail)
 				b.WriteString(")")
+			}
+			if harness.Available {
+				liveStatus := "fail"
+				if harness.Live {
+					liveStatus = "ok"
+				}
+				b.WriteString("; live: ")
+				b.WriteString(liveStatus)
+				if harness.Model != "" {
+					b.WriteString(" (model: ")
+					b.WriteString(harness.Model)
+					b.WriteString(")")
+				} else if harness.LiveDetail != "" {
+					b.WriteString(" (")
+					b.WriteString(harness.LiveDetail)
+					b.WriteString(")")
+				}
 			}
 			b.WriteString("\n")
 		}
