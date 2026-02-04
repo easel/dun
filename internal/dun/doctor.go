@@ -2,7 +2,6 @@ package dun
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -105,82 +104,15 @@ func defaultHarnessCommand(name string) string {
 	}
 }
 
-const doctorHarnessTimeout = 30 * time.Second
-
-const doctorPrompt = `Reply with JSON on one line: {"ok":true,"model":"<model name>"}. If unknown, use "unknown".`
-
-type doctorPing struct {
-	OK    bool   `json:"ok"`
-	Model string `json:"model"`
-}
-
 func checkHarnessLiveness(name string) (bool, string, string) {
-	ctx, cancel := context.WithTimeout(context.Background(), doctorHarnessTimeout)
-	defer cancel()
-
-	harness, err := DefaultRegistry.Get(name, HarnessConfig{
+	result, err := PingHarness(context.Background(), name, HarnessConfig{
 		Name:           name,
 		AutomationMode: AutomationAuto,
-		Timeout:        doctorHarnessTimeout,
 	})
-	if err != nil {
-		return false, "", err.Error()
+	if err != nil && result.Detail == "" {
+		result.Detail = err.Error()
 	}
-
-	response, err := harness.Execute(ctx, doctorPrompt)
-	if err != nil {
-		return false, "", err.Error()
-	}
-
-	model, detail := parseDoctorResponse(response)
-	return true, model, detail
-}
-
-func parseDoctorResponse(response string) (string, string) {
-	candidate := extractJSON(response)
-	if candidate != "" {
-		var ping doctorPing
-		if err := json.Unmarshal([]byte(candidate), &ping); err == nil {
-			model := strings.TrimSpace(ping.Model)
-			if model == "" {
-				model = "unknown"
-			}
-			return model, ""
-		}
-	}
-	model := extractModelHint(response)
-	if model != "" {
-		return model, "non-json response"
-	}
-	return "", "unexpected response"
-}
-
-func extractJSON(response string) string {
-	start := strings.Index(response, "{")
-	end := strings.LastIndex(response, "}")
-	if start == -1 || end == -1 || end <= start {
-		return ""
-	}
-	return response[start : end+1]
-}
-
-func extractModelHint(response string) string {
-	lower := strings.ToLower(response)
-	for _, key := range []string{"model:", "model="} {
-		if idx := strings.Index(lower, key); idx != -1 {
-			fragment := response[idx+len(key):]
-			fragment = strings.TrimSpace(fragment)
-			if fragment == "" {
-				return ""
-			}
-			fields := strings.Fields(fragment)
-			if len(fields) == 0 {
-				return ""
-			}
-			return strings.Trim(fields[0], "\"',.")
-		}
-	}
-	return ""
+	return result.Live, result.Model, result.Detail
 }
 
 func checkProjectHelpers(root string) []HelperStatus {
