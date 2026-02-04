@@ -174,7 +174,7 @@ func checkGoHelpers() []HelperStatus {
 }
 
 func runGoToolCoverCheck() error {
-	cmd := exec.Command("go", "tool", "cover", "-h")
+	cmd := exec.Command("go", "tool", "cover", "-V")
 	cmd.Stdout = nil
 	cmd.Stderr = nil
 	return cmd.Run()
