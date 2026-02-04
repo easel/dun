@@ -41,7 +41,7 @@ func runReview(args []string, stdout io.Writer, stderr io.Writer) int {
 	fs.SetOutput(stderr)
 	configPath := fs.String("config", explicitConfig, "path to config file (default .dun/config.yaml if present; also loads user config)")
 	principlesPath := fs.String("principles", "docs/helix/01-frame/principles.md", "path to principles document")
-	harnessesFlag := fs.String("harnesses", "codex,claude,gemini", "comma-separated list of review harnesses")
+	harnessesFlag := fs.String("harnesses", "", "comma-separated list of review harnesses")
 	synthHarness := fs.String("synth-harness", "", "harness used to synthesize final review (default: first harness)")
 	model := fs.String("model", opts.AgentModel, "model override for selected harness(es)")
 	models := fs.String("models", "", "per-harness model overrides (e.g., codex:o3,claude:sonnet)")
@@ -77,7 +77,8 @@ func runReview(args []string, stdout io.Writer, stderr io.Writer) int {
 		}
 	}
 
-	reviewCfg, err := dun.ParseQuorumFlags("", *harnessesFlag, false, false, "")
+	resolvedHarnesses := resolveHarnessesForReview(*harnessesFlag)
+	reviewCfg, err := dun.ParseQuorumFlags("", strings.Join(resolvedHarnesses, ","), false, false, "")
 	if err != nil {
 		fmt.Fprintf(stderr, "dun review failed: invalid harness list: %v\n", err)
 		return dun.ExitUsageError
