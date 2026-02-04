@@ -62,6 +62,8 @@ func run(args []string, stdout io.Writer, stderr io.Writer) int {
 		return runReview(args[1:], stdout, stderr)
 	case "doctor":
 		return runDoctor(args[1:], stdout, stderr)
+	case "task":
+		return runTask(args[1:], stdout, stderr)
 	case "stamp":
 		return runStamp(args[1:], stdout, stderr)
 	case "install":
@@ -88,6 +90,7 @@ COMMANDS:
   check      Run all checks and report status (default)
   list       List available checks
   explain    Show details for a specific check
+  task       Show summary or full prompt for a task
   respond    Process agent response for a check
   review     Run multi-agent review with synthesis
   doctor     Diagnose harness and helper availability
@@ -124,6 +127,13 @@ CHECK MODE:
     --format     Output format: prompt, llm, json
     --automation Mode: manual, plan, auto, yolo (default: auto)
     --ignore-version  Skip .ddx-version check
+
+TASK MODE:
+  dun task <task-id> [options]
+
+  Options:
+    --prompt     Print the full task prompt (if available)
+    --config     Config file path (default .dun/config.yaml; also loads user config)
 
 LOOP MODE:
   dun loop [options]
@@ -876,6 +886,7 @@ func callHarnessStreamingImpl(harnessName, prompt, automation string, stdout, st
 }
 
 func printPrompt(w io.Writer, checks []dun.CheckResult, automation string, root string) {
+	stateHash := repoStateHashFn(root)
 	fmt.Fprintln(w, "# Dun Prompt")
 	fmt.Fprintln(w)
 	fmt.Fprintf(w, "You are working in: %s\n", root)
@@ -902,6 +913,7 @@ func printPrompt(w io.Writer, checks []dun.CheckResult, automation string, root 
 	}
 
 	for i, check := range checks {
+		group := buildTaskGroup(check, stateHash)
 		priority := "MEDIUM"
 		if check.Status == "error" {
 			priority = "HIGH"
@@ -919,25 +931,29 @@ func printPrompt(w io.Writer, checks []dun.CheckResult, automation string, root 
 		if check.Detail != "" {
 			fmt.Fprintf(w, "**Detail:** %s\n", check.Detail)
 		}
-		if len(check.Issues) > 0 {
-			fmt.Fprintln(w, "**Issues:**")
-			for _, issue := range check.Issues {
-				if issue.Path != "" {
-					fmt.Fprintf(w, "- %s (%s)\n", issue.Summary, issue.Path)
-				} else {
-					fmt.Fprintf(w, "- %s\n", issue.Summary)
+		if len(group.Tasks) > 0 {
+			if group.Total > len(group.Tasks) {
+				fmt.Fprintf(w, "**Tasks:** showing %d of %d\n", len(group.Tasks), group.Total)
+			} else {
+				fmt.Fprintln(w, "**Tasks:**")
+			}
+			for _, task := range group.Tasks {
+				line := fmt.Sprintf("- %s: %s", task.ID, task.Summary)
+				if task.Why != "" {
+					line = line + " (why: " + task.Why + ")"
 				}
+				fmt.Fprintln(w, line)
 			}
 		}
 		if check.Next != "" {
 			fmt.Fprintf(w, "**Action:** %s\n", check.Next)
 		}
-		if check.Prompt != nil {
-			fmt.Fprintf(w, "**Prompt available:** Use `dun explain %s` for details\n", check.ID)
-			if strings.TrimSpace(check.Prompt.Prompt) != "" {
-				fmt.Fprintln(w, "**Prompt:**")
-				fmt.Fprintln(w, check.Prompt.Prompt)
+		if group.PromptAvailable {
+			taskID := check.ID
+			if len(group.Tasks) > 0 {
+				taskID = group.Tasks[0].ID
 			}
+			fmt.Fprintf(w, "**Prompt available:** Run `dun task %s --prompt`\n", taskID)
 		}
 		fmt.Fprintln(w)
 	}
@@ -949,6 +965,7 @@ func printPrompt(w io.Writer, checks []dun.CheckResult, automation string, root 
 	fmt.Fprintln(w, "1. Review the work items above")
 	fmt.Fprintln(w, "2. Pick ONE task (highest priority or biggest impact)")
 	fmt.Fprintln(w, "3. Complete that task fully:")
+	fmt.Fprintln(w, "   - If needed, fetch the full prompt: `dun task <task-id> --prompt`")
 	fmt.Fprintln(w, "   - Edit files as needed")
 	fmt.Fprintln(w, "   - Run tests to verify (`go test ./...`)")
 	fmt.Fprintln(w, "   - Fix any issues that arise")

@@ -180,6 +180,7 @@ func TestRunCheckLLMOutput(t *testing.T) {
 
 func TestRunCheckPromptOutput(t *testing.T) {
 	root := setupEmptyRepo(t)
+	setRepoStateHash(t, "deadbeef")
 	orig := checkRepo
 	checkRepo = func(_ string, _ dun.Options) (dun.Result, error) {
 		return dun.Result{
@@ -204,6 +205,7 @@ func TestRunCheckPromptOutput(t *testing.T) {
 
 func TestRunCheckPromptOutputAllIncludesPass(t *testing.T) {
 	root := setupEmptyRepo(t)
+	setRepoStateHash(t, "deadbeef")
 	orig := checkRepo
 	checkRepo = func(_ string, _ dun.Options) (dun.Result, error) {
 		return dun.Result{
@@ -224,6 +226,34 @@ func TestRunCheckPromptOutputAllIncludesPass(t *testing.T) {
 	text := stdout.String()
 	if !strings.Contains(text, "check-pass") || !strings.Contains(text, "check-fail") {
 		t.Fatalf("expected prompt output to include pass and fail checks, got: %s", text)
+	}
+}
+
+func TestRunTaskPrompt(t *testing.T) {
+	root := setupEmptyRepo(t)
+	setRepoStateHash(t, "deadbeef")
+	orig := checkRepo
+	checkRepo = func(_ string, _ dun.Options) (dun.Result, error) {
+		return dun.Result{
+			Checks: []dun.CheckResult{
+				{
+					ID:     "agent-check",
+					Status: "prompt",
+					Prompt: &dun.PromptEnvelope{Prompt: "hello prompt"},
+				},
+			},
+		}, nil
+	}
+	t.Cleanup(func() { checkRepo = orig })
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := runInDirWithWriters(t, root, []string{"task", "agent-check@deadbeef", "--prompt"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("expected success, got %d (stderr=%s)", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "hello prompt") {
+		t.Fatalf("expected prompt output, got: %s", stdout.String())
 	}
 }
 
@@ -691,6 +721,15 @@ func setupEmptyRepo(t *testing.T) string {
 		t.Fatalf("init git: %v", err)
 	}
 	return root
+}
+
+func setRepoStateHash(t *testing.T, value string) {
+	t.Helper()
+	orig := repoStateHashFn
+	repoStateHashFn = func(string) string {
+		return value
+	}
+	t.Cleanup(func() { repoStateHashFn = orig })
 }
 
 func fixturePath(t *testing.T, rel string) string {
@@ -1210,6 +1249,7 @@ func TestCallHarnessUnknown(t *testing.T) {
 // Tests for printPrompt
 
 func TestPrintPromptVariants(t *testing.T) {
+	setRepoStateHash(t, "deadbeef")
 	checks := []dun.CheckResult{
 		{
 			ID:     "error-check",
@@ -1221,6 +1261,11 @@ func TestPrintPromptVariants(t *testing.T) {
 				{Summary: "issue1", Path: "file1.go"},
 				{Summary: "issue2"}, // no path
 			},
+		},
+		{
+			ID:     "prompt-check",
+			Status: "prompt",
+			Signal: "prompt signal",
 			Prompt: &dun.PromptEnvelope{},
 		},
 		{
@@ -1265,7 +1310,7 @@ func TestPrintPromptVariants(t *testing.T) {
 	if !strings.Contains(output, "issue1 (file1.go)") {
 		t.Fatalf("expected issue with path")
 	}
-	if !strings.Contains(output, "- issue2\n") {
+	if !strings.Contains(output, "issue2") {
 		t.Fatalf("expected issue without path")
 	}
 
@@ -1283,7 +1328,32 @@ func TestPrintPromptVariants(t *testing.T) {
 	}
 }
 
+func TestPrintPromptOmitsPromptContent(t *testing.T) {
+	setRepoStateHash(t, "deadbeef")
+	checks := []dun.CheckResult{
+		{
+			ID:     "agent-check",
+			Status: "prompt",
+			Prompt: &dun.PromptEnvelope{
+				Prompt: "Check-ID: agent-check\n\nThis is a big prompt.",
+			},
+		},
+	}
+
+	var buf bytes.Buffer
+	printPrompt(&buf, checks, "auto", "/test/root")
+	output := buf.String()
+
+	if strings.Contains(output, "Check-ID: agent-check") {
+		t.Fatalf("expected prompt content to be omitted from decision prompt")
+	}
+	if !strings.Contains(output, "dun task agent-check@deadbeef --prompt") {
+		t.Fatalf("expected task prompt hint")
+	}
+}
+
 func TestPrintPromptIncludesBeadsCandidates(t *testing.T) {
+	setRepoStateHash(t, "deadbeef")
 	checks := []dun.CheckResult{
 		{
 			ID:     "beads-ready",

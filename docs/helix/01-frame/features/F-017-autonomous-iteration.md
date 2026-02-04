@@ -19,7 +19,9 @@ configured agent harness until exit conditions are met.
 ## Requirements
 
 - Provide `dun check --prompt` to emit a deterministic, structured work list
-  prompt for an external agent.
+  prompt for an external agent (task IDs + summaries only; no inline prompts).
+- Provide `dun task <task-id> --prompt` to fetch the full prompt for the
+  selected task.
 - Provide `dun loop` to run an embedded iteration that:
   - Runs checks, renders a prompt, calls the configured harness, applies
     responses, and re-runs checks.
@@ -48,17 +50,23 @@ configured agent harness until exit conditions are met.
 
 ## Loop Flow
 
-1. Run checks and build the work list.
+1. Run checks and build the task list.
 2. If all checks pass, exit successfully.
-3. Render the prompt and include the selected automation mode.
-4. If `--dry-run`, emit the prompt and exit without calling a harness.
-5. Call the configured harness, capture its response, and apply changes.
-6. Repeat until an exit condition is met.
+3. Render the decision prompt and include the selected automation mode.
+4. Select one task and fetch its full prompt with `dun task <task-id> --prompt`
+   (task lookup re-runs checks; task IDs include a repo-state hash and are
+   valid only for the current repo state).
+5. If `--dry-run`, emit the decision prompt and exit without calling a harness.
+6. Call the configured harness, capture its response, and apply changes.
+7. Repeat until an exit condition is met.
 
 ## Acceptance Criteria
 
 - `dun check --prompt` outputs a deterministic work list prompt for an external
-  agent.
+  agent with bounded task summaries.
+- `dun task <task-id> --prompt` emits the full prompt for the selected task.
+- If a task ID is invalid or stale, `dun task` returns a clear error and a
+  non-zero exit code.
 - `dun loop` runs an embedded loop calling a configurable agent harness.
 - The loop supports multiple harnesses: `claude`, `gemini`, `codex`.
 - Each iteration spawns fresh context to prevent drift.

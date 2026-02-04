@@ -30,6 +30,7 @@ const (
   Quick commands:
   - ` + "`dun check`" + ` - Run all quality checks
   - ` + "`dun check --prompt`" + ` - Get work list as a prompt (pick ONE task, complete it, exit)
+  - ` + "`dun task <task-id> --prompt`" + ` - Show the full prompt for a selected task
   - ` + "`dun loop --harness claude`" + ` - Run autonomous loop with Claude
   - ` + "`dun loop --harness gemini`" + ` - Run autonomous loop with Gemini
   - ` + "`dun loop --harness opencode`" + ` - Run autonomous loop with OpenCode

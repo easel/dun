@@ -11,7 +11,10 @@ autonomously so I can step away while quality issues are resolved.
 
 ## Acceptance Criteria
 
-- `dun check --prompt` outputs a work list prompt for an external agent.
+- `dun check --prompt` outputs a compact work list with task IDs and summaries.
+- Task IDs include a repo-state hash to prevent reuse across repo changes.
+- `dun task <task-id> --prompt` emits the full prompt for the selected task.
+- Invalid or stale task IDs return a clear error and non-zero exit code.
 - `dun loop` runs an embedded loop calling a configurable agent harness.
 - The loop supports multiple harnesses: claude, gemini, codex.
 - Each iteration spawns fresh context to prevent drift.
