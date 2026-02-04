@@ -61,6 +61,7 @@ dun check --changed
 dun list
 dun explain <check-id>
 dun respond --id <check-id> --response -
+dun doctor
 ```
 
 ## Configuration

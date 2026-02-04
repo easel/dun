@@ -217,7 +217,7 @@ proceeding (quorum is applied to the iteration prompt, not per-check prompts).
 - `--dry-run` : Print prompt without calling harness
 - `--verbose` : Print prompts sent to harnesses and responses received
 - `--quorum` : Quorum strategy (`any`, `majority`, `unanimous`, or number)
-- `--harnesses` : Comma-separated harness list for quorum (supports `name@persona`)
+- `--harnesses` : Comma-separated harness list for quorum (supports `name@persona`, default cached or `codex,claude,gemini`)
 - `--cost-optimized` : Run harnesses sequentially to minimize cost
 - `--escalate` : Pause for human review on conflict
 - `--prefer` : Preferred harness on conflict
@@ -253,6 +253,25 @@ $ dun loop --verbose
 
 ---
 
+#### Command: doctor
+**Purpose**: Diagnose harness/tool availability and update the harness cache.  
+**Usage**: `$ dun doctor`
+
+**Options**: None
+
+**Input**:
+- Format: File system + environment
+
+**Output**:
+- Format: Human-readable status report
+- Side effects: writes harness cache to `~/.dun/harnesses.json`
+
+**Exit Codes**:
+- `0`: Success
+- `3`: Runtime error (e.g., unable to write cache)
+
+---
+
 #### Command: quorum
 **Purpose**: Run a one-shot multi-agent quorum task and return a selected response.  
 **Usage**: `$ dun quorum [options]`
@@ -260,7 +279,7 @@ $ dun loop --verbose
 **Options**:
 - `--task` : Task prompt (string)
 - `--quorum` : Quorum strategy (`any`, `majority`, `unanimous`, or number)
-- `--harnesses` : Comma-separated harness list (supports `name@persona`)
+- `--harnesses` : Comma-separated harness list (supports `name@persona`, default cached or `codex,claude,gemini`)
 - `--cost-optimized` : Run harnesses sequentially to minimize cost
 - `--escalate` : Pause for human review on conflict
 - `--prefer` : Preferred harness on conflict

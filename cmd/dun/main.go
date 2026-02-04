@@ -60,6 +60,8 @@ func run(args []string, stdout io.Writer, stderr io.Writer) int {
 		return runRespond(args[1:], stdout, stderr)
 	case "review":
 		return runReview(args[1:], stdout, stderr)
+	case "doctor":
+		return runDoctor(args[1:], stdout, stderr)
 	case "stamp":
 		return runStamp(args[1:], stdout, stderr)
 	case "install":
@@ -88,6 +90,7 @@ COMMANDS:
   explain    Show details for a specific check
   respond    Process agent response for a check
   review     Run multi-agent review with synthesis
+  doctor     Diagnose harness and helper availability
   stamp      Update doc review stamps
   install    Install dun config and agent documentation
   loop       Run autonomous loop with an agent harness
@@ -103,7 +106,7 @@ REVIEW MODE:
   Options:
     --config     Config file path (default .dun/config.yaml; also loads user config)
     --principles  Path to principles document (default docs/helix/01-frame/principles.md)
-    --harnesses   Comma-separated list of review harnesses (default: codex,claude,gemini)
+    --harnesses   Comma-separated list of review harnesses (default: cached or codex,claude,gemini)
     --synth-harness Harness to synthesize final review (default: first harness)
     --model       Model override for selected harness(es)
     --models      Per-harness model overrides (e.g., codex:o3,claude:sonnet)
@@ -142,7 +145,7 @@ LOOP MODE:
 
   Quorum Options (multi-agent consensus):
     --quorum      Strategy: any, majority, unanimous, or number (e.g., 2)
-    --harnesses   Comma-separated list of harnesses (e.g., codex,claude,gemini,opencode)
+    --harnesses   Comma-separated list of harnesses (default: cached or codex,claude,gemini)
     --cost-optimized   Run harnesses sequentially to minimize cost
     --escalate    Pause for human review on conflict
     --prefer      Preferred harness on conflict (e.g., codex)
@@ -180,6 +183,11 @@ STAMP:
 
   Options:
     --all        Stamp all docs with dun frontmatter
+
+DOCTOR:
+  dun doctor
+
+  Runs comprehensive environment checks and updates the harness cache.
 
 EXIT CODES:
   0  Success / all checks pass
@@ -570,7 +578,8 @@ func runLoop(args []string, stdout io.Writer, stderr io.Writer) int {
 	// Parse quorum configuration if specified
 	var quorumCfg dun.QuorumConfig
 	if *quorumFlag != "" || *harnessesFlag != "" {
-		quorumCfg, err = dun.ParseQuorumFlags(*quorumFlag, *harnessesFlag, *costMode, *escalate, *prefer)
+		resolvedHarnesses := resolveHarnessesForQuorum(*harnessesFlag)
+		quorumCfg, err = dun.ParseQuorumFlags(*quorumFlag, strings.Join(resolvedHarnesses, ","), *costMode, *escalate, *prefer)
 		if err != nil {
 			fmt.Fprintf(stderr, "dun loop failed: quorum config error: %v\n", err)
 			return dun.ExitUsageError
