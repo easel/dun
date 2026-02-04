@@ -8,7 +8,7 @@ import (
 )
 
 var defaultQuorumHarnesses = []string{"codex", "claude", "gemini"}
-var harnessPreferenceOrder = []string{"codex", "claude", "gemini", "opencode"}
+var harnessPreferenceOrder = []string{"codex", "claude", "gemini", "opencode", "pi", "cursor"}
 
 func resolveHarnessesForQuorum(explicit string) []string {
 	if strings.TrimSpace(explicit) != "" {

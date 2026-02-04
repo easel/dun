@@ -209,7 +209,7 @@ proceeding (quorum is applied to the iteration prompt, not per-check prompts).
 
 **Options**:
 - `--config` : Path to config file (default `.dun/config.yaml` if present)
-- `--harness` : Agent harness (`codex`, `claude`, `gemini`, `opencode`, default from config)
+- `--harness` : Agent harness (`codex`, `claude`, `gemini`, `opencode`, `pi`, `cursor`, default from config)
 - `--model` : Model override for selected harness(es)
 - `--models` : Per-harness model overrides (e.g., `codex:o3,claude:sonnet`)
 - `--automation` : Automation mode (`manual`, `plan`, `auto`, `yolo`, default `auto`)
@@ -217,7 +217,7 @@ proceeding (quorum is applied to the iteration prompt, not per-check prompts).
 - `--dry-run` : Print prompt without calling harness
 - `--verbose` : Print prompts sent to harnesses and responses received
 - `--quorum` : Quorum strategy (`any`, `majority`, `unanimous`, or number)
-- `--harnesses` : Comma-separated harness list for quorum (supports `name@persona`, default cached or `codex,claude,gemini`)
+- `--harnesses` : Comma-separated harness list for quorum (supports `name@persona`, default cached or `codex,claude,gemini`; supports `codex,claude,gemini,opencode,pi,cursor`)
 - `--cost-optimized` : Run harnesses sequentially to minimize cost
 - `--escalate` : Pause for human review on conflict
 - `--prefer` : Preferred harness on conflict
@@ -280,7 +280,7 @@ $ dun loop --verbose
 **Options**:
 - `--task` : Task prompt (string)
 - `--quorum` : Quorum strategy (`any`, `majority`, `unanimous`, or number)
-- `--harnesses` : Comma-separated harness list (supports `name@persona`, default cached or `codex,claude,gemini`)
+- `--harnesses` : Comma-separated harness list (supports `name@persona`, default cached or `codex,claude,gemini`; supports `codex,claude,gemini,opencode,pi,cursor`)
 - `--cost-optimized` : Run harnesses sequentially to minimize cost
 - `--escalate` : Pause for human review on conflict
 - `--prefer` : Preferred harness on conflict

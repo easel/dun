@@ -29,6 +29,14 @@ func TestOpenCodeHarnessIntegration(t *testing.T) {
 	runHarnessIntegration(t, "opencode", NewOpenCodeHarness)
 }
 
+func TestPiHarnessIntegration(t *testing.T) {
+	runHarnessIntegration(t, "pi", NewPiHarness)
+}
+
+func TestCursorHarnessIntegration(t *testing.T) {
+	runHarnessIntegration(t, "cursor", NewCursorHarness)
+}
+
 func runHarnessIntegration(t *testing.T, command string, factory HarnessFactory) {
 	t.Helper()
 	if os.Getenv(harnessIntegrationEnv) == "" {
