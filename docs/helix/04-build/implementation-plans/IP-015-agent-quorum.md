@@ -7,6 +7,7 @@ dun:
   - F-018
   - US-011
   - TP-011
+  - TP-015
   - helix.prd
   review:
     self_hash: ''
@@ -28,6 +29,7 @@ dun:
 - F-018 Agent Quorum (`docs/helix/01-frame/features/F-018-agent-quorum.md`)
 - US-011 Agent Quorum (`docs/helix/01-frame/user-stories/US-011-agent-quorum.md`)
 - TP-011 Agent Quorum Test Plan (`docs/helix/03-test/test-plans/TP-011-agent-quorum.md`)
+- TP-015 Agent Quorum + Synthesis Implementation Plan (`docs/helix/03-test/test-plans/TP-015-agent-quorum-implementation.md`)
 - SD-011 Agent Quorum Solution Design (`docs/helix/02-design/solution-designs/SD-011-agent-quorum.md`)
 - TD-011 Agent Quorum Technical Design (`docs/helix/02-design/technical-designs/TD-011-agent-quorum.md`)
 
