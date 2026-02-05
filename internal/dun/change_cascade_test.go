@@ -10,6 +10,11 @@ import (
 	"time"
 )
 
+func runChangeCascadeCheckFromSpec(root string, check Check) (CheckResult, error) {
+	def := CheckDefinition{ID: check.ID}
+	return runChangeCascadeCheck(root, def, extractCascadeConfig(check))
+}
+
 func TestChangeCascade_GitDiffTrigger_NoChanges(t *testing.T) {
 	root := t.TempDir()
 
@@ -25,7 +30,7 @@ func TestChangeCascade_GitDiffTrigger_NoChanges(t *testing.T) {
 		Trigger: "git-diff",
 	}
 
-	result, err := runChangeCascadeCheck(root, check)
+	result, err := runChangeCascadeCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -53,7 +58,7 @@ func TestChangeCascade_GitDiffTrigger_Error(t *testing.T) {
 		Trigger: "git-diff",
 	}
 
-	result, err := runChangeCascadeCheck(root, check)
+	result, err := runChangeCascadeCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -82,28 +87,17 @@ func TestChangeCascade_GitDiffTrigger_WithStaleDownstreams(t *testing.T) {
 	check := Check{
 		ID:      "test-cascade",
 		Trigger: "git-diff",
-		CascadeRules: []struct {
-			Upstream    string `yaml:"upstream"`
-			Downstreams []struct {
-				Path     string   `yaml:"path"`
-				Sections []string `yaml:"sections"`
-				Required bool     `yaml:"required"`
-			} `yaml:"downstreams"`
-		}{
+		CascadeRules: []CascadeRule{
 			{
 				Upstream: "docs/prd.md",
-				Downstreams: []struct {
-					Path     string   `yaml:"path"`
-					Sections []string `yaml:"sections"`
-					Required bool     `yaml:"required"`
-				}{
+				Downstreams: []Downstream{
 					{Path: "docs/architecture.md", Required: true},
 				},
 			},
 		},
 	}
 
-	result, err := runChangeCascadeCheck(root, check)
+	result, err := runChangeCascadeCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -135,28 +129,17 @@ func TestChangeCascade_GitDiffTrigger_AllDownstreamsUpdated(t *testing.T) {
 	check := Check{
 		ID:      "test-cascade",
 		Trigger: "git-diff",
-		CascadeRules: []struct {
-			Upstream    string `yaml:"upstream"`
-			Downstreams []struct {
-				Path     string   `yaml:"path"`
-				Sections []string `yaml:"sections"`
-				Required bool     `yaml:"required"`
-			} `yaml:"downstreams"`
-		}{
+		CascadeRules: []CascadeRule{
 			{
 				Upstream: "docs/prd.md",
-				Downstreams: []struct {
-					Path     string   `yaml:"path"`
-					Sections []string `yaml:"sections"`
-					Required bool     `yaml:"required"`
-				}{
+				Downstreams: []Downstream{
 					{Path: "docs/architecture.md", Required: true},
 				},
 			},
 		},
 	}
 
-	result, err := runChangeCascadeCheck(root, check)
+	result, err := runChangeCascadeCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -182,28 +165,17 @@ func TestChangeCascade_GitDiffTrigger_OptionalDownstreamStale(t *testing.T) {
 	check := Check{
 		ID:      "test-cascade",
 		Trigger: "git-diff",
-		CascadeRules: []struct {
-			Upstream    string `yaml:"upstream"`
-			Downstreams []struct {
-				Path     string   `yaml:"path"`
-				Sections []string `yaml:"sections"`
-				Required bool     `yaml:"required"`
-			} `yaml:"downstreams"`
-		}{
+		CascadeRules: []CascadeRule{
 			{
 				Upstream: "docs/prd.md",
-				Downstreams: []struct {
-					Path     string   `yaml:"path"`
-					Sections []string `yaml:"sections"`
-					Required bool     `yaml:"required"`
-				}{
+				Downstreams: []Downstream{
 					{Path: "docs/architecture.md", Required: false},
 				},
 			},
 		},
 	}
 
-	result, err := runChangeCascadeCheck(root, check)
+	result, err := runChangeCascadeCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -234,28 +206,17 @@ func TestChangeCascade_AlwaysTrigger_StaleByMtime(t *testing.T) {
 	check := Check{
 		ID:      "test-cascade",
 		Trigger: "always",
-		CascadeRules: []struct {
-			Upstream    string `yaml:"upstream"`
-			Downstreams []struct {
-				Path     string   `yaml:"path"`
-				Sections []string `yaml:"sections"`
-				Required bool     `yaml:"required"`
-			} `yaml:"downstreams"`
-		}{
+		CascadeRules: []CascadeRule{
 			{
 				Upstream: "docs/prd.md",
-				Downstreams: []struct {
-					Path     string   `yaml:"path"`
-					Sections []string `yaml:"sections"`
-					Required bool     `yaml:"required"`
-				}{
+				Downstreams: []Downstream{
 					{Path: "docs/architecture.md", Required: true},
 				},
 			},
 		},
 	}
 
-	result, err := runChangeCascadeCheck(root, check)
+	result, err := runChangeCascadeCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -288,28 +249,17 @@ func TestChangeCascade_AlwaysTrigger_NotStale(t *testing.T) {
 	check := Check{
 		ID:      "test-cascade",
 		Trigger: "always",
-		CascadeRules: []struct {
-			Upstream    string `yaml:"upstream"`
-			Downstreams []struct {
-				Path     string   `yaml:"path"`
-				Sections []string `yaml:"sections"`
-				Required bool     `yaml:"required"`
-			} `yaml:"downstreams"`
-		}{
+		CascadeRules: []CascadeRule{
 			{
 				Upstream: "docs/prd.md",
-				Downstreams: []struct {
-					Path     string   `yaml:"path"`
-					Sections []string `yaml:"sections"`
-					Required bool     `yaml:"required"`
-				}{
+				Downstreams: []Downstream{
 					{Path: "docs/architecture.md", Required: true},
 				},
 			},
 		},
 	}
 
-	result, err := runChangeCascadeCheck(root, check)
+	result, err := runChangeCascadeCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -336,7 +286,7 @@ func TestChangeCascade_DefaultBaseline(t *testing.T) {
 		// No baseline specified
 	}
 
-	_, err := runChangeCascadeCheck(root, check)
+	_, err := runChangeCascadeCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -363,7 +313,7 @@ func TestChangeCascade_CustomBaseline(t *testing.T) {
 		Baseline: "main",
 	}
 
-	_, err := runChangeCascadeCheck(root, check)
+	_, err := runChangeCascadeCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -394,28 +344,17 @@ func TestChangeCascade_GlobPattern(t *testing.T) {
 	check := Check{
 		ID:      "test-cascade",
 		Trigger: "git-diff",
-		CascadeRules: []struct {
-			Upstream    string `yaml:"upstream"`
-			Downstreams []struct {
-				Path     string   `yaml:"path"`
-				Sections []string `yaml:"sections"`
-				Required bool     `yaml:"required"`
-			} `yaml:"downstreams"`
-		}{
+		CascadeRules: []CascadeRule{
 			{
 				Upstream: "docs/prd.md",
-				Downstreams: []struct {
-					Path     string   `yaml:"path"`
-					Sections []string `yaml:"sections"`
-					Required bool     `yaml:"required"`
-				}{
+				Downstreams: []Downstream{
 					{Path: "docs/features/*.md", Required: true},
 				},
 			},
 		},
 	}
 
-	result, err := runChangeCascadeCheck(root, check)
+	result, err := runChangeCascadeCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -452,28 +391,17 @@ func TestChangeCascade_UpstreamGlobPattern(t *testing.T) {
 	check := Check{
 		ID:      "test-cascade",
 		Trigger: "git-diff",
-		CascadeRules: []struct {
-			Upstream    string `yaml:"upstream"`
-			Downstreams []struct {
-				Path     string   `yaml:"path"`
-				Sections []string `yaml:"sections"`
-				Required bool     `yaml:"required"`
-			} `yaml:"downstreams"`
-		}{
+		CascadeRules: []CascadeRule{
 			{
 				Upstream: "docs/features/*.md",
-				Downstreams: []struct {
-					Path     string   `yaml:"path"`
-					Sections []string `yaml:"sections"`
-					Required bool     `yaml:"required"`
-				}{
+				Downstreams: []Downstream{
 					{Path: "internal/*.go", Required: false},
 				},
 			},
 		},
 	}
 
-	result, err := runChangeCascadeCheck(root, check)
+	result, err := runChangeCascadeCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -508,21 +436,10 @@ func TestChangeCascade_MixedRequiredOptional(t *testing.T) {
 	check := Check{
 		ID:      "test-cascade",
 		Trigger: "git-diff",
-		CascadeRules: []struct {
-			Upstream    string `yaml:"upstream"`
-			Downstreams []struct {
-				Path     string   `yaml:"path"`
-				Sections []string `yaml:"sections"`
-				Required bool     `yaml:"required"`
-			} `yaml:"downstreams"`
-		}{
+		CascadeRules: []CascadeRule{
 			{
 				Upstream: "docs/prd.md",
-				Downstreams: []struct {
-					Path     string   `yaml:"path"`
-					Sections []string `yaml:"sections"`
-					Required bool     `yaml:"required"`
-				}{
+				Downstreams: []Downstream{
 					{Path: "docs/architecture.md", Required: true},
 					{Path: "docs/optional.md", Required: false},
 				},
@@ -530,7 +447,7 @@ func TestChangeCascade_MixedRequiredOptional(t *testing.T) {
 		},
 	}
 
-	result, err := runChangeCascadeCheck(root, check)
+	result, err := runChangeCascadeCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -572,38 +489,23 @@ func TestChangeCascade_MultipleRules(t *testing.T) {
 	check := Check{
 		ID:      "test-cascade",
 		Trigger: "git-diff",
-		CascadeRules: []struct {
-			Upstream    string `yaml:"upstream"`
-			Downstreams []struct {
-				Path     string   `yaml:"path"`
-				Sections []string `yaml:"sections"`
-				Required bool     `yaml:"required"`
-			} `yaml:"downstreams"`
-		}{
+		CascadeRules: []CascadeRule{
 			{
 				Upstream: "docs/prd.md",
-				Downstreams: []struct {
-					Path     string   `yaml:"path"`
-					Sections []string `yaml:"sections"`
-					Required bool     `yaml:"required"`
-				}{
+				Downstreams: []Downstream{
 					{Path: "docs/architecture.md", Required: true},
 				},
 			},
 			{
 				Upstream: "docs/api.md",
-				Downstreams: []struct {
-					Path     string   `yaml:"path"`
-					Sections []string `yaml:"sections"`
-					Required bool     `yaml:"required"`
-				}{
+				Downstreams: []Downstream{
 					{Path: "internal/*.go", Required: true},
 				},
 			},
 		},
 	}
 
-	result, err := runChangeCascadeCheck(root, check)
+	result, err := runChangeCascadeCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -637,28 +539,17 @@ func TestChangeCascade_NoMatchingUpstream(t *testing.T) {
 	check := Check{
 		ID:      "test-cascade",
 		Trigger: "git-diff",
-		CascadeRules: []struct {
-			Upstream    string `yaml:"upstream"`
-			Downstreams []struct {
-				Path     string   `yaml:"path"`
-				Sections []string `yaml:"sections"`
-				Required bool     `yaml:"required"`
-			} `yaml:"downstreams"`
-		}{
+		CascadeRules: []CascadeRule{
 			{
 				Upstream: "docs/prd.md",
-				Downstreams: []struct {
-					Path     string   `yaml:"path"`
-					Sections []string `yaml:"sections"`
-					Required bool     `yaml:"required"`
-				}{
+				Downstreams: []Downstream{
 					{Path: "docs/architecture.md", Required: true},
 				},
 			},
 		},
 	}
 
-	result, err := runChangeCascadeCheck(root, check)
+	result, err := runChangeCascadeCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -819,21 +710,10 @@ func TestExtractCascadeConfig(t *testing.T) {
 	check := Check{
 		Trigger:  "always",
 		Baseline: "main",
-		CascadeRules: []struct {
-			Upstream    string `yaml:"upstream"`
-			Downstreams []struct {
-				Path     string   `yaml:"path"`
-				Sections []string `yaml:"sections"`
-				Required bool     `yaml:"required"`
-			} `yaml:"downstreams"`
-		}{
+		CascadeRules: []CascadeRule{
 			{
 				Upstream: "docs/prd.md",
-				Downstreams: []struct {
-					Path     string   `yaml:"path"`
-					Sections []string `yaml:"sections"`
-					Required bool     `yaml:"required"`
-				}{
+				Downstreams: []Downstream{
 					{Path: "docs/arch.md", Sections: []string{"## Overview"}, Required: true},
 				},
 			},
@@ -894,7 +774,7 @@ func TestChangeCascade_EmptyRules(t *testing.T) {
 		CascadeRules: nil, // No rules
 	}
 
-	result, err := runChangeCascadeCheck(root, check)
+	result, err := runChangeCascadeCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -912,28 +792,17 @@ func TestChangeCascade_AlwaysTrigger_NoFilesExist(t *testing.T) {
 	check := Check{
 		ID:      "test-cascade",
 		Trigger: "always",
-		CascadeRules: []struct {
-			Upstream    string `yaml:"upstream"`
-			Downstreams []struct {
-				Path     string   `yaml:"path"`
-				Sections []string `yaml:"sections"`
-				Required bool     `yaml:"required"`
-			} `yaml:"downstreams"`
-		}{
+		CascadeRules: []CascadeRule{
 			{
 				Upstream: "docs/prd.md",
-				Downstreams: []struct {
-					Path     string   `yaml:"path"`
-					Sections []string `yaml:"sections"`
-					Required bool     `yaml:"required"`
-				}{
+				Downstreams: []Downstream{
 					{Path: "docs/architecture.md", Required: true},
 				},
 			},
 		},
 	}
 
-	result, err := runChangeCascadeCheck(root, check)
+	result, err := runChangeCascadeCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -964,28 +833,17 @@ func TestChangeCascade_AlwaysTrigger_UpstreamExistsNoDownstream(t *testing.T) {
 	check := Check{
 		ID:      "test-cascade",
 		Trigger: "always",
-		CascadeRules: []struct {
-			Upstream    string `yaml:"upstream"`
-			Downstreams []struct {
-				Path     string   `yaml:"path"`
-				Sections []string `yaml:"sections"`
-				Required bool     `yaml:"required"`
-			} `yaml:"downstreams"`
-		}{
+		CascadeRules: []CascadeRule{
 			{
 				Upstream: "docs/prd.md",
-				Downstreams: []struct {
-					Path     string   `yaml:"path"`
-					Sections []string `yaml:"sections"`
-					Required bool     `yaml:"required"`
-				}{
+				Downstreams: []Downstream{
 					{Path: "docs/architecture.md", Required: true},
 				},
 			},
 		},
 	}
 
-	result, err := runChangeCascadeCheck(root, check)
+	result, err := runChangeCascadeCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1045,21 +903,10 @@ func TestChangeCascade_GitDiffTrigger_DownstreamGlobError(t *testing.T) {
 	check := Check{
 		ID:      "test-cascade",
 		Trigger: "git-diff",
-		CascadeRules: []struct {
-			Upstream    string `yaml:"upstream"`
-			Downstreams []struct {
-				Path     string   `yaml:"path"`
-				Sections []string `yaml:"sections"`
-				Required bool     `yaml:"required"`
-			} `yaml:"downstreams"`
-		}{
+		CascadeRules: []CascadeRule{
 			{
 				Upstream: "docs/prd.md",
-				Downstreams: []struct {
-					Path     string   `yaml:"path"`
-					Sections []string `yaml:"sections"`
-					Required bool     `yaml:"required"`
-				}{
+				Downstreams: []Downstream{
 					// This directory doesn't exist
 					{Path: "nonexistent/*.md", Required: true},
 				},
@@ -1067,7 +914,7 @@ func TestChangeCascade_GitDiffTrigger_DownstreamGlobError(t *testing.T) {
 		},
 	}
 
-	result, err := runChangeCascadeCheck(root, check)
+	result, err := runChangeCascadeCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

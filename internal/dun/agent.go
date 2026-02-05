@@ -42,7 +42,7 @@ type PromptContext struct {
 	AutomationMode string
 }
 
-func runAgentCheck(root string, plugin Plugin, check Check, opts Options) (CheckResult, error) {
+func runAgentCheck(root string, plugin Plugin, def CheckDefinition, config AgentCheckConfig, opts Options) (CheckResult, error) {
 	mode, err := normalizeAgentMode(opts.AgentMode)
 	if err != nil {
 		return CheckResult{}, err
@@ -52,13 +52,13 @@ func runAgentCheck(root string, plugin Plugin, check Check, opts Options) (Check
 		return CheckResult{}, err
 	}
 
-	envelope, err := buildPromptEnvelope(root, plugin, check, automation)
+	envelope, err := buildPromptEnvelope(root, plugin, def, config, automation)
 	if err != nil {
 		return CheckResult{}, err
 	}
 
 	if mode != "auto" {
-		return promptResult(check, envelope, "agent prompt ready", check.Description), nil
+		return promptResult(def, envelope, "agent prompt ready", def.Description), nil
 	}
 
 	agentCmd := opts.AgentCmd
@@ -66,7 +66,7 @@ func runAgentCheck(root string, plugin Plugin, check Check, opts Options) (Check
 		agentCmd = os.Getenv("DUN_AGENT_CMD")
 	}
 	if agentCmd == "" {
-		return promptResult(check, envelope, "agent not configured", "set --agent-cmd or DUN_AGENT_CMD to run in auto mode"), nil
+		return promptResult(def, envelope, "agent not configured", "set --agent-cmd or DUN_AGENT_CMD to run in auto mode"), nil
 	}
 
 	timeout := opts.AgentTimeout
@@ -84,7 +84,7 @@ func runAgentCheck(root string, plugin Plugin, check Check, opts Options) (Check
 	}
 
 	return CheckResult{
-		ID:     check.ID,
+		ID:     def.ID,
 		Status: resp.Status,
 		Signal: resp.Signal,
 		Detail: resp.Detail,
@@ -117,13 +117,13 @@ func normalizeAutomationMode(mode string) (string, error) {
 	}
 }
 
-func promptResult(check Check, envelope PromptEnvelope, signal string, detail string) CheckResult {
+func promptResult(def CheckDefinition, envelope PromptEnvelope, signal string, detail string) CheckResult {
 	next := envelope.Callback.Command
 	if next == "" {
-		next = fmt.Sprintf("dun respond --id %s --response -", check.ID)
+		next = fmt.Sprintf("dun respond --id %s --response -", def.ID)
 	}
 	return CheckResult{
-		ID:     check.ID,
+		ID:     def.ID,
 		Status: "prompt",
 		Signal: signal,
 		Detail: detail,
@@ -132,13 +132,13 @@ func promptResult(check Check, envelope PromptEnvelope, signal string, detail st
 	}
 }
 
-func buildPromptEnvelope(root string, plugin Plugin, check Check, automationMode string) (PromptEnvelope, error) {
-	inputs, err := resolveInputs(root, check.Inputs)
+func buildPromptEnvelope(root string, plugin Plugin, def CheckDefinition, config AgentCheckConfig, automationMode string) (PromptEnvelope, error) {
+	inputs, err := resolveInputs(root, config.Inputs)
 	if err != nil {
 		return PromptEnvelope{}, err
 	}
 
-	promptText, schemaText, err := renderPromptText(plugin, check, inputs, automationMode)
+	promptText, schemaText, err := renderPromptText(plugin, config, def.ID, inputs, automationMode)
 	if err != nil {
 		return PromptEnvelope{}, err
 	}
@@ -150,21 +150,21 @@ func buildPromptEnvelope(root string, plugin Plugin, check Check, automationMode
 
 	return PromptEnvelope{
 		Kind:           "dun.prompt.v1",
-		ID:             check.ID,
-		Title:          check.Description,
-		Summary:        check.Description,
+		ID:             def.ID,
+		Title:          def.Description,
+		Summary:        def.Description,
 		Prompt:         promptText,
 		Inputs:         inputPaths,
 		ResponseSchema: schemaText,
 		Callback: PromptCallback{
-			Command: fmt.Sprintf("dun respond --id %s --response -", check.ID),
+			Command: fmt.Sprintf("dun respond --id %s --response -", def.ID),
 			Stdin:   true,
 		},
 	}, nil
 }
 
-func renderPromptText(plugin Plugin, check Check, inputs []PromptInput, automationMode string) (string, string, error) {
-	tmplText, err := loadPromptTemplate(plugin, check.Prompt)
+func renderPromptText(plugin Plugin, config AgentCheckConfig, checkID string, inputs []PromptInput, automationMode string) (string, string, error) {
+	tmplText, err := loadPromptTemplate(plugin, config.Prompt)
 	if err != nil {
 		return "", "", err
 	}
@@ -176,7 +176,7 @@ func renderPromptText(plugin Plugin, check Check, inputs []PromptInput, automati
 
 	var buf bytes.Buffer
 	ctx := PromptContext{
-		CheckID:        check.ID,
+		CheckID:        checkID,
 		Inputs:         inputs,
 		AutomationMode: automationMode,
 	}
@@ -185,8 +185,8 @@ func renderPromptText(plugin Plugin, check Check, inputs []PromptInput, automati
 	}
 
 	var schemaText string
-	if check.ResponseSchema != "" {
-		loaded, err := loadPromptTemplate(plugin, check.ResponseSchema)
+	if config.ResponseSchema != "" {
+		loaded, err := loadPromptTemplate(plugin, config.ResponseSchema)
 		if err != nil {
 			return "", "", err
 		}

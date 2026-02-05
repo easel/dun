@@ -10,25 +10,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// ConflictDetectionConfig holds the configuration for a conflict-detection check.
-type ConflictDetectionConfig struct {
-	Tracking TrackingConfig `yaml:"tracking"`
-	Rules    []ConflictRule `yaml:"rules"`
-}
-
-// TrackingConfig specifies where to find claim information.
-type TrackingConfig struct {
-	Manifest     string `yaml:"manifest"`      // Path to WIP manifest
-	ClaimPattern string `yaml:"claim_pattern"` // Pattern in code marking claimed sections
-}
-
-// ConflictRule defines how conflicts are detected.
-type ConflictRule struct {
-	Type     string `yaml:"type"`     // no-overlap, claim-before-edit
-	Scope    string `yaml:"scope"`    // file, function, line
-	Required bool   `yaml:"required"` // If false, warn only
-}
-
 // WIPManifest represents the work-in-progress manifest file.
 type WIPManifest struct {
 	Claims []Claim `yaml:"claims"`
@@ -62,23 +43,21 @@ var gitDiffFilesFunc = gitDiffFiles
 // readFileFunc allows mocking file reads in tests.
 var readFileFunc = os.ReadFile
 
-func runConflictDetectionCheck(root string, check Check) (CheckResult, error) {
-	config := extractConflictDetectionConfig(check)
-
+func runConflictDetectionCheck(root string, def CheckDefinition, config ConflictDetectionConfig) (CheckResult, error) {
 	// Load WIP manifest
 	manifest, err := loadWIPManifest(root, config.Tracking.Manifest)
 	if err != nil {
 		// If manifest doesn't exist, no claims = pass
 		if os.IsNotExist(err) {
 			return CheckResult{
-				ID:     check.ID,
+				ID:     def.ID,
 				Status: "pass",
 				Signal: "no WIP manifest found",
 				Detail: "No claims to conflict",
 			}, nil
 		}
 		return CheckResult{
-			ID:     check.ID,
+			ID:     def.ID,
 			Status: "fail",
 			Signal: "failed to load WIP manifest",
 			Detail: err.Error(),
@@ -92,7 +71,7 @@ func runConflictDetectionCheck(root string, check Check) (CheckResult, error) {
 	var issues []Issue
 	status := "pass"
 
-	for _, rule := range config.Rules {
+	for _, rule := range config.ConflictRules {
 		var ruleIssues []Issue
 		var ruleStatus string
 
@@ -114,39 +93,19 @@ func runConflictDetectionCheck(root string, check Check) (CheckResult, error) {
 
 	if len(issues) == 0 {
 		return CheckResult{
-			ID:     check.ID,
+			ID:     def.ID,
 			Status: "pass",
 			Signal: "no conflicts detected",
 		}, nil
 	}
 
 	return CheckResult{
-		ID:     check.ID,
+		ID:     def.ID,
 		Status: status,
 		Signal: fmt.Sprintf("%d conflict(s) detected", len(issues)),
 		Issues: issues,
 		Next:   "Resolve claim conflicts before proceeding",
 	}, nil
-}
-
-// extractConflictDetectionConfig extracts conflict detection config from check fields.
-func extractConflictDetectionConfig(check Check) ConflictDetectionConfig {
-	var rules []ConflictRule
-	for _, r := range check.ConflictRules {
-		rules = append(rules, ConflictRule{
-			Type:     r.Type,
-			Scope:    r.Scope,
-			Required: r.Required,
-		})
-	}
-
-	return ConflictDetectionConfig{
-		Tracking: TrackingConfig{
-			Manifest:     check.Tracking.Manifest,
-			ClaimPattern: check.Tracking.ClaimPattern,
-		},
-		Rules: rules,
-	}
 }
 
 // loadWIPManifest loads the WIP manifest from the given path.

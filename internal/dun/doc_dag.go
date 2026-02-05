@@ -51,7 +51,7 @@ type docPromptContext struct {
 	Inputs  []PromptInput
 }
 
-func runDocDagCheck(root string, plugin Plugin, check Check) (CheckResult, error) {
+func runDocDagCheck(root string, plugin Plugin, def CheckDefinition) (CheckResult, error) {
 	graph, err := buildDocGraph(root)
 	if err != nil {
 		return CheckResult{}, err
@@ -68,13 +68,13 @@ func runDocDagCheck(root string, plugin Plugin, check Check) (CheckResult, error
 	}
 
 	if len(missing) == 0 && len(staleAll) == 0 && invalidCount == 0 {
-		return CheckResult{ID: check.ID, Status: "pass", Signal: "all docs up to date"}, nil
+		return CheckResult{ID: def.ID, Status: "pass", Signal: "all docs up to date"}, nil
 	}
 
 	issues := append([]Issue(nil), graph.Issues...)
 	issues = append(issues, graph.buildIssues(missing, stale)...)
 
-	prompt, err := graph.buildPromptEnvelope(root, plugin, check, missing, stale)
+	prompt, err := graph.buildPromptEnvelope(root, plugin, def, missing, stale)
 	if err != nil {
 		return CheckResult{}, err
 	}
@@ -98,14 +98,20 @@ func runDocDagCheck(root string, plugin Plugin, check Check) (CheckResult, error
 		next = "Fix invalid frontmatter or graph files"
 	}
 
+	update := buildDocDagUpdate(graph, missing, stale)
+	if invalidCount > 0 {
+		update = appendDocDagUpdate(update, "invalid", graph.Issues)
+	}
+
 	return CheckResult{
-		ID:     check.ID,
+		ID:     def.ID,
 		Status: status,
 		Signal: signal,
 		Detail: detail,
 		Next:   next,
 		Prompt: prompt,
 		Issues: issues,
+		Update: update,
 	}, nil
 }
 
@@ -385,7 +391,60 @@ func (g *DocGraph) buildIssues(missing, stale []string) []Issue {
 	return issues
 }
 
-func (g *DocGraph) buildPromptEnvelope(root string, plugin Plugin, check Check, missing, stale []string) (*PromptEnvelope, error) {
+func buildDocDagUpdate(graph *DocGraph, missing, stale []string) *CheckUpdate {
+	if graph == nil || (len(missing) == 0 && len(stale) == 0) {
+		return nil
+	}
+	status := "stale"
+	if len(missing) > 0 {
+		status = "missing"
+	}
+	items := make([]UpdateItem, 0, len(missing)+len(stale))
+	for _, id := range missing {
+		items = append(items, UpdateItem{
+			ID:      id,
+			Summary: "missing required doc",
+			Path:    graph.expectedPath(id),
+			Reason:  "missing",
+		})
+	}
+	for _, id := range stale {
+		path := ""
+		if node := graph.Nodes[id]; node != nil {
+			path = node.Path
+		}
+		items = append(items, UpdateItem{
+			ID:      id,
+			Summary: "stale doc",
+			Path:    path,
+			Reason:  "stale",
+		})
+	}
+	return &CheckUpdate{Status: status, Items: items}
+}
+
+func appendDocDagUpdate(update *CheckUpdate, status string, issues []Issue) *CheckUpdate {
+	if len(issues) == 0 {
+		return update
+	}
+	if update == nil {
+		update = &CheckUpdate{Status: status}
+	}
+	if update.Status == "" {
+		update.Status = status
+	}
+	for _, issue := range issues {
+		update.Items = append(update.Items, UpdateItem{
+			ID:      issue.ID,
+			Summary: issue.Summary,
+			Path:    issue.Path,
+			Reason:  status,
+		})
+	}
+	return update
+}
+
+func (g *DocGraph) buildPromptEnvelope(root string, plugin Plugin, def CheckDefinition, missing, stale []string) (*PromptEnvelope, error) {
 	var targetID string
 	var reason string
 	if len(missing) > 0 {
@@ -434,14 +493,14 @@ func (g *DocGraph) buildPromptEnvelope(root string, plugin Plugin, check Check, 
 
 	return &PromptEnvelope{
 		Kind:           "dun.prompt.v1",
-		ID:             check.ID,
-		Title:          check.Description,
-		Summary:        check.Description,
+		ID:             def.ID,
+		Title:          def.Description,
+		Summary:        def.Description,
 		Prompt:         promptText,
 		Inputs:         inputs,
 		ResponseSchema: schemaText,
 		Callback: PromptCallback{
-			Command: fmt.Sprintf("dun respond --id %s --response -", check.ID),
+			Command: fmt.Sprintf("dun respond --id %s --response -", def.ID),
 			Stdin:   true,
 		},
 	}, nil

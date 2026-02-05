@@ -17,58 +17,58 @@ type commandRunner func(ctx context.Context, dir string, shell string, shellArg 
 var commandRunnerFn commandRunner = runCommandWithExec
 
 // runCommandCheck executes a generic shell command check.
-func runCommandCheck(root string, check Check) (CheckResult, error) {
-	timeout := commandTimeout(check)
+func runCommandCheck(root string, def CheckDefinition, config CommandConfig) (CheckResult, error) {
+	timeout := commandTimeout(config)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	shell, shellArg := shellCommand(check)
-	env := buildCommandEnv(check)
+	shell, shellArg := shellCommand(config)
+	env := buildCommandEnv(config)
 
-	output, exitCode, err := commandRunnerFn(ctx, root, shell, shellArg, check.Command, env)
+	output, exitCode, err := commandRunnerFn(ctx, root, shell, shellArg, config.Command, env)
 
 	// Check for context timeout - must check before examining error
 	// since killed processes return an ExitError
 	if ctx.Err() == context.DeadlineExceeded {
 		return CheckResult{
-			ID:     check.ID,
+			ID:     def.ID,
 			Status: "fail",
 			Signal: "command timed out",
 			Detail: "Command exceeded timeout of " + timeout.String(),
-			Next:   check.Command,
+			Next:   config.Command,
 		}, nil
 	}
 	if ctx.Err() == context.Canceled {
 		return CheckResult{
-			ID:     check.ID,
+			ID:     def.ID,
 			Status: "fail",
 			Signal: "command canceled",
 			Detail: "Command was canceled",
-			Next:   check.Command,
+			Next:   config.Command,
 		}, nil
 	}
 
 	if exitCode == -1 && err != nil {
 		return CheckResult{
-			ID:     check.ID,
+			ID:     def.ID,
 			Status: "fail",
 			Signal: "command failed to run",
 			Detail: err.Error(),
-			Next:   check.Command,
+			Next:   config.Command,
 		}, nil
 	}
 
-	status := statusFromExitCode(check, exitCode)
+	status := statusFromExitCode(config, exitCode)
 	signal := signalFromStatus(status, exitCode)
-	issues, detail := parseOutput(check, output)
+	issues, detail := parseOutput(config, output)
 
 	return CheckResult{
-		ID:     check.ID,
+		ID:     def.ID,
 		Status: status,
 		Signal: signal,
 		Detail: detail,
 		Issues: issues,
-		Next:   nextFromStatus(status, check),
+		Next:   nextFromStatus(status, config),
 	}, nil
 }
 
@@ -87,11 +87,11 @@ func runCommandWithExec(ctx context.Context, dir string, shell string, shellArg 
 }
 
 // commandTimeout returns the timeout duration for a command check.
-func commandTimeout(check Check) time.Duration {
-	if check.Timeout == "" {
+func commandTimeout(config CommandConfig) time.Duration {
+	if config.Timeout == "" {
 		return defaultCommandTimeout
 	}
-	d, err := time.ParseDuration(check.Timeout)
+	d, err := time.ParseDuration(config.Timeout)
 	if err != nil {
 		return defaultCommandTimeout
 	}
@@ -99,9 +99,9 @@ func commandTimeout(check Check) time.Duration {
 }
 
 // shellCommand returns the shell and argument to use for command execution.
-func shellCommand(check Check) (string, string) {
-	if check.Shell != "" {
-		parts := strings.Fields(check.Shell)
+func shellCommand(config CommandConfig) (string, string) {
+	if config.Shell != "" {
+		parts := strings.Fields(config.Shell)
 		if len(parts) > 1 {
 			return parts[0], strings.Join(parts[1:], " ")
 		}
@@ -111,9 +111,9 @@ func shellCommand(check Check) (string, string) {
 }
 
 // buildCommandEnv builds the environment for command execution.
-func buildCommandEnv(check Check) []string {
+func buildCommandEnv(config CommandConfig) []string {
 	env := os.Environ()
-	for k, v := range check.Env {
+	for k, v := range config.Env {
 		env = append(env, k+"="+v)
 	}
 	return env
@@ -131,11 +131,11 @@ func exitCodeFromError(err error) int {
 }
 
 // statusFromExitCode determines the check status from the exit code.
-func statusFromExitCode(check Check, exitCode int) string {
-	if exitCode == check.SuccessExit {
+func statusFromExitCode(config CommandConfig, exitCode int) string {
+	if exitCode == config.SuccessExit {
 		return "pass"
 	}
-	for _, warnExit := range check.WarnExits {
+	for _, warnExit := range config.WarnExits {
 		if exitCode == warnExit {
 			return "warn"
 		}
@@ -159,24 +159,24 @@ func signalFromStatus(status string, exitCode int) string {
 }
 
 // nextFromStatus generates a next action message based on status.
-func nextFromStatus(status string, check Check) string {
+func nextFromStatus(status string, config CommandConfig) string {
 	if status == "pass" {
 		return ""
 	}
-	return check.Command
+	return config.Command
 }
 
 // parseOutput parses command output based on the parser type.
-func parseOutput(check Check, output []byte) ([]Issue, string) {
-	switch check.Parser {
+func parseOutput(config CommandConfig, output []byte) ([]Issue, string) {
+	switch config.Parser {
 	case "json":
-		return parseJSONOutput(check, output)
+		return parseJSONOutput(config, output)
 	case "json-lines":
-		return parseJSONLinesOutput(check, output)
+		return parseJSONLinesOutput(config, output)
 	case "lines":
 		return parseLinesOutput(output)
 	case "regex":
-		return parseRegexOutput(check, output)
+		return parseRegexOutput(config, output)
 	default: // "text" or empty
 		return parseTextOutput(output)
 	}
@@ -209,7 +209,7 @@ func parseLinesOutput(output []byte) ([]Issue, string) {
 }
 
 // parseJSONOutput parses JSON output and extracts issues using configured paths.
-func parseJSONOutput(check Check, output []byte) ([]Issue, string) {
+func parseJSONOutput(config CommandConfig, output []byte) ([]Issue, string) {
 	text := strings.TrimSpace(string(output))
 	if text == "" {
 		return nil, ""
@@ -220,12 +220,12 @@ func parseJSONOutput(check Check, output []byte) ([]Issue, string) {
 		return nil, trimOutput(output)
 	}
 
-	issues := extractIssuesFromJSON(check, data)
+	issues := extractIssuesFromJSON(config, data)
 	return issues, trimOutput(output)
 }
 
 // parseJSONLinesOutput parses newline-delimited JSON and extracts issues.
-func parseJSONLinesOutput(check Check, output []byte) ([]Issue, string) {
+func parseJSONLinesOutput(config CommandConfig, output []byte) ([]Issue, string) {
 	text := strings.TrimSpace(string(output))
 	if text == "" {
 		return nil, ""
@@ -242,19 +242,19 @@ func parseJSONLinesOutput(check Check, output []byte) ([]Issue, string) {
 		if err := json.Unmarshal([]byte(line), &data); err != nil {
 			continue
 		}
-		issues := extractIssuesFromJSON(check, data)
+		issues := extractIssuesFromJSON(config, data)
 		allIssues = append(allIssues, issues...)
 	}
 	return allIssues, trimOutput(output)
 }
 
 // parseRegexOutput extracts issues using a regex pattern with named groups.
-func parseRegexOutput(check Check, output []byte) ([]Issue, string) {
-	if check.IssuePattern == "" {
+func parseRegexOutput(config CommandConfig, output []byte) ([]Issue, string) {
+	if config.IssuePattern == "" {
 		return nil, trimOutput(output)
 	}
 
-	re, err := regexp.Compile(check.IssuePattern)
+	re, err := regexp.Compile(config.IssuePattern)
 	if err != nil {
 		return nil, trimOutput(output)
 	}
@@ -291,10 +291,10 @@ func parseRegexOutput(check Check, output []byte) ([]Issue, string) {
 }
 
 // extractIssuesFromJSON extracts issues from parsed JSON data.
-func extractIssuesFromJSON(check Check, data interface{}) []Issue {
-	items := resolveJSONPath(data, check.IssuePath)
+func extractIssuesFromJSON(config CommandConfig, data interface{}) []Issue {
+	items := resolveJSONPath(data, config.IssuePath)
 	if items == nil {
-		if issue := extractSingleIssue(check, data); issue != nil {
+		if issue := extractSingleIssue(config, data); issue != nil {
 			return []Issue{*issue}
 		}
 		return nil
@@ -302,7 +302,7 @@ func extractIssuesFromJSON(check Check, data interface{}) []Issue {
 
 	arr, ok := items.([]interface{})
 	if !ok {
-		if issue := extractSingleIssue(check, items); issue != nil {
+		if issue := extractSingleIssue(config, items); issue != nil {
 			return []Issue{*issue}
 		}
 		return nil
@@ -310,7 +310,7 @@ func extractIssuesFromJSON(check Check, data interface{}) []Issue {
 
 	var issues []Issue
 	for _, item := range arr {
-		if issue := extractSingleIssue(check, item); issue != nil {
+		if issue := extractSingleIssue(config, item); issue != nil {
 			issues = append(issues, *issue)
 		}
 	}
@@ -318,14 +318,14 @@ func extractIssuesFromJSON(check Check, data interface{}) []Issue {
 }
 
 // extractSingleIssue extracts a single issue from a JSON object.
-func extractSingleIssue(check Check, data interface{}) *Issue {
+func extractSingleIssue(config CommandConfig, data interface{}) *Issue {
 	obj, ok := data.(map[string]interface{})
 	if !ok {
 		return nil
 	}
 
 	issue := &Issue{}
-	fields := check.IssueFields
+	fields := config.IssueFields
 
 	if fields.File != "" {
 		if val := resolveJSONPath(obj, fields.File); val != nil {

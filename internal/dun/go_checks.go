@@ -15,11 +15,11 @@ var closeCoverageFile = func(f *os.File) error {
 	return f.Close()
 }
 
-func runGoTestCheck(root string, check Check) (CheckResult, error) {
+func runGoTestCheck(root string, def CheckDefinition) (CheckResult, error) {
 	output, err := runGoCommand(root, "test", "./...")
 	if err != nil {
 		return CheckResult{
-			ID:     check.ID,
+			ID:     def.ID,
 			Status: "fail",
 			Signal: "go test failed",
 			Detail: trimOutput(output),
@@ -27,13 +27,13 @@ func runGoTestCheck(root string, check Check) (CheckResult, error) {
 		}, nil
 	}
 	return CheckResult{
-		ID:     check.ID,
+		ID:     def.ID,
 		Status: "pass",
 		Signal: "go test passed",
 	}, nil
 }
 
-func runGoCoverageCheck(root string, check Check, opts Options) (CheckResult, error) {
+func runGoCoverageCheck(root string, def CheckDefinition, config GoCoverageConfig, opts Options) (CheckResult, error) {
 	coveragePath, err := writeCoverageProfile(root)
 	if err != nil {
 		return CheckResult{}, err
@@ -43,7 +43,7 @@ func runGoCoverageCheck(root string, check Check, opts Options) (CheckResult, er
 	output, err := runGoCommand(root, "test", "./...", "-coverprofile", coveragePath)
 	if err != nil {
 		return CheckResult{
-			ID:     check.ID,
+			ID:     def.ID,
 			Status: "fail",
 			Signal: "go test failed",
 			Detail: trimOutput(output),
@@ -54,7 +54,7 @@ func runGoCoverageCheck(root string, check Check, opts Options) (CheckResult, er
 	coverageOutput, err := runGoToolCover(root, coveragePath)
 	if err != nil {
 		return CheckResult{
-			ID:     check.ID,
+			ID:     def.ID,
 			Status: "fail",
 			Signal: "coverage parsing failed",
 			Detail: err.Error(),
@@ -65,7 +65,7 @@ func runGoCoverageCheck(root string, check Check, opts Options) (CheckResult, er
 	coverage, err := parseCoveragePercent(coverageOutput)
 	if err != nil {
 		return CheckResult{
-			ID:     check.ID,
+			ID:     def.ID,
 			Status: "fail",
 			Signal: "coverage parsing failed",
 			Detail: err.Error(),
@@ -73,10 +73,10 @@ func runGoCoverageCheck(root string, check Check, opts Options) (CheckResult, er
 		}, nil
 	}
 
-	threshold := coverageThreshold(check, opts)
+	threshold := coverageThreshold(config, opts)
 	if coverage < float64(threshold) {
 		return CheckResult{
-			ID:     check.ID,
+			ID:     def.ID,
 			Status: "fail",
 			Signal: "coverage below threshold",
 			Detail: fmt.Sprintf("total coverage %.1f%% (target %d%%)", coverage, threshold),
@@ -85,17 +85,17 @@ func runGoCoverageCheck(root string, check Check, opts Options) (CheckResult, er
 	}
 
 	return CheckResult{
-		ID:     check.ID,
+		ID:     def.ID,
 		Status: "pass",
 		Signal: fmt.Sprintf("coverage %.1f%%", coverage),
 	}, nil
 }
 
-func runGoVetCheck(root string, check Check) (CheckResult, error) {
+func runGoVetCheck(root string, def CheckDefinition) (CheckResult, error) {
 	output, err := runGoCommand(root, "vet", "./...")
 	if err != nil {
 		return CheckResult{
-			ID:     check.ID,
+			ID:     def.ID,
 			Status: "fail",
 			Signal: "go vet failed",
 			Detail: trimOutput(output),
@@ -103,16 +103,16 @@ func runGoVetCheck(root string, check Check) (CheckResult, error) {
 		}, nil
 	}
 	return CheckResult{
-		ID:     check.ID,
+		ID:     def.ID,
 		Status: "pass",
 		Signal: "go vet passed",
 	}, nil
 }
 
-func runGoStaticcheck(root string, check Check) (CheckResult, error) {
+func runGoStaticcheck(root string, def CheckDefinition) (CheckResult, error) {
 	if _, err := exec.LookPath("staticcheck"); err != nil {
 		return CheckResult{
-			ID:     check.ID,
+			ID:     def.ID,
 			Status: "warn",
 			Signal: "staticcheck missing",
 			Detail: "staticcheck not found on PATH",
@@ -125,7 +125,7 @@ func runGoStaticcheck(root string, check Check) (CheckResult, error) {
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return CheckResult{
-			ID:     check.ID,
+			ID:     def.ID,
 			Status: "fail",
 			Signal: "staticcheck failed",
 			Detail: trimOutput(output),
@@ -134,7 +134,7 @@ func runGoStaticcheck(root string, check Check) (CheckResult, error) {
 	}
 
 	return CheckResult{
-		ID:     check.ID,
+		ID:     def.ID,
 		Status: "pass",
 		Signal: "staticcheck passed",
 	}, nil
@@ -194,11 +194,11 @@ func parseCoveragePercent(output []byte) (float64, error) {
 	return 0, errors.New("coverage summary not found")
 }
 
-func coverageThreshold(check Check, opts Options) int {
+func coverageThreshold(config GoCoverageConfig, opts Options) int {
 	if opts.CoverageThreshold > 0 {
 		return opts.CoverageThreshold
 	}
-	for _, rule := range check.Rules {
+	for _, rule := range config.Rules {
 		if rule.Type == "coverage-min" && rule.Expected > 0 {
 			return rule.Expected
 		}

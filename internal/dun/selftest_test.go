@@ -6,6 +6,11 @@ import (
 	"testing"
 )
 
+func runSelfTestCheckFromSpec(root string, check Check) (CheckResult, error) {
+	def := CheckDefinition{ID: check.ID}
+	return runSelfTestCheck(root, def)
+}
+
 // TestRunSelfTestCheckPasses verifies the self-test check passes in normal conditions.
 func TestRunSelfTestCheckPasses(t *testing.T) {
 	check := Check{
@@ -13,7 +18,7 @@ func TestRunSelfTestCheckPasses(t *testing.T) {
 		Type: "self-test",
 	}
 
-	result, err := runSelfTestCheck(".", check)
+	result, err := runSelfTestCheckFromSpec(".", check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -43,7 +48,7 @@ func TestRunSelfTestCheckDetails(t *testing.T) {
 		Type: "self-test",
 	}
 
-	result, err := runSelfTestCheck(".", check)
+	result, err := runSelfTestCheckFromSpec(".", check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -78,7 +83,7 @@ func TestRunSelfTestCheckSignal(t *testing.T) {
 		Type: "self-test",
 	}
 
-	result, err := runSelfTestCheck(".", check)
+	result, err := runSelfTestCheckFromSpec(".", check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -106,7 +111,7 @@ func TestRunSelfTestCheckWithBrokenRegistry(t *testing.T) {
 		Type: "self-test",
 	}
 
-	result, err := runSelfTestCheck(".", check)
+	result, err := runSelfTestCheckFromSpec(".", check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -145,7 +150,7 @@ func TestRunSelfTestCheckWithNilRegistry(t *testing.T) {
 		Type: "self-test",
 	}
 
-	result, err := runSelfTestCheck(".", check)
+	result, err := runSelfTestCheckFromSpec(".", check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -199,7 +204,7 @@ func TestSelfTestCheckRegressionPrevention(t *testing.T) {
 		Type: "self-test",
 	}
 
-	result, err := runSelfTestCheck(".", check)
+	result, err := runSelfTestCheckFromSpec(".", check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -232,7 +237,7 @@ func TestSelfTestCheckWithWrongHarnessName(t *testing.T) {
 		Type: "self-test",
 	}
 
-	result, err := runSelfTestCheck(".", check)
+	result, err := runSelfTestCheckFromSpec(".", check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -288,7 +293,7 @@ func TestSelfTestCheckWithUnexpectedResponse(t *testing.T) {
 		Type: "self-test",
 	}
 
-	result, err := runSelfTestCheck(".", check)
+	result, err := runSelfTestCheckFromSpec(".", check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -341,7 +346,7 @@ func TestSelfTestCheckWithNonCancellingHarness(t *testing.T) {
 		Type: "self-test",
 	}
 
-	result, err := runSelfTestCheck(".", check)
+	result, err := runSelfTestCheckFromSpec(".", check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -396,7 +401,7 @@ func TestSelfTestCheckWithNoErrorHarness(t *testing.T) {
 		Type: "self-test",
 	}
 
-	result, err := runSelfTestCheck(".", check)
+	result, err := runSelfTestCheckFromSpec(".", check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -449,7 +454,7 @@ func TestSelfTestCheckWithUnsupportedModes(t *testing.T) {
 		Type: "self-test",
 	}
 
-	result, err := runSelfTestCheck(".", check)
+	result, err := runSelfTestCheckFromSpec(".", check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

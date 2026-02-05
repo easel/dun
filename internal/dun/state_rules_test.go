@@ -8,7 +8,7 @@ import (
 
 func TestRunStateRulesMissingPath(t *testing.T) {
 	plugin := Plugin{}
-	_, err := runStateRules(".", plugin, Check{ID: "state"})
+	_, err := runStateRules(".", plugin, CheckDefinition{ID: "state"}, StateRulesConfig{})
 	if err == nil {
 		t.Fatalf("expected missing state rules error")
 	}
@@ -16,7 +16,7 @@ func TestRunStateRulesMissingPath(t *testing.T) {
 
 func TestRunStateRulesReadError(t *testing.T) {
 	plugin := Plugin{FS: os.DirFS(t.TempDir()), Base: "."}
-	_, err := runStateRules(".", plugin, Check{ID: "state", StateRules: "missing.yml"})
+	_, err := runStateRules(".", plugin, CheckDefinition{ID: "state"}, StateRulesConfig{StateRules: "missing.yml"})
 	if err == nil {
 		t.Fatalf("expected read error")
 	}
@@ -26,7 +26,7 @@ func TestRunStateRulesParseError(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "rules.yml"), ":")
 	plugin := Plugin{FS: os.DirFS(dir), Base: "."}
-	_, err := runStateRules(".", plugin, Check{ID: "state", StateRules: "rules.yml"})
+	_, err := runStateRules(".", plugin, CheckDefinition{ID: "state"}, StateRulesConfig{StateRules: "rules.yml"})
 	if err == nil {
 		t.Fatalf("expected parse error")
 	}
@@ -59,8 +59,9 @@ func TestRunStateRulesPassAndFail(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "build", "IP-1.md"), "IP-1")
 
 	plugin := Plugin{FS: os.DirFS(dir), Base: "."}
-	check := Check{ID: "state", StateRules: "rules.yml"}
-	res, err := runStateRules(dir, plugin, check)
+	def := CheckDefinition{ID: "state"}
+	config := StateRulesConfig{StateRules: "rules.yml"}
+	res, err := runStateRules(dir, plugin, def, config)
 	if err != nil {
 		t.Fatalf("run state rules: %v", err)
 	}
@@ -69,7 +70,7 @@ func TestRunStateRulesPassAndFail(t *testing.T) {
 	}
 
 	writeFile(t, filepath.Join(dir, "test", "TP-2.md"), "TP-2")
-	res, err = runStateRules(dir, plugin, check)
+	res, err = runStateRules(dir, plugin, def, config)
 	if err != nil {
 		t.Fatalf("run state rules fail: %v", err)
 	}
@@ -117,7 +118,7 @@ func TestRunStateRulesFrameGlobError(t *testing.T) {
 	dir := t.TempDir()
 	writeStateRules(t, dir, "[", "design/TD-{id}.md", "test/TP-{id}.md", "build/IP-{id}.md")
 	plugin := Plugin{FS: os.DirFS(dir), Base: "."}
-	if _, err := runStateRules(dir, plugin, Check{ID: "state", StateRules: "rules.yml"}); err == nil {
+	if _, err := runStateRules(dir, plugin, CheckDefinition{ID: "state"}, StateRulesConfig{StateRules: "rules.yml"}); err == nil {
 		t.Fatalf("expected frame glob error")
 	}
 }
@@ -126,7 +127,7 @@ func TestRunStateRulesDesignGlobError(t *testing.T) {
 	dir := t.TempDir()
 	writeStateRules(t, dir, "frame/US-{id}.md", "[", "test/TP-{id}.md", "build/IP-{id}.md")
 	plugin := Plugin{FS: os.DirFS(dir), Base: "."}
-	if _, err := runStateRules(dir, plugin, Check{ID: "state", StateRules: "rules.yml"}); err == nil {
+	if _, err := runStateRules(dir, plugin, CheckDefinition{ID: "state"}, StateRulesConfig{StateRules: "rules.yml"}); err == nil {
 		t.Fatalf("expected design glob error")
 	}
 }
@@ -135,7 +136,7 @@ func TestRunStateRulesTestGlobError(t *testing.T) {
 	dir := t.TempDir()
 	writeStateRules(t, dir, "frame/US-{id}.md", "design/TD-{id}.md", "[", "build/IP-{id}.md")
 	plugin := Plugin{FS: os.DirFS(dir), Base: "."}
-	if _, err := runStateRules(dir, plugin, Check{ID: "state", StateRules: "rules.yml"}); err == nil {
+	if _, err := runStateRules(dir, plugin, CheckDefinition{ID: "state"}, StateRulesConfig{StateRules: "rules.yml"}); err == nil {
 		t.Fatalf("expected test glob error")
 	}
 }
@@ -144,7 +145,7 @@ func TestRunStateRulesBuildGlobError(t *testing.T) {
 	dir := t.TempDir()
 	writeStateRules(t, dir, "frame/US-{id}.md", "design/TD-{id}.md", "test/TP-{id}.md", "[")
 	plugin := Plugin{FS: os.DirFS(dir), Base: "."}
-	if _, err := runStateRules(dir, plugin, Check{ID: "state", StateRules: "rules.yml"}); err == nil {
+	if _, err := runStateRules(dir, plugin, CheckDefinition{ID: "state"}, StateRulesConfig{StateRules: "rules.yml"}); err == nil {
 		t.Fatalf("expected build glob error")
 	}
 }

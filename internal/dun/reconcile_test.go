@@ -188,8 +188,9 @@ func TestStateRulesDetectPRDFeatureMismatch(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "design", "TD-002.md"), "TD-002") // Missing upstream US-002
 
 	plugin := Plugin{FS: os.DirFS(dir), Base: "."}
-	check := Check{ID: "state", StateRules: "rules.yml"}
-	res, err := runStateRules(dir, plugin, check)
+	def := CheckDefinition{ID: "state"}
+	config := StateRulesConfig{StateRules: "rules.yml"}
+	res, err := runStateRules(dir, plugin, def, config)
 	if err != nil {
 		t.Fatalf("run state rules: %v", err)
 	}

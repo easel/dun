@@ -63,10 +63,10 @@ func evalRule(root string, rule Rule) (RuleEval, error) {
 	}
 }
 
-func runRuleSet(root string, check Check) (CheckResult, error) {
+func runRuleSet(root string, def CheckDefinition, config RuleSetConfig) (CheckResult, error) {
 	var fails []string
 	var warns []string
-	for _, rule := range check.Rules {
+	for _, rule := range config.Rules {
 		res, err := evalRule(root, rule)
 		if err != nil {
 			return CheckResult{}, err
@@ -97,7 +97,7 @@ func runRuleSet(root string, check Check) (CheckResult, error) {
 	}
 
 	return CheckResult{
-		ID:     check.ID,
+		ID:     def.ID,
 		Status: status,
 		Signal: signal,
 		Detail: detail,

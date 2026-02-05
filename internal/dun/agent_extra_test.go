@@ -10,6 +10,12 @@ import (
 	"time"
 )
 
+func runAgentCheckFromSpec(root string, plugin Plugin, check Check, opts Options) (CheckResult, error) {
+	def := CheckDefinition{ID: check.ID, Description: check.Description}
+	config := AgentCheckConfig{Prompt: check.Prompt, Inputs: check.Inputs, ResponseSchema: check.ResponseSchema}
+	return runAgentCheck(root, plugin, def, config, opts)
+}
+
 func TestNormalizeAgentModeInvalid(t *testing.T) {
 	if _, err := normalizeAgentMode("nope"); err == nil {
 		t.Fatalf("expected error for invalid agent mode")
@@ -44,13 +50,13 @@ func TestNormalizeAutomationModeVariants(t *testing.T) {
 func TestPromptResultDefaultsAndOverridesNext(t *testing.T) {
 	check := Check{ID: "check-1"}
 	envelope := PromptEnvelope{}
-	res := promptResult(check, envelope, "signal", "detail")
+	res := promptResult(CheckDefinition{ID: check.ID, Description: check.Description}, envelope, "signal", "detail")
 	if !strings.Contains(res.Next, "dun respond") {
 		t.Fatalf("expected default next, got %q", res.Next)
 	}
 
 	envelope.Callback.Command = "custom command"
-	res = promptResult(check, envelope, "signal", "detail")
+	res = promptResult(CheckDefinition{ID: check.ID, Description: check.Description}, envelope, "signal", "detail")
 	if res.Next != "custom command" {
 		t.Fatalf("expected custom next, got %q", res.Next)
 	}
@@ -75,7 +81,7 @@ func TestRenderPromptTextWithSchema(t *testing.T) {
 	plugin := Plugin{FS: os.DirFS(dir), Base: "."}
 	check := Check{ID: "id", Prompt: "prompt.md", ResponseSchema: "schema.json"}
 
-	text, schema, err := renderPromptText(plugin, check, nil, "auto")
+	text, schema, err := renderPromptText(plugin, AgentCheckConfig{Prompt: check.Prompt, Inputs: check.Inputs, ResponseSchema: check.ResponseSchema}, check.ID, nil, "auto")
 	if err != nil {
 		t.Fatalf("render prompt: %v", err)
 	}
@@ -158,7 +164,7 @@ func TestRunAgentCheckMissingCmd(t *testing.T) {
 	check := Check{ID: "test", Prompt: "prompt.md", Description: "desc"}
 	opts := Options{AgentMode: "auto", AutomationMode: "auto"}
 
-	res, err := runAgentCheck(".", plugin, check, opts)
+	res, err := runAgentCheckFromSpec(".", plugin, check, opts)
 	if err != nil {
 		t.Fatalf("run agent check: %v", err)
 	}
@@ -174,7 +180,7 @@ func TestRunAgentCheckInvalidMode(t *testing.T) {
 	plugin := Plugin{FS: os.DirFS(t.TempDir()), Base: "."}
 	check := Check{ID: "test", Prompt: "missing.md"}
 	opts := Options{AgentMode: "nope", AutomationMode: "auto"}
-	_, err := runAgentCheck(".", plugin, check, opts)
+	_, err := runAgentCheckFromSpec(".", plugin, check, opts)
 	if err == nil {
 		t.Fatalf("expected invalid agent mode error")
 	}
@@ -196,7 +202,7 @@ func TestRunAgentCheckUsesEnvCmd(t *testing.T) {
 
 	t.Setenv("DUN_AGENT_CMD", "ok")
 	opts := Options{AgentMode: "auto", AutomationMode: "auto", AgentTimeout: time.Second}
-	res, err := runAgentCheck(".", plugin, check, opts)
+	res, err := runAgentCheckFromSpec(".", plugin, check, opts)
 	if err != nil {
 		t.Fatalf("run agent: %v", err)
 	}
@@ -223,7 +229,7 @@ func TestRunAgentCheckDefaultTimeout(t *testing.T) {
 		AutomationMode: "auto",
 		AgentCmd:       "ok",
 	}
-	res, err := runAgentCheck(".", plugin, check, opts)
+	res, err := runAgentCheckFromSpec(".", plugin, check, opts)
 	if err != nil {
 		t.Fatalf("run agent: %v", err)
 	}
@@ -236,7 +242,7 @@ func TestRunAgentCheckInvalidAutomationMode(t *testing.T) {
 	plugin := Plugin{FS: os.DirFS(t.TempDir()), Base: "."}
 	check := Check{ID: "test", Prompt: "missing.md"}
 	opts := Options{AgentMode: "prompt", AutomationMode: "nope"}
-	_, err := runAgentCheck(".", plugin, check, opts)
+	_, err := runAgentCheckFromSpec(".", plugin, check, opts)
 	if err == nil {
 		t.Fatalf("expected error for invalid automation mode")
 	}
@@ -249,7 +255,7 @@ func TestRunAgentCheckPromptMode(t *testing.T) {
 	check := Check{ID: "check", Prompt: "prompt.md", Description: "desc"}
 	opts := Options{AgentMode: "prompt", AutomationMode: "auto"}
 
-	res, err := runAgentCheck(".", plugin, check, opts)
+	res, err := runAgentCheckFromSpec(".", plugin, check, opts)
 	if err != nil {
 		t.Fatalf("run agent check prompt: %v", err)
 	}
@@ -286,7 +292,7 @@ func TestRunAgentCheckAutoSuccessAndInvalidResponse(t *testing.T) {
 		AgentCmd:       "ok",
 		AgentTimeout:   time.Second,
 	}
-	res, err := runAgentCheck(".", plugin, check, opts)
+	res, err := runAgentCheckFromSpec(".", plugin, check, opts)
 	if err != nil {
 		t.Fatalf("run agent auto: %v", err)
 	}
@@ -295,7 +301,7 @@ func TestRunAgentCheckAutoSuccessAndInvalidResponse(t *testing.T) {
 	}
 
 	opts.AgentCmd = "missing-signal"
-	_, err = runAgentCheck(".", plugin, check, opts)
+	_, err = runAgentCheckFromSpec(".", plugin, check, opts)
 	if err == nil {
 		t.Fatalf("expected error for missing signal")
 	}
@@ -307,7 +313,7 @@ func TestRunAgentCheckBuildPromptEnvelopeSkipsMissingInputs(t *testing.T) {
 	plugin := Plugin{FS: os.DirFS(dir), Base: "."}
 	check := Check{ID: "test", Prompt: "prompt.md", Inputs: []string{"missing.txt"}}
 	opts := Options{AgentMode: "prompt", AutomationMode: "auto"}
-	res, err := runAgentCheck(dir, plugin, check, opts)
+	res, err := runAgentCheckFromSpec(dir, plugin, check, opts)
 	if err != nil {
 		t.Fatalf("run agent check: %v", err)
 	}
@@ -338,7 +344,7 @@ func TestRunAgentCheckExecAgentError(t *testing.T) {
 		AgentCmd:       "fail",
 		AgentTimeout:   time.Second,
 	}
-	if _, err := runAgentCheck(dir, plugin, check, opts); err == nil {
+	if _, err := runAgentCheckFromSpec(dir, plugin, check, opts); err == nil {
 		t.Fatalf("expected agent command error")
 	}
 }
@@ -349,7 +355,7 @@ func TestBuildPromptEnvelopeInputs(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "a.txt"), "A")
 	plugin := Plugin{FS: os.DirFS(dir), Base: "."}
 	check := Check{ID: "id", Prompt: "prompt.md", Inputs: []string{"a.txt"}}
-	envelope, err := buildPromptEnvelope(dir, plugin, check, "auto")
+	envelope, err := buildPromptEnvelope(dir, plugin, CheckDefinition{ID: check.ID, Description: check.Description}, AgentCheckConfig{Prompt: check.Prompt, Inputs: check.Inputs, ResponseSchema: check.ResponseSchema}, "auto")
 	if err != nil {
 		t.Fatalf("build prompt envelope: %v", err)
 	}
@@ -361,7 +367,7 @@ func TestBuildPromptEnvelopeInputs(t *testing.T) {
 func TestBuildPromptEnvelopeMissingPrompt(t *testing.T) {
 	plugin := Plugin{FS: os.DirFS(t.TempDir()), Base: "."}
 	check := Check{ID: "id"}
-	_, err := buildPromptEnvelope(".", plugin, check, "auto")
+	_, err := buildPromptEnvelope(".", plugin, CheckDefinition{ID: check.ID, Description: check.Description}, AgentCheckConfig{Prompt: check.Prompt, Inputs: check.Inputs, ResponseSchema: check.ResponseSchema}, "auto")
 	if err == nil {
 		t.Fatalf("expected error for missing prompt")
 	}
@@ -372,7 +378,7 @@ func TestBuildPromptEnvelopeMissingInput(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "prompt.md"), "hello")
 	plugin := Plugin{FS: os.DirFS(dir), Base: "."}
 	check := Check{ID: "id", Prompt: "prompt.md", Inputs: []string{"missing.txt"}}
-	envelope, err := buildPromptEnvelope(dir, plugin, check, "auto")
+	envelope, err := buildPromptEnvelope(dir, plugin, CheckDefinition{ID: check.ID, Description: check.Description}, AgentCheckConfig{Prompt: check.Prompt, Inputs: check.Inputs, ResponseSchema: check.ResponseSchema}, "auto")
 	if err != nil {
 		t.Fatalf("build prompt envelope: %v", err)
 	}
@@ -386,7 +392,7 @@ func TestRenderPromptTextNoSchema(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "prompt.md"), "hello")
 	plugin := Plugin{FS: os.DirFS(dir), Base: "."}
 	check := Check{ID: "id", Prompt: "prompt.md"}
-	text, schema, err := renderPromptText(plugin, check, nil, "auto")
+	text, schema, err := renderPromptText(plugin, AgentCheckConfig{Prompt: check.Prompt, Inputs: check.Inputs, ResponseSchema: check.ResponseSchema}, check.ID, nil, "auto")
 	if err != nil {
 		t.Fatalf("render prompt: %v", err)
 	}
@@ -403,7 +409,7 @@ func TestRenderPromptTextParseError(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "prompt.md"), "{{ .CheckID")
 	plugin := Plugin{FS: os.DirFS(dir), Base: "."}
 	check := Check{ID: "id", Prompt: "prompt.md"}
-	if _, _, err := renderPromptText(plugin, check, nil, "auto"); err == nil {
+	if _, _, err := renderPromptText(plugin, AgentCheckConfig{Prompt: check.Prompt, Inputs: check.Inputs, ResponseSchema: check.ResponseSchema}, check.ID, nil, "auto"); err == nil {
 		t.Fatalf("expected parse error")
 	}
 }
@@ -413,7 +419,7 @@ func TestRenderPromptTextExecuteError(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "prompt.md"), "{{ index .Inputs 0 }}")
 	plugin := Plugin{FS: os.DirFS(dir), Base: "."}
 	check := Check{ID: "id", Prompt: "prompt.md"}
-	if _, _, err := renderPromptText(plugin, check, nil, "auto"); err == nil {
+	if _, _, err := renderPromptText(plugin, AgentCheckConfig{Prompt: check.Prompt, Inputs: check.Inputs, ResponseSchema: check.ResponseSchema}, check.ID, nil, "auto"); err == nil {
 		t.Fatalf("expected execute error")
 	}
 }
@@ -423,7 +429,7 @@ func TestRenderPromptTextSchemaError(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "prompt.md"), "hello")
 	plugin := Plugin{FS: selectiveFS{root: dir, deny: "schema.json"}, Base: "."}
 	check := Check{ID: "id", Prompt: "prompt.md", ResponseSchema: "schema.json"}
-	if _, _, err := renderPromptText(plugin, check, nil, "auto"); err == nil {
+	if _, _, err := renderPromptText(plugin, AgentCheckConfig{Prompt: check.Prompt, Inputs: check.Inputs, ResponseSchema: check.ResponseSchema}, check.ID, nil, "auto"); err == nil {
 		t.Fatalf("expected schema load error")
 	}
 }

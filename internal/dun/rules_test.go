@@ -172,13 +172,9 @@ func TestRunRuleSetStatuses(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, filepath.Join(root, "ok.txt"), "ok")
 
-	passCheck := Check{
-		ID: "rules-pass",
-		Rules: []Rule{
-			{Type: "path-exists", Path: "ok.txt"},
-		},
-	}
-	res, err := runRuleSet(root, passCheck)
+	passDef := CheckDefinition{ID: "rules-pass"}
+	passConfig := RuleSetConfig{Rules: []Rule{{Type: "path-exists", Path: "ok.txt"}}}
+	res, err := runRuleSet(root, passDef, passConfig)
 	if err != nil {
 		t.Fatalf("rule-set pass: %v", err)
 	}
@@ -186,13 +182,9 @@ func TestRunRuleSetStatuses(t *testing.T) {
 		t.Fatalf("expected pass, got %s", res.Status)
 	}
 
-	warnCheck := Check{
-		ID: "rules-warn",
-		Rules: []Rule{
-			{Type: "path-missing", Path: "ok.txt", Severity: "warn"},
-		},
-	}
-	res, err = runRuleSet(root, warnCheck)
+	warnDef := CheckDefinition{ID: "rules-warn"}
+	warnConfig := RuleSetConfig{Rules: []Rule{{Type: "path-missing", Path: "ok.txt", Severity: "warn"}}}
+	res, err = runRuleSet(root, warnDef, warnConfig)
 	if err != nil {
 		t.Fatalf("rule-set warn: %v", err)
 	}
@@ -200,13 +192,9 @@ func TestRunRuleSetStatuses(t *testing.T) {
 		t.Fatalf("expected warn, got %s", res.Status)
 	}
 
-	failCheck := Check{
-		ID: "rules-fail",
-		Rules: []Rule{
-			{Type: "path-missing", Path: "ok.txt"},
-		},
-	}
-	res, err = runRuleSet(root, failCheck)
+	failDef := CheckDefinition{ID: "rules-fail"}
+	failConfig := RuleSetConfig{Rules: []Rule{{Type: "path-missing", Path: "ok.txt"}}}
+	res, err = runRuleSet(root, failDef, failConfig)
 	if err != nil {
 		t.Fatalf("rule-set fail: %v", err)
 	}
@@ -214,14 +202,10 @@ func TestRunRuleSetStatuses(t *testing.T) {
 		t.Fatalf("expected fail, got %s", res.Status)
 	}
 
-	badCheck := Check{
-		ID: "rules-error",
-		Rules: []Rule{
-			{Type: "pattern-count", Path: "pattern.txt", Pattern: "("},
-		},
-	}
+	badDef := CheckDefinition{ID: "rules-error"}
+	badConfig := RuleSetConfig{Rules: []Rule{{Type: "pattern-count", Path: "pattern.txt", Pattern: "("}}}
 	writeFile(t, filepath.Join(root, "pattern.txt"), "x")
-	if _, err := runRuleSet(root, badCheck); err == nil {
+	if _, err := runRuleSet(root, badDef, badConfig); err == nil {
 		t.Fatalf("expected error from bad rule")
 	}
 }

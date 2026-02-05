@@ -140,7 +140,7 @@ func TestRunBeadsReadyCheck_Success(t *testing.T) {
 	t.Setenv("DUN_BD_READY_OUTPUT", `[{"id":"BEAD-1","title":"Ready task","status":"open","priority":1}]`)
 
 	root := t.TempDir()
-	res, err := runBeadsReadyCheck(root, Check{ID: "beads-ready"})
+	res, err := runBeadsReadyCheck(root, CheckDefinition{ID: "beads-ready"})
 	if err != nil {
 		t.Fatalf("beads ready check: %v", err)
 	}
@@ -161,7 +161,7 @@ func TestRunBeadsReadyCheck_MultipleReady(t *testing.T) {
 	t.Setenv("DUN_BD_READY_OUTPUT", `[{"id":"BEAD-1","title":"First"},{"id":"BEAD-2","title":"Second"},{"id":"BEAD-3","title":"Third"}]`)
 
 	root := t.TempDir()
-	res, err := runBeadsReadyCheck(root, Check{ID: "beads-ready"})
+	res, err := runBeadsReadyCheck(root, CheckDefinition{ID: "beads-ready"})
 	if err != nil {
 		t.Fatalf("beads ready check: %v", err)
 	}
@@ -182,7 +182,7 @@ func TestRunBeadsReadyCheck_EmptyArray(t *testing.T) {
 	t.Setenv("DUN_BD_READY_OUTPUT", `[]`)
 
 	root := t.TempDir()
-	res, err := runBeadsReadyCheck(root, Check{ID: "beads-ready"})
+	res, err := runBeadsReadyCheck(root, CheckDefinition{ID: "beads-ready"})
 	if err != nil {
 		t.Fatalf("beads ready check: %v", err)
 	}
@@ -200,7 +200,7 @@ func TestRunBeadsReadyCheck_CommandFails(t *testing.T) {
 	t.Setenv("DUN_BD_EXIT", "1")
 
 	root := t.TempDir()
-	res, err := runBeadsReadyCheck(root, Check{ID: "beads-ready"})
+	res, err := runBeadsReadyCheck(root, CheckDefinition{ID: "beads-ready"})
 	if err != nil {
 		t.Fatalf("beads ready check: %v", err)
 	}
@@ -217,7 +217,7 @@ func TestRunBeadsReadyCheck_BdNotInstalled(t *testing.T) {
 	t.Setenv("PATH", "")
 
 	root := t.TempDir()
-	res, err := runBeadsReadyCheck(root, Check{ID: "beads-ready"})
+	res, err := runBeadsReadyCheck(root, CheckDefinition{ID: "beads-ready"})
 	if err != nil {
 		t.Fatalf("beads ready check: %v", err)
 	}
@@ -232,7 +232,7 @@ func TestRunBeadsReadyCheck_InvalidJSON(t *testing.T) {
 	t.Setenv("DUN_BD_READY_OUTPUT", "not valid json")
 
 	root := t.TempDir()
-	res, err := runBeadsReadyCheck(root, Check{ID: "beads-ready"})
+	res, err := runBeadsReadyCheck(root, CheckDefinition{ID: "beads-ready"})
 	if err != nil {
 		t.Fatalf("beads ready check: %v", err)
 	}
@@ -252,7 +252,7 @@ func TestRunBeadsReadyCheck_EmptyOutput(t *testing.T) {
 	t.Setenv("DUN_BD_READY_OUTPUT", "")
 
 	root := t.TempDir()
-	res, err := runBeadsReadyCheck(root, Check{ID: "beads-ready"})
+	res, err := runBeadsReadyCheck(root, CheckDefinition{ID: "beads-ready"})
 	if err != nil {
 		t.Fatalf("beads ready check: %v", err)
 	}
@@ -270,7 +270,7 @@ func TestRunBeadsReadyCheck_WhitespaceOnlyOutput(t *testing.T) {
 	t.Setenv("DUN_BD_READY_OUTPUT", "   \n\n  ")
 
 	root := t.TempDir()
-	res, err := runBeadsReadyCheck(root, Check{ID: "beads-ready"})
+	res, err := runBeadsReadyCheck(root, CheckDefinition{ID: "beads-ready"})
 	if err != nil {
 		t.Fatalf("beads ready check: %v", err)
 	}
@@ -287,7 +287,7 @@ func TestRunBeadsCriticalPathCheck_Success(t *testing.T) {
 	t.Setenv("DUN_BD_BLOCKED_OUTPUT", `[{"id":"BEAD-1","title":"Blocker","blocked_by":[]},{"id":"BEAD-2","title":"Blocked 1","blocked_by":["BEAD-1"]},{"id":"BEAD-3","title":"Blocked 2","blocked_by":["BEAD-1"]}]`)
 
 	root := t.TempDir()
-	res, err := runBeadsCriticalPathCheck(root, Check{ID: "beads-critical-path"})
+	res, err := runBeadsCriticalPathCheck(root, CheckDefinition{ID: "beads-critical-path"})
 	if err != nil {
 		t.Fatalf("beads critical path check: %v", err)
 	}
@@ -305,7 +305,7 @@ func TestRunBeadsCriticalPathCheck_NoBlocked(t *testing.T) {
 	t.Setenv("DUN_BD_BLOCKED_OUTPUT", `[]`)
 
 	root := t.TempDir()
-	res, err := runBeadsCriticalPathCheck(root, Check{ID: "beads-critical-path"})
+	res, err := runBeadsCriticalPathCheck(root, CheckDefinition{ID: "beads-critical-path"})
 	if err != nil {
 		t.Fatalf("beads critical path check: %v", err)
 	}
@@ -323,7 +323,7 @@ func TestRunBeadsCriticalPathCheck_CommandFails(t *testing.T) {
 	t.Setenv("DUN_BD_EXIT", "1")
 
 	root := t.TempDir()
-	res, err := runBeadsCriticalPathCheck(root, Check{ID: "beads-critical-path"})
+	res, err := runBeadsCriticalPathCheck(root, CheckDefinition{ID: "beads-critical-path"})
 	if err != nil {
 		t.Fatalf("beads critical path check: %v", err)
 	}
@@ -338,7 +338,7 @@ func TestRunBeadsCriticalPathCheck_InvalidJSON(t *testing.T) {
 	t.Setenv("DUN_BD_BLOCKED_OUTPUT", "invalid json")
 
 	root := t.TempDir()
-	res, err := runBeadsCriticalPathCheck(root, Check{ID: "beads-critical-path"})
+	res, err := runBeadsCriticalPathCheck(root, CheckDefinition{ID: "beads-critical-path"})
 	if err != nil {
 		t.Fatalf("beads critical path check: %v", err)
 	}
@@ -354,7 +354,7 @@ func TestRunBeadsCriticalPathCheck_BdNotInstalled(t *testing.T) {
 	t.Setenv("PATH", "")
 
 	root := t.TempDir()
-	res, err := runBeadsCriticalPathCheck(root, Check{ID: "beads-critical-path"})
+	res, err := runBeadsCriticalPathCheck(root, CheckDefinition{ID: "beads-critical-path"})
 	if err != nil {
 		t.Fatalf("beads critical path check: %v", err)
 	}
@@ -370,7 +370,7 @@ func TestRunBeadsSuggestCheck_Success(t *testing.T) {
 	t.Setenv("DUN_BD_READY_OUTPUT", `[{"id":"BEAD-1","title":"Low priority","priority":3},{"id":"BEAD-2","title":"High priority","priority":1,"description":"Important task"}]`)
 
 	root := t.TempDir()
-	res, err := runBeadsSuggestCheck(root, Check{ID: "beads-suggest"})
+	res, err := runBeadsSuggestCheck(root, CheckDefinition{ID: "beads-suggest"})
 	if err != nil {
 		t.Fatalf("beads suggest check: %v", err)
 	}
@@ -401,7 +401,7 @@ func TestRunBeadsSuggestCheck_NoReadyBeads(t *testing.T) {
 	t.Setenv("DUN_BD_READY_OUTPUT", `[]`)
 
 	root := t.TempDir()
-	res, err := runBeadsSuggestCheck(root, Check{ID: "beads-suggest"})
+	res, err := runBeadsSuggestCheck(root, CheckDefinition{ID: "beads-suggest"})
 	if err != nil {
 		t.Fatalf("beads suggest check: %v", err)
 	}
@@ -422,7 +422,7 @@ func TestRunBeadsSuggestCheck_CommandFails(t *testing.T) {
 	t.Setenv("DUN_BD_EXIT", "1")
 
 	root := t.TempDir()
-	res, err := runBeadsSuggestCheck(root, Check{ID: "beads-suggest"})
+	res, err := runBeadsSuggestCheck(root, CheckDefinition{ID: "beads-suggest"})
 	if err != nil {
 		t.Fatalf("beads suggest check: %v", err)
 	}
@@ -437,7 +437,7 @@ func TestRunBeadsSuggestCheck_InvalidJSON(t *testing.T) {
 	t.Setenv("DUN_BD_READY_OUTPUT", "invalid")
 
 	root := t.TempDir()
-	res, err := runBeadsSuggestCheck(root, Check{ID: "beads-suggest"})
+	res, err := runBeadsSuggestCheck(root, CheckDefinition{ID: "beads-suggest"})
 	if err != nil {
 		t.Fatalf("beads suggest check: %v", err)
 	}
@@ -455,7 +455,7 @@ func TestRunBeadsSuggestCheck_SingleBead(t *testing.T) {
 	t.Setenv("DUN_BD_READY_OUTPUT", `[{"id":"BEAD-ONLY","title":"Only bead","priority":5}]`)
 
 	root := t.TempDir()
-	res, err := runBeadsSuggestCheck(root, Check{ID: "beads-suggest"})
+	res, err := runBeadsSuggestCheck(root, CheckDefinition{ID: "beads-suggest"})
 	if err != nil {
 		t.Fatalf("beads suggest check: %v", err)
 	}
@@ -794,7 +794,7 @@ func TestBeadsCheckFlow_ReadyToSuggest(t *testing.T) {
 	root := t.TempDir()
 
 	// First check ready beads
-	readyRes, err := runBeadsReadyCheck(root, Check{ID: "beads-ready"})
+	readyRes, err := runBeadsReadyCheck(root, CheckDefinition{ID: "beads-ready"})
 	if err != nil {
 		t.Fatalf("ready check: %v", err)
 	}
@@ -806,7 +806,7 @@ func TestBeadsCheckFlow_ReadyToSuggest(t *testing.T) {
 	}
 
 	// Then get suggestion (should pick BEAD-URGENT with priority 0)
-	suggestRes, err := runBeadsSuggestCheck(root, Check{ID: "beads-suggest"})
+	suggestRes, err := runBeadsSuggestCheck(root, CheckDefinition{ID: "beads-suggest"})
 	if err != nil {
 		t.Fatalf("suggest check: %v", err)
 	}
@@ -836,7 +836,7 @@ func TestBeadsCheckFlow_CriticalPathWhenBlocked(t *testing.T) {
 	root := t.TempDir()
 
 	// Suggest should point to critical path
-	suggestRes, err := runBeadsSuggestCheck(root, Check{ID: "beads-suggest"})
+	suggestRes, err := runBeadsSuggestCheck(root, CheckDefinition{ID: "beads-suggest"})
 	if err != nil {
 		t.Fatalf("suggest check: %v", err)
 	}
@@ -848,7 +848,7 @@ func TestBeadsCheckFlow_CriticalPathWhenBlocked(t *testing.T) {
 	}
 
 	// Critical path should identify ROOT as the blocker
-	critRes, err := runBeadsCriticalPathCheck(root, Check{ID: "beads-critical-path"})
+	critRes, err := runBeadsCriticalPathCheck(root, CheckDefinition{ID: "beads-critical-path"})
 	if err != nil {
 		t.Fatalf("critical path check: %v", err)
 	}
@@ -869,7 +869,7 @@ func TestRunBeadsReadyCheck_MalformedJSONArray(t *testing.T) {
 	t.Setenv("DUN_BD_READY_OUTPUT", `{"error": "not an array"}`)
 
 	root := t.TempDir()
-	res, err := runBeadsReadyCheck(root, Check{ID: "beads-ready"})
+	res, err := runBeadsReadyCheck(root, CheckDefinition{ID: "beads-ready"})
 	if err != nil {
 		t.Fatalf("beads ready check: %v", err)
 	}
@@ -885,7 +885,7 @@ func TestRunBeadsSuggestCheck_PromptFields(t *testing.T) {
 	t.Setenv("DUN_BD_READY_OUTPUT", `[{"id":"BEAD-TEST","title":"Test Title","description":"Test Description","priority":2}]`)
 
 	root := t.TempDir()
-	res, err := runBeadsSuggestCheck(root, Check{ID: "beads-suggest"})
+	res, err := runBeadsSuggestCheck(root, CheckDefinition{ID: "beads-suggest"})
 	if err != nil {
 		t.Fatalf("beads suggest check: %v", err)
 	}

@@ -8,20 +8,23 @@ import (
 	"time"
 )
 
+func runConflictDetectionCheckFromSpec(root string, check Check) (CheckResult, error) {
+	def := CheckDefinition{ID: check.ID}
+	config := ConflictDetectionConfig{Tracking: check.Tracking, ConflictRules: check.ConflictRules}
+	return runConflictDetectionCheck(root, def, config)
+}
+
 func TestConflictDetection_NoManifest(t *testing.T) {
 	root := t.TempDir()
 
 	check := Check{
 		ID: "test-conflict",
-		Tracking: struct {
-			Manifest     string `yaml:"manifest"`
-			ClaimPattern string `yaml:"claim_pattern"`
-		}{
+		Tracking: TrackingConfig{
 			Manifest: ".dun/work-in-progress.yaml",
 		},
 	}
 
-	result, err := runConflictDetectionCheck(root, check)
+	result, err := runConflictDetectionCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -46,15 +49,12 @@ func TestConflictDetection_InvalidManifest(t *testing.T) {
 
 	check := Check{
 		ID: "test-conflict",
-		Tracking: struct {
-			Manifest     string `yaml:"manifest"`
-			ClaimPattern string `yaml:"claim_pattern"`
-		}{
+		Tracking: TrackingConfig{
 			Manifest: ".dun/work-in-progress.yaml",
 		},
 	}
 
-	result, err := runConflictDetectionCheck(root, check)
+	result, err := runConflictDetectionCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -79,22 +79,15 @@ func TestConflictDetection_EmptyManifest(t *testing.T) {
 
 	check := Check{
 		ID: "test-conflict",
-		Tracking: struct {
-			Manifest     string `yaml:"manifest"`
-			ClaimPattern string `yaml:"claim_pattern"`
-		}{
+		Tracking: TrackingConfig{
 			Manifest: ".dun/work-in-progress.yaml",
 		},
-		ConflictRules: []struct {
-			Type     string `yaml:"type"`
-			Scope    string `yaml:"scope"`
-			Required bool   `yaml:"required"`
-		}{
+		ConflictRules: []ConflictRule{
 			{Type: "no-overlap", Scope: "file", Required: true},
 		},
 	}
 
-	result, err := runConflictDetectionCheck(root, check)
+	result, err := runConflictDetectionCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -123,22 +116,15 @@ func TestConflictDetection_NoOverlap_FileScope_Pass(t *testing.T) {
 
 	check := Check{
 		ID: "test-conflict",
-		Tracking: struct {
-			Manifest     string `yaml:"manifest"`
-			ClaimPattern string `yaml:"claim_pattern"`
-		}{
+		Tracking: TrackingConfig{
 			Manifest: ".dun/work-in-progress.yaml",
 		},
-		ConflictRules: []struct {
-			Type     string `yaml:"type"`
-			Scope    string `yaml:"scope"`
-			Required bool   `yaml:"required"`
-		}{
+		ConflictRules: []ConflictRule{
 			{Type: "no-overlap", Scope: "file", Required: true},
 		},
 	}
 
-	result, err := runConflictDetectionCheck(root, check)
+	result, err := runConflictDetectionCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -167,22 +153,15 @@ func TestConflictDetection_NoOverlap_FileScope_Fail(t *testing.T) {
 
 	check := Check{
 		ID: "test-conflict",
-		Tracking: struct {
-			Manifest     string `yaml:"manifest"`
-			ClaimPattern string `yaml:"claim_pattern"`
-		}{
+		Tracking: TrackingConfig{
 			Manifest: ".dun/work-in-progress.yaml",
 		},
-		ConflictRules: []struct {
-			Type     string `yaml:"type"`
-			Scope    string `yaml:"scope"`
-			Required bool   `yaml:"required"`
-		}{
+		ConflictRules: []ConflictRule{
 			{Type: "no-overlap", Scope: "file", Required: true},
 		},
 	}
 
-	result, err := runConflictDetectionCheck(root, check)
+	result, err := runConflictDetectionCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -217,22 +196,15 @@ func TestConflictDetection_NoOverlap_FileScope_WarnOnly(t *testing.T) {
 
 	check := Check{
 		ID: "test-conflict",
-		Tracking: struct {
-			Manifest     string `yaml:"manifest"`
-			ClaimPattern string `yaml:"claim_pattern"`
-		}{
+		Tracking: TrackingConfig{
 			Manifest: ".dun/work-in-progress.yaml",
 		},
-		ConflictRules: []struct {
-			Type     string `yaml:"type"`
-			Scope    string `yaml:"scope"`
-			Required bool   `yaml:"required"`
-		}{
+		ConflictRules: []ConflictRule{
 			{Type: "no-overlap", Scope: "file", Required: false},
 		},
 	}
 
-	result, err := runConflictDetectionCheck(root, check)
+	result, err := runConflictDetectionCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -263,22 +235,15 @@ func TestConflictDetection_NoOverlap_FunctionScope_Pass(t *testing.T) {
 
 	check := Check{
 		ID: "test-conflict",
-		Tracking: struct {
-			Manifest     string `yaml:"manifest"`
-			ClaimPattern string `yaml:"claim_pattern"`
-		}{
+		Tracking: TrackingConfig{
 			Manifest: ".dun/work-in-progress.yaml",
 		},
-		ConflictRules: []struct {
-			Type     string `yaml:"type"`
-			Scope    string `yaml:"scope"`
-			Required bool   `yaml:"required"`
-		}{
+		ConflictRules: []ConflictRule{
 			{Type: "no-overlap", Scope: "function", Required: true},
 		},
 	}
 
-	result, err := runConflictDetectionCheck(root, check)
+	result, err := runConflictDetectionCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -309,22 +274,15 @@ func TestConflictDetection_NoOverlap_FunctionScope_SameFunction(t *testing.T) {
 
 	check := Check{
 		ID: "test-conflict",
-		Tracking: struct {
-			Manifest     string `yaml:"manifest"`
-			ClaimPattern string `yaml:"claim_pattern"`
-		}{
+		Tracking: TrackingConfig{
 			Manifest: ".dun/work-in-progress.yaml",
 		},
-		ConflictRules: []struct {
-			Type     string `yaml:"type"`
-			Scope    string `yaml:"scope"`
-			Required bool   `yaml:"required"`
-		}{
+		ConflictRules: []ConflictRule{
 			{Type: "no-overlap", Scope: "function", Required: true},
 		},
 	}
 
-	result, err := runConflictDetectionCheck(root, check)
+	result, err := runConflictDetectionCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -360,22 +318,15 @@ func TestConflictDetection_NoOverlap_FileFunctionConflict(t *testing.T) {
 
 	check := Check{
 		ID: "test-conflict",
-		Tracking: struct {
-			Manifest     string `yaml:"manifest"`
-			ClaimPattern string `yaml:"claim_pattern"`
-		}{
+		Tracking: TrackingConfig{
 			Manifest: ".dun/work-in-progress.yaml",
 		},
-		ConflictRules: []struct {
-			Type     string `yaml:"type"`
-			Scope    string `yaml:"scope"`
-			Required bool   `yaml:"required"`
-		}{
+		ConflictRules: []ConflictRule{
 			{Type: "no-overlap", Scope: "function", Required: true},
 		},
 	}
 
-	result, err := runConflictDetectionCheck(root, check)
+	result, err := runConflictDetectionCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -409,22 +360,15 @@ func TestConflictDetection_ClaimBeforeEdit_Pass(t *testing.T) {
 
 	check := Check{
 		ID: "test-conflict",
-		Tracking: struct {
-			Manifest     string `yaml:"manifest"`
-			ClaimPattern string `yaml:"claim_pattern"`
-		}{
+		Tracking: TrackingConfig{
 			Manifest: ".dun/work-in-progress.yaml",
 		},
-		ConflictRules: []struct {
-			Type     string `yaml:"type"`
-			Scope    string `yaml:"scope"`
-			Required bool   `yaml:"required"`
-		}{
+		ConflictRules: []ConflictRule{
 			{Type: "claim-before-edit", Required: true},
 		},
 	}
 
-	result, err := runConflictDetectionCheck(root, check)
+	result, err := runConflictDetectionCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -455,22 +399,15 @@ func TestConflictDetection_ClaimBeforeEdit_Fail(t *testing.T) {
 
 	check := Check{
 		ID: "test-conflict",
-		Tracking: struct {
-			Manifest     string `yaml:"manifest"`
-			ClaimPattern string `yaml:"claim_pattern"`
-		}{
+		Tracking: TrackingConfig{
 			Manifest: ".dun/work-in-progress.yaml",
 		},
-		ConflictRules: []struct {
-			Type     string `yaml:"type"`
-			Scope    string `yaml:"scope"`
-			Required bool   `yaml:"required"`
-		}{
+		ConflictRules: []ConflictRule{
 			{Type: "claim-before-edit", Required: true},
 		},
 	}
 
-	result, err := runConflictDetectionCheck(root, check)
+	result, err := runConflictDetectionCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -501,22 +438,15 @@ func TestConflictDetection_ClaimBeforeEdit_WarnOnly(t *testing.T) {
 
 	check := Check{
 		ID: "test-conflict",
-		Tracking: struct {
-			Manifest     string `yaml:"manifest"`
-			ClaimPattern string `yaml:"claim_pattern"`
-		}{
+		Tracking: TrackingConfig{
 			Manifest: ".dun/work-in-progress.yaml",
 		},
-		ConflictRules: []struct {
-			Type     string `yaml:"type"`
-			Scope    string `yaml:"scope"`
-			Required bool   `yaml:"required"`
-		}{
+		ConflictRules: []ConflictRule{
 			{Type: "claim-before-edit", Required: false},
 		},
 	}
 
-	result, err := runConflictDetectionCheck(root, check)
+	result, err := runConflictDetectionCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -541,22 +471,15 @@ func TestConflictDetection_ClaimBeforeEdit_GitDiffError(t *testing.T) {
 
 	check := Check{
 		ID: "test-conflict",
-		Tracking: struct {
-			Manifest     string `yaml:"manifest"`
-			ClaimPattern string `yaml:"claim_pattern"`
-		}{
+		Tracking: TrackingConfig{
 			Manifest: ".dun/work-in-progress.yaml",
 		},
-		ConflictRules: []struct {
-			Type     string `yaml:"type"`
-			Scope    string `yaml:"scope"`
-			Required bool   `yaml:"required"`
-		}{
+		ConflictRules: []ConflictRule{
 			{Type: "claim-before-edit", Required: true},
 		},
 	}
 
-	result, err := runConflictDetectionCheck(root, check)
+	result, err := runConflictDetectionCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -582,22 +505,15 @@ func TestConflictDetection_ClaimBeforeEdit_NoChanges(t *testing.T) {
 
 	check := Check{
 		ID: "test-conflict",
-		Tracking: struct {
-			Manifest     string `yaml:"manifest"`
-			ClaimPattern string `yaml:"claim_pattern"`
-		}{
+		Tracking: TrackingConfig{
 			Manifest: ".dun/work-in-progress.yaml",
 		},
-		ConflictRules: []struct {
-			Type     string `yaml:"type"`
-			Scope    string `yaml:"scope"`
-			Required bool   `yaml:"required"`
-		}{
+		ConflictRules: []ConflictRule{
 			{Type: "claim-before-edit", Required: true},
 		},
 	}
 
-	result, err := runConflictDetectionCheck(root, check)
+	result, err := runConflictDetectionCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -633,23 +549,16 @@ func TestConflictDetection_MultipleRules(t *testing.T) {
 
 	check := Check{
 		ID: "test-conflict",
-		Tracking: struct {
-			Manifest     string `yaml:"manifest"`
-			ClaimPattern string `yaml:"claim_pattern"`
-		}{
+		Tracking: TrackingConfig{
 			Manifest: ".dun/work-in-progress.yaml",
 		},
-		ConflictRules: []struct {
-			Type     string `yaml:"type"`
-			Scope    string `yaml:"scope"`
-			Required bool   `yaml:"required"`
-		}{
+		ConflictRules: []ConflictRule{
 			{Type: "no-overlap", Scope: "file", Required: true},
 			{Type: "claim-before-edit", Required: true},
 		},
 	}
 
-	result, err := runConflictDetectionCheck(root, check)
+	result, err := runConflictDetectionCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -689,23 +598,16 @@ func TestConflictDetection_MixedRequiredOptional(t *testing.T) {
 
 	check := Check{
 		ID: "test-conflict",
-		Tracking: struct {
-			Manifest     string `yaml:"manifest"`
-			ClaimPattern string `yaml:"claim_pattern"`
-		}{
+		Tracking: TrackingConfig{
 			Manifest: ".dun/work-in-progress.yaml",
 		},
-		ConflictRules: []struct {
-			Type     string `yaml:"type"`
-			Scope    string `yaml:"scope"`
-			Required bool   `yaml:"required"`
-		}{
+		ConflictRules: []ConflictRule{
 			{Type: "no-overlap", Scope: "file", Required: false}, // warn only
 			{Type: "claim-before-edit", Required: true},          // required
 		},
 	}
 
-	result, err := runConflictDetectionCheck(root, check)
+	result, err := runConflictDetectionCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -725,15 +627,12 @@ func TestConflictDetection_DefaultManifestPath(t *testing.T) {
 	check := Check{
 		ID: "test-conflict",
 		// No manifest path specified - should use default
-		Tracking: struct {
-			Manifest     string `yaml:"manifest"`
-			ClaimPattern string `yaml:"claim_pattern"`
-		}{
+		Tracking: TrackingConfig{
 			Manifest: "", // empty = use default
 		},
 	}
 
-	result, err := runConflictDetectionCheck(root, check)
+	result, err := runConflictDetectionCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -745,24 +644,17 @@ func TestConflictDetection_DefaultManifestPath(t *testing.T) {
 
 func TestExtractConflictDetectionConfig(t *testing.T) {
 	check := Check{
-		Tracking: struct {
-			Manifest     string `yaml:"manifest"`
-			ClaimPattern string `yaml:"claim_pattern"`
-		}{
+		Tracking: TrackingConfig{
 			Manifest:     ".dun/wip.yaml",
 			ClaimPattern: "// WIP: {agent}",
 		},
-		ConflictRules: []struct {
-			Type     string `yaml:"type"`
-			Scope    string `yaml:"scope"`
-			Required bool   `yaml:"required"`
-		}{
+		ConflictRules: []ConflictRule{
 			{Type: "no-overlap", Scope: "function", Required: true},
 			{Type: "claim-before-edit", Required: false},
 		},
 	}
 
-	config := extractConflictDetectionConfig(check)
+	config := ConflictDetectionConfig{Tracking: check.Tracking, ConflictRules: check.ConflictRules}
 
 	if config.Tracking.Manifest != ".dun/wip.yaml" {
 		t.Errorf("expected manifest path '.dun/wip.yaml', got %s", config.Tracking.Manifest)
@@ -770,16 +662,16 @@ func TestExtractConflictDetectionConfig(t *testing.T) {
 	if config.Tracking.ClaimPattern != "// WIP: {agent}" {
 		t.Errorf("expected claim pattern, got %s", config.Tracking.ClaimPattern)
 	}
-	if len(config.Rules) != 2 {
-		t.Errorf("expected 2 rules, got %d", len(config.Rules))
+	if len(config.ConflictRules) != 2 {
+		t.Errorf("expected 2 rules, got %d", len(config.ConflictRules))
 	}
-	if config.Rules[0].Type != "no-overlap" {
-		t.Errorf("expected first rule type 'no-overlap', got %s", config.Rules[0].Type)
+	if config.ConflictRules[0].Type != "no-overlap" {
+		t.Errorf("expected first rule type 'no-overlap', got %s", config.ConflictRules[0].Type)
 	}
-	if config.Rules[0].Scope != "function" {
-		t.Errorf("expected first rule scope 'function', got %s", config.Rules[0].Scope)
+	if config.ConflictRules[0].Scope != "function" {
+		t.Errorf("expected first rule scope 'function', got %s", config.ConflictRules[0].Scope)
 	}
-	if !config.Rules[0].Required {
+	if !config.ConflictRules[0].Required {
 		t.Error("expected first rule to be required")
 	}
 }
@@ -915,22 +807,15 @@ func TestConflictDetection_ThreeAgentsSameFile(t *testing.T) {
 
 	check := Check{
 		ID: "test-conflict",
-		Tracking: struct {
-			Manifest     string `yaml:"manifest"`
-			ClaimPattern string `yaml:"claim_pattern"`
-		}{
+		Tracking: TrackingConfig{
 			Manifest: ".dun/work-in-progress.yaml",
 		},
-		ConflictRules: []struct {
-			Type     string `yaml:"type"`
-			Scope    string `yaml:"scope"`
-			Required bool   `yaml:"required"`
-		}{
+		ConflictRules: []ConflictRule{
 			{Type: "no-overlap", Scope: "file", Required: true},
 		},
 	}
 
-	result, err := runConflictDetectionCheck(root, check)
+	result, err := runConflictDetectionCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -966,22 +851,15 @@ func TestConflictDetection_SameAgentMultipleFunctions(t *testing.T) {
 
 	check := Check{
 		ID: "test-conflict",
-		Tracking: struct {
-			Manifest     string `yaml:"manifest"`
-			ClaimPattern string `yaml:"claim_pattern"`
-		}{
+		Tracking: TrackingConfig{
 			Manifest: ".dun/work-in-progress.yaml",
 		},
-		ConflictRules: []struct {
-			Type     string `yaml:"type"`
-			Scope    string `yaml:"scope"`
-			Required bool   `yaml:"required"`
-		}{
+		ConflictRules: []ConflictRule{
 			{Type: "no-overlap", Scope: "function", Required: true},
 		},
 	}
 
-	result, err := runConflictDetectionCheck(root, check)
+	result, err := runConflictDetectionCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1006,16 +884,13 @@ func TestConflictDetection_NoRules(t *testing.T) {
 
 	check := Check{
 		ID: "test-conflict",
-		Tracking: struct {
-			Manifest     string `yaml:"manifest"`
-			ClaimPattern string `yaml:"claim_pattern"`
-		}{
+		Tracking: TrackingConfig{
 			Manifest: ".dun/work-in-progress.yaml",
 		},
 		ConflictRules: nil, // No rules
 	}
 
-	result, err := runConflictDetectionCheck(root, check)
+	result, err := runConflictDetectionCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1043,22 +918,15 @@ func TestConflictDetection_EmptyScopeTreatedAsFile(t *testing.T) {
 
 	check := Check{
 		ID: "test-conflict",
-		Tracking: struct {
-			Manifest     string `yaml:"manifest"`
-			ClaimPattern string `yaml:"claim_pattern"`
-		}{
+		Tracking: TrackingConfig{
 			Manifest: ".dun/work-in-progress.yaml",
 		},
-		ConflictRules: []struct {
-			Type     string `yaml:"type"`
-			Scope    string `yaml:"scope"`
-			Required bool   `yaml:"required"`
-		}{
+		ConflictRules: []ConflictRule{
 			{Type: "no-overlap", Scope: "file", Required: true},
 		},
 	}
 
-	result, err := runConflictDetectionCheck(root, check)
+	result, err := runConflictDetectionCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1122,22 +990,15 @@ func TestConflictDetection_MultipleFilesMultipleConflicts(t *testing.T) {
 
 	check := Check{
 		ID: "test-conflict",
-		Tracking: struct {
-			Manifest     string `yaml:"manifest"`
-			ClaimPattern string `yaml:"claim_pattern"`
-		}{
+		Tracking: TrackingConfig{
 			Manifest: ".dun/work-in-progress.yaml",
 		},
-		ConflictRules: []struct {
-			Type     string `yaml:"type"`
-			Scope    string `yaml:"scope"`
-			Required bool   `yaml:"required"`
-		}{
+		ConflictRules: []ConflictRule{
 			{Type: "no-overlap", Scope: "file", Required: true},
 		},
 	}
 
-	result, err := runConflictDetectionCheck(root, check)
+	result, err := runConflictDetectionCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1258,22 +1119,15 @@ func TestConflictDetection_FunctionScopeWithFileConflict(t *testing.T) {
 
 	check := Check{
 		ID: "test-conflict",
-		Tracking: struct {
-			Manifest     string `yaml:"manifest"`
-			ClaimPattern string `yaml:"claim_pattern"`
-		}{
+		Tracking: TrackingConfig{
 			Manifest: ".dun/work-in-progress.yaml",
 		},
-		ConflictRules: []struct {
-			Type     string `yaml:"type"`
-			Scope    string `yaml:"scope"`
-			Required bool   `yaml:"required"`
-		}{
+		ConflictRules: []ConflictRule{
 			{Type: "no-overlap", Scope: "function", Required: true},
 		},
 	}
 
-	result, err := runConflictDetectionCheck(root, check)
+	result, err := runConflictDetectionCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1300,22 +1154,15 @@ func TestConflictDetection_UnknownRuleType(t *testing.T) {
 
 	check := Check{
 		ID: "test-conflict",
-		Tracking: struct {
-			Manifest     string `yaml:"manifest"`
-			ClaimPattern string `yaml:"claim_pattern"`
-		}{
+		Tracking: TrackingConfig{
 			Manifest: ".dun/work-in-progress.yaml",
 		},
-		ConflictRules: []struct {
-			Type     string `yaml:"type"`
-			Scope    string `yaml:"scope"`
-			Required bool   `yaml:"required"`
-		}{
+		ConflictRules: []ConflictRule{
 			{Type: "unknown-rule-type", Required: true},
 		},
 	}
 
-	result, err := runConflictDetectionCheck(root, check)
+	result, err := runConflictDetectionCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1345,22 +1192,15 @@ func TestConflictDetection_IssuesHaveNextField(t *testing.T) {
 
 	check := Check{
 		ID: "test-conflict",
-		Tracking: struct {
-			Manifest     string `yaml:"manifest"`
-			ClaimPattern string `yaml:"claim_pattern"`
-		}{
+		Tracking: TrackingConfig{
 			Manifest: ".dun/work-in-progress.yaml",
 		},
-		ConflictRules: []struct {
-			Type     string `yaml:"type"`
-			Scope    string `yaml:"scope"`
-			Required bool   `yaml:"required"`
-		}{
+		ConflictRules: []ConflictRule{
 			{Type: "no-overlap", Scope: "file", Required: true},
 		},
 	}
 
-	result, err := runConflictDetectionCheck(root, check)
+	result, err := runConflictDetectionCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

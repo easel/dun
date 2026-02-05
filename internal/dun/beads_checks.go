@@ -37,7 +37,7 @@ func toIssues(beads []beadsIssue) []Issue {
 }
 
 // runBeadsReadyCheck finds workable beads (no blockers, not in progress)
-func runBeadsReadyCheck(root string, check Check) (CheckResult, error) {
+func runBeadsReadyCheck(root string, def CheckDefinition) (CheckResult, error) {
 	// Run bd ready to get workable beads
 	cmd := exec.Command("bd", "--json", "ready")
 	cmd.Dir = root
@@ -45,7 +45,7 @@ func runBeadsReadyCheck(root string, check Check) (CheckResult, error) {
 	if err != nil {
 		// bd ready might not exist or fail - that's ok
 		return CheckResult{
-			ID:     check.ID,
+			ID:     def.ID,
 			Status: "skip",
 			Signal: "beads not available or no ready issues",
 		}, nil
@@ -57,13 +57,13 @@ func runBeadsReadyCheck(root string, check Check) (CheckResult, error) {
 		lines := strings.Split(strings.TrimSpace(string(output)), "\n")
 		if len(lines) == 0 || (len(lines) == 1 && lines[0] == "") {
 			return CheckResult{
-				ID:     check.ID,
+				ID:     def.ID,
 				Status: "pass",
 				Signal: "no ready beads found",
 			}, nil
 		}
 		return CheckResult{
-			ID:     check.ID,
+			ID:     def.ID,
 			Status: "pass",
 			Signal: string(output),
 		}, nil
@@ -71,14 +71,14 @@ func runBeadsReadyCheck(root string, check Check) (CheckResult, error) {
 
 	if len(issues) == 0 {
 		return CheckResult{
-			ID:     check.ID,
+			ID:     def.ID,
 			Status: "pass",
 			Signal: "no ready beads found",
 		}, nil
 	}
 
 	return CheckResult{
-		ID:     check.ID,
+		ID:     def.ID,
 		Status: "action",
 		Signal: formatReadySignal(issues),
 		Issues: toIssues(issues),
@@ -86,14 +86,14 @@ func runBeadsReadyCheck(root string, check Check) (CheckResult, error) {
 }
 
 // runBeadsCriticalPathCheck identifies the critical path through blocked beads
-func runBeadsCriticalPathCheck(root string, check Check) (CheckResult, error) {
+func runBeadsCriticalPathCheck(root string, def CheckDefinition) (CheckResult, error) {
 	// Run bd blocked to get blocked beads
 	cmd := exec.Command("bd", "--json", "blocked")
 	cmd.Dir = root
 	output, err := cmd.Output()
 	if err != nil {
 		return CheckResult{
-			ID:     check.ID,
+			ID:     def.ID,
 			Status: "skip",
 			Signal: "beads not available or no blocked issues",
 		}, nil
@@ -102,7 +102,7 @@ func runBeadsCriticalPathCheck(root string, check Check) (CheckResult, error) {
 	var issues []beadsIssue
 	if err := json.Unmarshal(output, &issues); err != nil {
 		return CheckResult{
-			ID:     check.ID,
+			ID:     def.ID,
 			Status: "pass",
 			Signal: "no blocked beads",
 		}, nil
@@ -110,7 +110,7 @@ func runBeadsCriticalPathCheck(root string, check Check) (CheckResult, error) {
 
 	if len(issues) == 0 {
 		return CheckResult{
-			ID:     check.ID,
+			ID:     def.ID,
 			Status: "pass",
 			Signal: "no blocked beads",
 		}, nil
@@ -120,7 +120,7 @@ func runBeadsCriticalPathCheck(root string, check Check) (CheckResult, error) {
 	criticalPath := findCriticalPath(issues)
 
 	return CheckResult{
-		ID:     check.ID,
+		ID:     def.ID,
 		Status: "info",
 		Signal: formatCriticalPathSignal(criticalPath),
 		Issues: toIssues(criticalPath),
@@ -128,14 +128,14 @@ func runBeadsCriticalPathCheck(root string, check Check) (CheckResult, error) {
 }
 
 // runBeadsSuggestCheck suggests the next bead to work on
-func runBeadsSuggestCheck(root string, check Check) (CheckResult, error) {
+func runBeadsSuggestCheck(root string, def CheckDefinition) (CheckResult, error) {
 	// Get ready beads first
 	cmd := exec.Command("bd", "--json", "ready")
 	cmd.Dir = root
 	output, err := cmd.Output()
 	if err != nil {
 		return CheckResult{
-			ID:     check.ID,
+			ID:     def.ID,
 			Status: "skip",
 			Signal: "beads not available",
 		}, nil
@@ -145,7 +145,7 @@ func runBeadsSuggestCheck(root string, check Check) (CheckResult, error) {
 	if err := json.Unmarshal(output, &issues); err != nil || len(issues) == 0 {
 		// No ready beads - check what's blocked
 		return CheckResult{
-			ID:     check.ID,
+			ID:     def.ID,
 			Status: "pass",
 			Signal: "no workable beads - check critical path",
 			Next:   "beads-critical-path",
@@ -156,7 +156,7 @@ func runBeadsSuggestCheck(root string, check Check) (CheckResult, error) {
 	suggested := suggestNextBead(issues)
 
 	return CheckResult{
-		ID:     check.ID,
+		ID:     def.ID,
 		Status: "action",
 		Signal: formatSuggestion(suggested),
 		Issues: toIssues([]beadsIssue{suggested}),

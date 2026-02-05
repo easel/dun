@@ -21,11 +21,11 @@ type artifactPattern struct {
 	Pattern string `yaml:"pattern"`
 }
 
-func runStateRules(root string, plugin Plugin, check Check) (CheckResult, error) {
-	if check.StateRules == "" {
+func runStateRules(root string, plugin Plugin, def CheckDefinition, config StateRulesConfig) (CheckResult, error) {
+	if config.StateRules == "" {
 		return CheckResult{}, fmt.Errorf("state rules path missing")
 	}
-	raw, err := fs.ReadFile(plugin.FS, path.Join(plugin.Base, check.StateRules))
+	raw, err := fs.ReadFile(plugin.FS, path.Join(plugin.Base, config.StateRules))
 	if err != nil {
 		return CheckResult{}, fmt.Errorf("read state rules: %w", err)
 	}
@@ -62,14 +62,14 @@ func runStateRules(root string, plugin Plugin, check Check) (CheckResult, error)
 
 	if len(missing) == 0 {
 		return CheckResult{
-			ID:     check.ID,
+			ID:     def.ID,
 			Status: "pass",
 			Signal: "workflow progression valid",
 		}, nil
 	}
 
 	return CheckResult{
-		ID:     check.ID,
+		ID:     def.ID,
 		Status: "fail",
 		Signal: fmt.Sprintf("%d progression gaps", len(missing)),
 		Detail: strings.Join(missing, "; "),

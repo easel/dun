@@ -8,14 +8,14 @@ import (
 	"strings"
 )
 
-func runGitStatusCheck(root string, check Check) (CheckResult, error) {
+func runGitStatusCheck(root string, def CheckDefinition) (CheckResult, error) {
 	lines, err := gitStatusFunc(root)
 	if err != nil {
 		return CheckResult{}, err
 	}
 	if len(lines) == 0 {
 		return CheckResult{
-			ID:     check.ID,
+			ID:     def.ID,
 			Status: "pass",
 			Signal: "working tree clean",
 		}, nil
@@ -39,7 +39,7 @@ func runGitStatusCheck(root string, check Check) (CheckResult, error) {
 	}
 
 	return CheckResult{
-		ID:     check.ID,
+		ID:     def.ID,
 		Status: "warn",
 		Signal: "working tree has uncommitted changes",
 		Detail: fmt.Sprintf("%d paths pending commit", len(files)),
@@ -51,21 +51,21 @@ func runGitStatusCheck(root string, check Check) (CheckResult, error) {
 var gitStatusFunc = gitStatusLines
 var detectHookToolFunc = detectHookTool
 
-func runHookCheck(root string, check Check) (CheckResult, error) {
+func runHookCheck(root string, def CheckDefinition) (CheckResult, error) {
 	hook, err := detectHookToolFunc(root)
 	if err != nil {
 		return CheckResult{}, err
 	}
 	if hook.Name == "" {
 		return CheckResult{
-			ID:     check.ID,
+			ID:     def.ID,
 			Status: "skip",
 			Signal: "no hook configuration detected",
 		}, nil
 	}
 	if !hook.Installed {
 		return CheckResult{
-			ID:     check.ID,
+			ID:     def.ID,
 			Status: "warn",
 			Signal: "hook tool missing",
 			Detail: fmt.Sprintf("%s config detected but tool not installed", hook.Name),
@@ -78,7 +78,7 @@ func runHookCheck(root string, check Check) (CheckResult, error) {
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return CheckResult{
-			ID:     check.ID,
+			ID:     def.ID,
 			Status: "fail",
 			Signal: "hook checks failed",
 			Detail: trimOutput(output),
@@ -87,7 +87,7 @@ func runHookCheck(root string, check Check) (CheckResult, error) {
 	}
 
 	return CheckResult{
-		ID:     check.ID,
+		ID:     def.ID,
 		Status: "pass",
 		Signal: fmt.Sprintf("%s hooks passed", hook.Name),
 	}, nil

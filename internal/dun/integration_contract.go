@@ -8,23 +8,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// IntegrationContractConfig holds the configuration for an integration-contract check.
-type IntegrationContractConfig struct {
-	Contracts ContractsConfig `yaml:"contracts"`
-	Rules     []ContractRule  `yaml:"rules"`
-}
-
-// ContractsConfig specifies where to find integration contracts.
-type ContractsConfig struct {
-	Map         string `yaml:"map"`         // Path to integration-map.yaml
-	Definitions string `yaml:"definitions"` // Glob for interface definitions
-}
-
-// ContractRule specifies a rule to apply to integration contracts.
-type ContractRule struct {
-	Type string `yaml:"type"` // all-providers-implemented, all-consumers-satisfied, no-circular-dependencies
-}
-
 // IntegrationMap represents the structure of an integration-map.yaml file.
 type IntegrationMap struct {
 	Components map[string]Component `yaml:"components"`
@@ -49,14 +32,12 @@ type Consumer struct {
 }
 
 // runIntegrationContractCheck verifies components define and satisfy integration interfaces.
-func runIntegrationContractCheck(root string, check Check) (CheckResult, error) {
-	config := extractIntegrationContractConfig(check)
-
+func runIntegrationContractCheck(root string, def CheckDefinition, config IntegrationContractConfig) (CheckResult, error) {
 	// Load integration map
 	integrationMap, err := loadIntegrationMap(root, config.Contracts.Map)
 	if err != nil {
 		return CheckResult{
-			ID:     check.ID,
+			ID:     def.ID,
 			Status: "fail",
 			Signal: "failed to load integration map",
 			Detail: err.Error(),
@@ -70,7 +51,7 @@ func runIntegrationContractCheck(root string, check Check) (CheckResult, error) 
 	var issues []Issue
 	status := "pass"
 
-	for _, rule := range config.Rules {
+	for _, rule := range config.ContractRules {
 		ruleIssues, ruleStatus := applyContractRule(root, rule, integrationMap, graph, config.Contracts.Definitions)
 		issues = append(issues, ruleIssues...)
 
@@ -89,27 +70,11 @@ func runIntegrationContractCheck(root string, check Check) (CheckResult, error) 
 	}
 
 	return CheckResult{
-		ID:     check.ID,
+		ID:     def.ID,
 		Status: status,
 		Signal: signal,
 		Issues: issues,
 	}, nil
-}
-
-// extractIntegrationContractConfig extracts contract config from check fields.
-func extractIntegrationContractConfig(check Check) IntegrationContractConfig {
-	var rules []ContractRule
-	for _, r := range check.ContractRules {
-		rules = append(rules, ContractRule{Type: r.Type})
-	}
-
-	return IntegrationContractConfig{
-		Contracts: ContractsConfig{
-			Map:         check.Contracts.Map,
-			Definitions: check.Contracts.Definitions,
-		},
-		Rules: rules,
-	}
 }
 
 // loadIntegrationMap loads and parses an integration-map.yaml file.

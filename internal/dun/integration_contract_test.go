@@ -6,6 +6,12 @@ import (
 	"testing"
 )
 
+func runIntegrationContractCheckFromSpec(root string, check Check) (CheckResult, error) {
+	def := CheckDefinition{ID: check.ID}
+	config := IntegrationContractConfig{Contracts: check.Contracts, ContractRules: check.ContractRules}
+	return runIntegrationContractCheck(root, def, config)
+}
+
 func TestRunIntegrationContractCheck_BasicPass(t *testing.T) {
 	root := t.TempDir()
 
@@ -44,23 +50,18 @@ func TestRunIntegrationContractCheck_BasicPass(t *testing.T) {
 	check := Check{
 		ID:   "test-integration-contract",
 		Type: "integration-contract",
-		Contracts: struct {
-			Map         string `yaml:"map"`
-			Definitions string `yaml:"definitions"`
-		}{
+		Contracts: ContractsConfig{
 			Map:         "contracts/integration-map.yaml",
 			Definitions: "contracts/*.ts",
 		},
-		ContractRules: []struct {
-			Type string `yaml:"type"`
-		}{
+		ContractRules: []ContractRule{
 			{Type: "all-providers-implemented"},
 			{Type: "all-consumers-satisfied"},
 			{Type: "no-circular-dependencies"},
 		},
 	}
 
-	result, err := runIntegrationContractCheck(root, check)
+	result, err := runIntegrationContractCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -97,21 +98,16 @@ func TestRunIntegrationContractCheck_MissingProvider(t *testing.T) {
 	check := Check{
 		ID:   "test-missing-provider",
 		Type: "integration-contract",
-		Contracts: struct {
-			Map         string `yaml:"map"`
-			Definitions string `yaml:"definitions"`
-		}{
+		Contracts: ContractsConfig{
 			Map:         "contracts/integration-map.yaml",
 			Definitions: "contracts/*.ts",
 		},
-		ContractRules: []struct {
-			Type string `yaml:"type"`
-		}{
+		ContractRules: []ContractRule{
 			{Type: "all-providers-implemented"},
 		},
 	}
 
-	result, err := runIntegrationContractCheck(root, check)
+	result, err := runIntegrationContractCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -149,21 +145,16 @@ func TestRunIntegrationContractCheck_UnsatisfiedConsumer(t *testing.T) {
 	check := Check{
 		ID:   "test-unsatisfied-consumer",
 		Type: "integration-contract",
-		Contracts: struct {
-			Map         string `yaml:"map"`
-			Definitions string `yaml:"definitions"`
-		}{
+		Contracts: ContractsConfig{
 			Map:         "contracts/integration-map.yaml",
 			Definitions: "contracts/*.ts",
 		},
-		ContractRules: []struct {
-			Type string `yaml:"type"`
-		}{
+		ContractRules: []ContractRule{
 			{Type: "all-consumers-satisfied"},
 		},
 	}
 
-	result, err := runIntegrationContractCheck(root, check)
+	result, err := runIntegrationContractCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -208,21 +199,16 @@ func TestRunIntegrationContractCheck_CircularDependency(t *testing.T) {
 	check := Check{
 		ID:   "test-circular-dependency",
 		Type: "integration-contract",
-		Contracts: struct {
-			Map         string `yaml:"map"`
-			Definitions string `yaml:"definitions"`
-		}{
+		Contracts: ContractsConfig{
 			Map:         "contracts/integration-map.yaml",
 			Definitions: "contracts/*.ts",
 		},
-		ContractRules: []struct {
-			Type string `yaml:"type"`
-		}{
+		ContractRules: []ContractRule{
 			{Type: "no-circular-dependencies"},
 		},
 	}
 
-	result, err := runIntegrationContractCheck(root, check)
+	result, err := runIntegrationContractCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -246,7 +232,7 @@ func TestRunIntegrationContractCheck_MissingMapPath(t *testing.T) {
 		// No map path specified
 	}
 
-	result, err := runIntegrationContractCheck(root, check)
+	result, err := runIntegrationContractCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -264,15 +250,12 @@ func TestRunIntegrationContractCheck_MapFileNotFound(t *testing.T) {
 	check := Check{
 		ID:   "test-map-not-found",
 		Type: "integration-contract",
-		Contracts: struct {
-			Map         string `yaml:"map"`
-			Definitions string `yaml:"definitions"`
-		}{
+		Contracts: ContractsConfig{
 			Map: "nonexistent/integration-map.yaml",
 		},
 	}
 
-	result, err := runIntegrationContractCheck(root, check)
+	result, err := runIntegrationContractCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -303,15 +286,12 @@ func TestRunIntegrationContractCheck_InvalidYAML(t *testing.T) {
 	check := Check{
 		ID:   "test-invalid-yaml",
 		Type: "integration-contract",
-		Contracts: struct {
-			Map         string `yaml:"map"`
-			Definitions string `yaml:"definitions"`
-		}{
+		Contracts: ContractsConfig{
 			Map: "contracts/integration-map.yaml",
 		},
 	}
 
-	result, err := runIntegrationContractCheck(root, check)
+	result, err := runIntegrationContractCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -341,16 +321,13 @@ func TestRunIntegrationContractCheck_NoRules(t *testing.T) {
 	check := Check{
 		ID:   "test-no-rules",
 		Type: "integration-contract",
-		Contracts: struct {
-			Map         string `yaml:"map"`
-			Definitions string `yaml:"definitions"`
-		}{
+		Contracts: ContractsConfig{
 			Map: "contracts/integration-map.yaml",
 		},
 		// No rules
 	}
 
-	result, err := runIntegrationContractCheck(root, check)
+	result, err := runIntegrationContractCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -387,20 +364,15 @@ func TestRunIntegrationContractCheck_WrongProvider(t *testing.T) {
 	check := Check{
 		ID:   "test-wrong-provider",
 		Type: "integration-contract",
-		Contracts: struct {
-			Map         string `yaml:"map"`
-			Definitions string `yaml:"definitions"`
-		}{
+		Contracts: ContractsConfig{
 			Map: "contracts/integration-map.yaml",
 		},
-		ContractRules: []struct {
-			Type string `yaml:"type"`
-		}{
+		ContractRules: []ContractRule{
 			{Type: "all-consumers-satisfied"},
 		},
 	}
 
-	result, err := runIntegrationContractCheck(root, check)
+	result, err := runIntegrationContractCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -432,22 +404,17 @@ func TestRunIntegrationContractCheck_EmptyComponents(t *testing.T) {
 	check := Check{
 		ID:   "test-empty-components",
 		Type: "integration-contract",
-		Contracts: struct {
-			Map         string `yaml:"map"`
-			Definitions string `yaml:"definitions"`
-		}{
+		Contracts: ContractsConfig{
 			Map: "contracts/integration-map.yaml",
 		},
-		ContractRules: []struct {
-			Type string `yaml:"type"`
-		}{
+		ContractRules: []ContractRule{
 			{Type: "all-providers-implemented"},
 			{Type: "all-consumers-satisfied"},
 			{Type: "no-circular-dependencies"},
 		},
 	}
 
-	result, err := runIntegrationContractCheck(root, check)
+	result, err := runIntegrationContractCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -478,20 +445,15 @@ func TestRunIntegrationContractCheck_ProviderNoDefinition(t *testing.T) {
 	check := Check{
 		ID:   "test-no-definition",
 		Type: "integration-contract",
-		Contracts: struct {
-			Map         string `yaml:"map"`
-			Definitions string `yaml:"definitions"`
-		}{
+		Contracts: ContractsConfig{
 			Map: "contracts/integration-map.yaml",
 		},
-		ContractRules: []struct {
-			Type string `yaml:"type"`
-		}{
+		ContractRules: []ContractRule{
 			{Type: "all-providers-implemented"},
 		},
 	}
 
-	result, err := runIntegrationContractCheck(root, check)
+	result, err := runIntegrationContractCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -527,20 +489,15 @@ func TestRunIntegrationContractCheck_ConsumerNoFrom(t *testing.T) {
 	check := Check{
 		ID:   "test-consumer-no-from",
 		Type: "integration-contract",
-		Contracts: struct {
-			Map         string `yaml:"map"`
-			Definitions string `yaml:"definitions"`
-		}{
+		Contracts: ContractsConfig{
 			Map: "contracts/integration-map.yaml",
 		},
-		ContractRules: []struct {
-			Type string `yaml:"type"`
-		}{
+		ContractRules: []ContractRule{
 			{Type: "all-consumers-satisfied"},
 		},
 	}
 
-	result, err := runIntegrationContractCheck(root, check)
+	result, err := runIntegrationContractCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -586,20 +543,15 @@ func TestRunIntegrationContractCheck_ThreeWayCircle(t *testing.T) {
 	check := Check{
 		ID:   "test-three-way-circle",
 		Type: "integration-contract",
-		Contracts: struct {
-			Map         string `yaml:"map"`
-			Definitions string `yaml:"definitions"`
-		}{
+		Contracts: ContractsConfig{
 			Map: "contracts/integration-map.yaml",
 		},
-		ContractRules: []struct {
-			Type string `yaml:"type"`
-		}{
+		ContractRules: []ContractRule{
 			{Type: "no-circular-dependencies"},
 		},
 	}
 
-	result, err := runIntegrationContractCheck(root, check)
+	result, err := runIntegrationContractCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -638,21 +590,16 @@ func TestRunIntegrationContractCheck_MultipleIssues(t *testing.T) {
 	check := Check{
 		ID:   "test-multiple-issues",
 		Type: "integration-contract",
-		Contracts: struct {
-			Map         string `yaml:"map"`
-			Definitions string `yaml:"definitions"`
-		}{
+		Contracts: ContractsConfig{
 			Map: "contracts/integration-map.yaml",
 		},
-		ContractRules: []struct {
-			Type string `yaml:"type"`
-		}{
+		ContractRules: []ContractRule{
 			{Type: "all-providers-implemented"},
 			{Type: "all-consumers-satisfied"},
 		},
 	}
 
-	result, err := runIntegrationContractCheck(root, check)
+	result, err := runIntegrationContractCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -681,20 +628,15 @@ func TestRunIntegrationContractCheck_UnknownRuleType(t *testing.T) {
 	check := Check{
 		ID:   "test-unknown-rule",
 		Type: "integration-contract",
-		Contracts: struct {
-			Map         string `yaml:"map"`
-			Definitions string `yaml:"definitions"`
-		}{
+		Contracts: ContractsConfig{
 			Map: "contracts/integration-map.yaml",
 		},
-		ContractRules: []struct {
-			Type string `yaml:"type"`
-		}{
+		ContractRules: []ContractRule{
 			{Type: "unknown-rule-type"},
 		},
 	}
 
-	result, err := runIntegrationContractCheck(root, check)
+	result, err := runIntegrationContractCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -912,22 +854,17 @@ func TestFormatCyclePath(t *testing.T) {
 
 func TestExtractIntegrationContractConfig(t *testing.T) {
 	check := Check{
-		Contracts: struct {
-			Map         string `yaml:"map"`
-			Definitions string `yaml:"definitions"`
-		}{
+		Contracts: ContractsConfig{
 			Map:         "contracts/map.yaml",
 			Definitions: "contracts/*.ts",
 		},
-		ContractRules: []struct {
-			Type string `yaml:"type"`
-		}{
+		ContractRules: []ContractRule{
 			{Type: "all-providers-implemented"},
 			{Type: "all-consumers-satisfied"},
 		},
 	}
 
-	config := extractIntegrationContractConfig(check)
+	config := IntegrationContractConfig{Contracts: check.Contracts, ContractRules: check.ContractRules}
 
 	if config.Contracts.Map != "contracts/map.yaml" {
 		t.Errorf("expected map 'contracts/map.yaml', got %q", config.Contracts.Map)
@@ -935,8 +872,8 @@ func TestExtractIntegrationContractConfig(t *testing.T) {
 	if config.Contracts.Definitions != "contracts/*.ts" {
 		t.Errorf("expected definitions 'contracts/*.ts', got %q", config.Contracts.Definitions)
 	}
-	if len(config.Rules) != 2 {
-		t.Errorf("expected 2 rules, got %d", len(config.Rules))
+	if len(config.ContractRules) != 2 {
+		t.Errorf("expected 2 rules, got %d", len(config.ContractRules))
 	}
 }
 
@@ -1017,20 +954,15 @@ func TestRunIntegrationContractCheck_NullConsumes(t *testing.T) {
 	check := Check{
 		ID:   "test-null-consumes",
 		Type: "integration-contract",
-		Contracts: struct {
-			Map         string `yaml:"map"`
-			Definitions string `yaml:"definitions"`
-		}{
+		Contracts: ContractsConfig{
 			Map: "contracts/integration-map.yaml",
 		},
-		ContractRules: []struct {
-			Type string `yaml:"type"`
-		}{
+		ContractRules: []ContractRule{
 			{Type: "all-consumers-satisfied"},
 		},
 	}
 
-	result, err := runIntegrationContractCheck(root, check)
+	result, err := runIntegrationContractCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1069,20 +1001,15 @@ func TestRunIntegrationContractCheck_MultipleProviders(t *testing.T) {
 	check := Check{
 		ID:   "test-multiple-providers",
 		Type: "integration-contract",
-		Contracts: struct {
-			Map         string `yaml:"map"`
-			Definitions string `yaml:"definitions"`
-		}{
+		Contracts: ContractsConfig{
 			Map: "contracts/integration-map.yaml",
 		},
-		ContractRules: []struct {
-			Type string `yaml:"type"`
-		}{
+		ContractRules: []ContractRule{
 			{Type: "all-providers-implemented"},
 		},
 	}
 
-	result, err := runIntegrationContractCheck(root, check)
+	result, err := runIntegrationContractCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1137,20 +1064,15 @@ func TestRunIntegrationContractCheck_DiamondDependency(t *testing.T) {
 	check := Check{
 		ID:   "test-diamond",
 		Type: "integration-contract",
-		Contracts: struct {
-			Map         string `yaml:"map"`
-			Definitions string `yaml:"definitions"`
-		}{
+		Contracts: ContractsConfig{
 			Map: "contracts/integration-map.yaml",
 		},
-		ContractRules: []struct {
-			Type string `yaml:"type"`
-		}{
+		ContractRules: []ContractRule{
 			{Type: "no-circular-dependencies"},
 		},
 	}
 
-	result, err := runIntegrationContractCheck(root, check)
+	result, err := runIntegrationContractCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1259,21 +1181,16 @@ func TestRunIntegrationContractCheck_MultipleConsumersOfSameInterface(t *testing
 	check := Check{
 		ID:   "test-multiple-consumers",
 		Type: "integration-contract",
-		Contracts: struct {
-			Map         string `yaml:"map"`
-			Definitions string `yaml:"definitions"`
-		}{
+		Contracts: ContractsConfig{
 			Map: "contracts/integration-map.yaml",
 		},
-		ContractRules: []struct {
-			Type string `yaml:"type"`
-		}{
+		ContractRules: []ContractRule{
 			{Type: "all-consumers-satisfied"},
 			{Type: "no-circular-dependencies"},
 		},
 	}
 
-	result, err := runIntegrationContractCheck(root, check)
+	result, err := runIntegrationContractCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

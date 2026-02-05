@@ -16,27 +16,13 @@ type ChangeCascadeConfig struct {
 	Baseline     string        `yaml:"baseline"` // default: HEAD~1
 }
 
-// CascadeRule defines an upstream file pattern and its downstream dependencies.
-type CascadeRule struct {
-	Upstream    string       `yaml:"upstream"`
-	Downstreams []Downstream `yaml:"downstreams"`
-}
-
-// Downstream defines a downstream file that should be updated when upstream changes.
-type Downstream struct {
-	Path     string   `yaml:"path"`
-	Sections []string `yaml:"sections"`
-	Required bool     `yaml:"required"`
-}
-
 // gitDiffFunc allows mocking in tests.
 var gitDiffFunc = gitDiffFiles
 
 // getFileMtimeFunc allows mocking in tests.
 var getFileMtimeFunc = getFileMtime
 
-func runChangeCascadeCheck(root string, check Check) (CheckResult, error) {
-	config := extractCascadeConfig(check)
+func runChangeCascadeCheck(root string, def CheckDefinition, config ChangeCascadeConfig) (CheckResult, error) {
 
 	// Determine if we should run the check
 	if config.Trigger == "git-diff" || config.Trigger == "" {
@@ -50,7 +36,7 @@ func runChangeCascadeCheck(root string, check Check) (CheckResult, error) {
 		if err != nil {
 			// If git diff fails (e.g., no commits), skip the check
 			return CheckResult{
-				ID:     check.ID,
+				ID:     def.ID,
 				Status: "skip",
 				Signal: "cannot determine changes",
 				Detail: err.Error(),
@@ -59,40 +45,23 @@ func runChangeCascadeCheck(root string, check Check) (CheckResult, error) {
 
 		if len(changedFiles) == 0 {
 			return CheckResult{
-				ID:     check.ID,
+				ID:     def.ID,
 				Status: "pass",
 				Signal: "no upstream changes detected",
 			}, nil
 		}
 
-		return checkCascades(root, check.ID, config.CascadeRules, changedFiles)
+		return checkCascades(root, def.ID, config.CascadeRules, changedFiles)
 	}
 
 	// trigger: always - check all files by mtime
-	return checkCascadesByMtime(root, check.ID, config.CascadeRules)
+	return checkCascadesByMtime(root, def.ID, config.CascadeRules)
 }
 
 // extractCascadeConfig extracts cascade config from check fields.
 func extractCascadeConfig(check Check) ChangeCascadeConfig {
-	// Convert from Check's inline struct to our CascadeRule type
-	var rules []CascadeRule
-	for _, r := range check.CascadeRules {
-		var downstreams []Downstream
-		for _, d := range r.Downstreams {
-			downstreams = append(downstreams, Downstream{
-				Path:     d.Path,
-				Sections: d.Sections,
-				Required: d.Required,
-			})
-		}
-		rules = append(rules, CascadeRule{
-			Upstream:    r.Upstream,
-			Downstreams: downstreams,
-		})
-	}
-
 	return ChangeCascadeConfig{
-		CascadeRules: rules,
+		CascadeRules: check.CascadeRules,
 		Trigger:      check.Trigger,
 		Baseline:     check.Baseline,
 	}
@@ -173,6 +142,7 @@ func checkCascades(root, checkID string, rules []CascadeRule, changedFiles []str
 		Detail: fmt.Sprintf("%d required, %d optional", requiredCount, warnCount),
 		Next:   "Update downstream files to reflect upstream changes",
 		Issues: issues,
+		Update: buildCascadeUpdate(issues),
 	}, nil
 }
 
@@ -244,7 +214,24 @@ func checkCascadesByMtime(root, checkID string, rules []CascadeRule) (CheckResul
 		Detail: fmt.Sprintf("%d required, %d optional", requiredCount, warnCount),
 		Next:   "Update downstream files to reflect upstream changes",
 		Issues: issues,
+		Update: buildCascadeUpdate(issues),
 	}, nil
+}
+
+func buildCascadeUpdate(issues []Issue) *CheckUpdate {
+	if len(issues) == 0 {
+		return nil
+	}
+	items := make([]UpdateItem, 0, len(issues))
+	for _, issue := range issues {
+		items = append(items, UpdateItem{
+			ID:      issue.ID,
+			Summary: issue.Summary,
+			Path:    issue.Path,
+			Reason:  "stale",
+		})
+	}
+	return &CheckUpdate{Status: "stale", Items: items}
 }
 
 // matchPattern returns files matching the given glob pattern.

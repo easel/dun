@@ -8,6 +8,26 @@ import (
 	"time"
 )
 
+func commandConfigFromCheck(check Check) CommandConfig {
+	return CommandConfig{
+		Command:      check.Command,
+		Parser:       check.Parser,
+		SuccessExit:  check.SuccessExit,
+		WarnExits:    check.WarnExits,
+		Timeout:      check.Timeout,
+		Shell:        check.Shell,
+		Env:          check.Env,
+		IssuePath:    check.IssuePath,
+		IssuePattern: check.IssuePattern,
+		IssueFields:  check.IssueFields,
+	}
+}
+
+func runCommandCheckFromSpec(root string, check Check) (CheckResult, error) {
+	def := CheckDefinition{ID: check.ID}
+	return runCommandCheck(root, def, commandConfigFromCheck(check))
+}
+
 type commandCapture struct {
 	dir      string
 	shell    string
@@ -56,7 +76,7 @@ func TestRunCommandCheck_Success(t *testing.T) {
 		Command: "echo hello",
 	}
 
-	result, err := runCommandCheck(root, check)
+	result, err := runCommandCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -87,7 +107,7 @@ func TestRunCommandCheck_Failure(t *testing.T) {
 		Command: "exit 1",
 	}
 
-	result, err := runCommandCheck(root, check)
+	result, err := runCommandCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -115,7 +135,7 @@ func TestRunCommandCheck_CustomSuccessExit(t *testing.T) {
 		SuccessExit: 2,
 	}
 
-	result, err := runCommandCheck(root, check)
+	result, err := runCommandCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -137,7 +157,7 @@ func TestRunCommandCheck_WarnExit(t *testing.T) {
 		WarnExits: []int{2, 3},
 	}
 
-	result, err := runCommandCheck(root, check)
+	result, err := runCommandCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -166,7 +186,7 @@ func TestRunCommandCheck_Timeout(t *testing.T) {
 	}
 
 	start := time.Now()
-	result, err := runCommandCheck(root, check)
+	result, err := runCommandCheckFromSpec(root, check)
 	elapsed := time.Since(start)
 
 	if err != nil {
@@ -198,7 +218,7 @@ func TestRunCommandCheck_WorkingDirectory(t *testing.T) {
 		Command: "cat testfile.txt",
 	}
 
-	result, err := runCommandCheck(root, check)
+	result, err := runCommandCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -224,7 +244,7 @@ func TestRunCommandCheck_CustomEnv(t *testing.T) {
 		Env:     map[string]string{"MY_VAR": "hello"},
 	}
 
-	result, err := runCommandCheck(root, check)
+	result, err := runCommandCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -257,7 +277,7 @@ func TestRunCommandCheck_CustomShell(t *testing.T) {
 		Shell:   "bash -c",
 	}
 
-	result, err := runCommandCheck(root, check)
+	result, err := runCommandCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -282,7 +302,7 @@ func TestRunCommandCheck_LinesParser(t *testing.T) {
 		Parser:  "lines",
 	}
 
-	result, err := runCommandCheck(root, check)
+	result, err := runCommandCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -312,7 +332,7 @@ func TestRunCommandCheck_JSONParser(t *testing.T) {
 		IssuePath: "issues",
 	}
 
-	result, err := runCommandCheck(root, check)
+	result, err := runCommandCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -408,7 +428,7 @@ func TestParseJSONOutput(t *testing.T) {
 		},
 	}
 
-	issues, detail := parseJSONOutput(check, output)
+	issues, detail := parseJSONOutput(commandConfigFromCheck(check), output)
 
 	if len(issues) != 2 {
 		t.Fatalf("expected 2 issues, got %d", len(issues))
@@ -437,7 +457,7 @@ func TestParseJSONOutput_CommonFieldNames(t *testing.T) {
 		IssueFields: IssueFieldMap{},
 	}
 
-	issues, _ := parseJSONOutput(check, output)
+	issues, _ := parseJSONOutput(commandConfigFromCheck(check), output)
 
 	if len(issues) != 2 {
 		t.Fatalf("expected 2 issues, got %d", len(issues))
@@ -457,7 +477,7 @@ func TestParseJSONOutput_InvalidJSON(t *testing.T) {
 		IssuePath: "issues",
 	}
 
-	issues, detail := parseJSONOutput(check, output)
+	issues, detail := parseJSONOutput(commandConfigFromCheck(check), output)
 
 	if len(issues) != 0 {
 		t.Errorf("expected no issues for invalid JSON, got %d", len(issues))
@@ -474,7 +494,7 @@ func TestParseJSONOutput_Empty(t *testing.T) {
 		IssuePath: "issues",
 	}
 
-	issues, detail := parseJSONOutput(check, output)
+	issues, detail := parseJSONOutput(commandConfigFromCheck(check), output)
 
 	if len(issues) != 0 {
 		t.Errorf("expected no issues, got %d", len(issues))
@@ -496,7 +516,7 @@ func TestParseJSONLinesOutput(t *testing.T) {
 		},
 	}
 
-	issues, detail := parseJSONLinesOutput(check, output)
+	issues, detail := parseJSONLinesOutput(commandConfigFromCheck(check), output)
 
 	if len(issues) != 2 {
 		t.Fatalf("expected 2 issues, got %d", len(issues))
@@ -524,7 +544,7 @@ invalid json line
 		},
 	}
 
-	issues, _ := parseJSONLinesOutput(check, output)
+	issues, _ := parseJSONLinesOutput(commandConfigFromCheck(check), output)
 
 	if len(issues) != 2 {
 		t.Fatalf("expected 2 issues (skipping invalid), got %d", len(issues))
@@ -536,7 +556,7 @@ func TestParseJSONLinesOutput_Empty(t *testing.T) {
 
 	check := Check{}
 
-	issues, detail := parseJSONLinesOutput(check, output)
+	issues, detail := parseJSONLinesOutput(commandConfigFromCheck(check), output)
 
 	if len(issues) != 0 {
 		t.Errorf("expected no issues, got %d", len(issues))
@@ -555,7 +575,7 @@ util.go:20: missing return
 		IssuePattern: `(?P<file>[^:]+):(?P<line>\d+): (?P<message>.+)`,
 	}
 
-	issues, detail := parseRegexOutput(check, output)
+	issues, detail := parseRegexOutput(commandConfigFromCheck(check), output)
 
 	if len(issues) != 2 {
 		t.Fatalf("expected 2 issues, got %d", len(issues))
@@ -578,7 +598,7 @@ func TestParseRegexOutput_NoPattern(t *testing.T) {
 		IssuePattern: "",
 	}
 
-	issues, detail := parseRegexOutput(check, output)
+	issues, detail := parseRegexOutput(commandConfigFromCheck(check), output)
 
 	if len(issues) != 0 {
 		t.Errorf("expected no issues without pattern, got %d", len(issues))
@@ -595,7 +615,7 @@ func TestParseRegexOutput_InvalidPattern(t *testing.T) {
 		IssuePattern: "[invalid(regex",
 	}
 
-	issues, detail := parseRegexOutput(check, output)
+	issues, detail := parseRegexOutput(commandConfigFromCheck(check), output)
 
 	if len(issues) != 0 {
 		t.Errorf("expected no issues with invalid pattern, got %d", len(issues))
@@ -612,7 +632,7 @@ func TestParseRegexOutput_NoMatches(t *testing.T) {
 		IssuePattern: `(?P<file>\w+\.go):(?P<message>.+)`,
 	}
 
-	issues, detail := parseRegexOutput(check, output)
+	issues, detail := parseRegexOutput(commandConfigFromCheck(check), output)
 
 	if len(issues) != 0 {
 		t.Errorf("expected no issues when no matches, got %d", len(issues))
@@ -629,7 +649,7 @@ func TestParseRegexOutput_PartialGroups(t *testing.T) {
 		IssuePattern: `error in (?P<file>\w+\.go)`,
 	}
 
-	issues, _ := parseRegexOutput(check, output)
+	issues, _ := parseRegexOutput(commandConfigFromCheck(check), output)
 
 	if len(issues) != 1 {
 		t.Fatalf("expected 1 issue, got %d", len(issues))
@@ -646,7 +666,7 @@ func TestParseRegexOutput_IDGroup(t *testing.T) {
 		IssuePattern: `\[(?P<id>\w+)\] (?P<message>.+)`,
 	}
 
-	issues, _ := parseRegexOutput(check, output)
+	issues, _ := parseRegexOutput(commandConfigFromCheck(check), output)
 
 	if len(issues) != 1 {
 		t.Fatalf("expected 1 issue, got %d", len(issues))
@@ -676,7 +696,7 @@ func TestCommandTimeout(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			check := Check{Timeout: tt.timeout}
-			got := commandTimeout(check)
+			got := commandTimeout(commandConfigFromCheck(check))
 			if got != tt.expected {
 				t.Errorf("expected %v, got %v", tt.expected, got)
 			}
@@ -700,7 +720,7 @@ func TestShellCommand(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			check := Check{Shell: tt.shell}
-			cmd, arg := shellCommand(check)
+			cmd, arg := shellCommand(commandConfigFromCheck(check))
 			if cmd != tt.expectedCmd {
 				t.Errorf("expected cmd %q, got %q", tt.expectedCmd, cmd)
 			}
@@ -743,7 +763,7 @@ func TestStatusFromExitCode(t *testing.T) {
 				SuccessExit: tt.successExit,
 				WarnExits:   tt.warnExits,
 			}
-			got := statusFromExitCode(check, tt.exitCode)
+			got := statusFromExitCode(commandConfigFromCheck(check), tt.exitCode)
 			if got != tt.expected {
 				t.Errorf("expected %q, got %q", tt.expected, got)
 			}
@@ -787,7 +807,7 @@ func TestNextFromStatus(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.status, func(t *testing.T) {
-			got := nextFromStatus(tt.status, check)
+			got := nextFromStatus(tt.status, commandConfigFromCheck(check))
 			if got != tt.expected {
 				t.Errorf("expected %q, got %q", tt.expected, got)
 			}
@@ -803,7 +823,7 @@ func TestBuildCommandEnv(t *testing.T) {
 		},
 	}
 
-	env := buildCommandEnv(check)
+	env := buildCommandEnv(commandConfigFromCheck(check))
 
 	found := 0
 	for _, e := range env {
@@ -818,7 +838,7 @@ func TestBuildCommandEnv(t *testing.T) {
 
 func TestBuildCommandEnv_NoEnv(t *testing.T) {
 	check := Check{}
-	env := buildCommandEnv(check)
+	env := buildCommandEnv(commandConfigFromCheck(check))
 
 	if len(env) == 0 {
 		t.Error("expected system env vars to be present")
@@ -874,7 +894,7 @@ func TestParseOutput_DefaultToText(t *testing.T) {
 	output := []byte("some text output")
 	check := Check{Parser: ""}
 
-	issues, detail := parseOutput(check, output)
+	issues, detail := parseOutput(commandConfigFromCheck(check), output)
 
 	if len(issues) != 0 {
 		t.Errorf("expected no issues for text parser, got %d", len(issues))
@@ -888,7 +908,7 @@ func TestParseOutput_TextParser(t *testing.T) {
 	output := []byte("some text output")
 	check := Check{Parser: "text"}
 
-	issues, detail := parseOutput(check, output)
+	issues, detail := parseOutput(commandConfigFromCheck(check), output)
 
 	if len(issues) != 0 {
 		t.Errorf("expected no issues for text parser, got %d", len(issues))
@@ -900,7 +920,7 @@ func TestParseOutput_TextParser(t *testing.T) {
 
 func TestExtractSingleIssue_NotMap(t *testing.T) {
 	check := Check{}
-	result := extractSingleIssue(check, "not a map")
+	result := extractSingleIssue(commandConfigFromCheck(check), "not a map")
 	if result != nil {
 		t.Errorf("expected nil for non-map data, got %v", result)
 	}
@@ -916,7 +936,7 @@ func TestExtractSingleIssue_EmptyResult(t *testing.T) {
 	data := map[string]interface{}{
 		"other": "value",
 	}
-	result := extractSingleIssue(check, data)
+	result := extractSingleIssue(commandConfigFromCheck(check), data)
 	if result != nil {
 		t.Errorf("expected nil when no fields match, got %v", result)
 	}
@@ -935,7 +955,7 @@ func TestExtractIssuesFromJSON_SingleItem(t *testing.T) {
 		},
 	}
 
-	issues := extractIssuesFromJSON(check, data)
+	issues := extractIssuesFromJSON(commandConfigFromCheck(check), data)
 	if len(issues) != 1 {
 		t.Fatalf("expected 1 issue, got %d", len(issues))
 	}
@@ -955,7 +975,7 @@ func TestExtractIssuesFromJSON_NoPath(t *testing.T) {
 		"message": "top level error",
 	}
 
-	issues := extractIssuesFromJSON(check, data)
+	issues := extractIssuesFromJSON(commandConfigFromCheck(check), data)
 	if len(issues) != 1 {
 		t.Fatalf("expected 1 issue from top-level, got %d", len(issues))
 	}
@@ -972,7 +992,7 @@ func TestExtractIssuesFromJSON_NilItems(t *testing.T) {
 		"other": "value",
 	}
 
-	issues := extractIssuesFromJSON(check, data)
+	issues := extractIssuesFromJSON(commandConfigFromCheck(check), data)
 	if len(issues) != 0 {
 		t.Errorf("expected 0 issues for missing path, got %d", len(issues))
 	}
@@ -991,7 +1011,7 @@ func TestExtractIssuesFromJSON_NotArray(t *testing.T) {
 		},
 	}
 
-	issues := extractIssuesFromJSON(check, data)
+	issues := extractIssuesFromJSON(commandConfigFromCheck(check), data)
 	if len(issues) != 1 {
 		t.Fatalf("expected 1 issue for non-array, got %d", len(issues))
 	}
@@ -1007,7 +1027,7 @@ func TestExtractSingleIssue_PathOnly(t *testing.T) {
 		"file": "main.go",
 	}
 
-	issue := extractSingleIssue(check, data)
+	issue := extractSingleIssue(commandConfigFromCheck(check), data)
 	if issue == nil {
 		t.Fatal("expected issue, got nil")
 	}
@@ -1032,7 +1052,7 @@ func TestExtractSingleIssue_NestedFields(t *testing.T) {
 		},
 	}
 
-	issue := extractSingleIssue(check, data)
+	issue := extractSingleIssue(commandConfigFromCheck(check), data)
 	if issue == nil {
 		t.Fatal("expected issue, got nil")
 	}
@@ -1056,7 +1076,7 @@ func TestExtractSingleIssue_NonStringValues(t *testing.T) {
 		"message": true,
 	}
 
-	issue := extractSingleIssue(check, data)
+	issue := extractSingleIssue(commandConfigFromCheck(check), data)
 	if issue != nil {
 		t.Errorf("expected nil for non-string values, got %v", issue)
 	}
@@ -1076,7 +1096,7 @@ func TestRunCommandCheck_InvalidCommand(t *testing.T) {
 		Shell:   "/nonexistent/shell",
 	}
 
-	result, err := runCommandCheck(root, check)
+	result, err := runCommandCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1105,7 +1125,7 @@ func TestRunCommandCheck_RegexParser(t *testing.T) {
 		IssuePattern: `(?P<file>[^:]+):(?P<line>\d+): (?P<message>.+)`,
 	}
 
-	result, err := runCommandCheck(root, check)
+	result, err := runCommandCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1134,7 +1154,7 @@ func TestRunCommandCheck_JSONLinesParser(t *testing.T) {
 		},
 	}
 
-	result, err := runCommandCheck(root, check)
+	result, err := runCommandCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1148,7 +1168,7 @@ func TestRunCommandCheck_JSONLinesParser(t *testing.T) {
 
 func TestCommandTimeout_Hours(t *testing.T) {
 	check := Check{Timeout: "1h30m"}
-	got := commandTimeout(check)
+	got := commandTimeout(commandConfigFromCheck(check))
 	expected := 90 * time.Minute
 	if got != expected {
 		t.Errorf("expected %v, got %v", expected, got)
@@ -1178,7 +1198,7 @@ func TestExtractIssuesFromJSON_EmptyArray(t *testing.T) {
 		"items": []interface{}{},
 	}
 
-	issues := extractIssuesFromJSON(check, data)
+	issues := extractIssuesFromJSON(commandConfigFromCheck(check), data)
 	if len(issues) != 0 {
 		t.Errorf("expected 0 issues for empty array, got %d", len(issues))
 	}
@@ -1192,7 +1212,7 @@ func TestExtractIssuesFromJSON_NilData(t *testing.T) {
 		},
 	}
 
-	issues := extractIssuesFromJSON(check, nil)
+	issues := extractIssuesFromJSON(commandConfigFromCheck(check), nil)
 	if len(issues) != 0 {
 		t.Errorf("expected no issues for nil data, got %v", issues)
 	}

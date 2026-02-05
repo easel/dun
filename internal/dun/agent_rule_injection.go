@@ -9,40 +9,17 @@ import (
 	"strings"
 )
 
-// AgentRuleInjectionConfig holds the configuration for agent-rule-injection checks.
-type AgentRuleInjectionConfig struct {
-	BasePrompt   string        `yaml:"base_prompt"`
-	InjectRules  []InjectRule  `yaml:"inject_rules"`
-	EnforceRules []EnforceRule `yaml:"enforce_rules"`
-}
-
-// InjectRule defines a rule source to inject into the prompt.
-type InjectRule struct {
-	Source  string `yaml:"source"`  // File path or "from_registry"
-	Section string `yaml:"section"` // Where to inject in prompt (section header)
-}
-
-// EnforceRule defines a validation pattern to apply after agent response.
-type EnforceRule struct {
-	ID       string `yaml:"id"`
-	Pattern  string `yaml:"pattern"`  // Regex to verify in output
-	Required bool   `yaml:"required"` // Whether this pattern is mandatory
-}
-
 // EnforceRulesMetadata holds enforce rules in JSON format for embedding in prompt envelope.
 type EnforceRulesMetadata struct {
 	EnforceRules []EnforceRule `json:"enforce_rules"`
 }
 
 // runAgentRuleInjectionCheck builds an enhanced prompt with injected rules.
-func runAgentRuleInjectionCheck(root string, check Check) (CheckResult, error) {
-	// Extract configuration from check fields
-	config := extractRuleInjectionConfig(check)
-
+func runAgentRuleInjectionCheck(root string, plugin Plugin, def CheckDefinition, config AgentRuleInjectionConfig) (CheckResult, error) {
 	// Validate configuration
 	if config.BasePrompt == "" {
 		return CheckResult{
-			ID:     check.ID,
+			ID:     def.ID,
 			Status: "fail",
 			Signal: "base_prompt is required",
 			Detail: "agent-rule-injection check requires a base_prompt to be specified",
@@ -53,7 +30,7 @@ func runAgentRuleInjectionCheck(root string, check Check) (CheckResult, error) {
 	basePromptContent, err := loadBasePrompt(root, config.BasePrompt)
 	if err != nil {
 		return CheckResult{
-			ID:     check.ID,
+			ID:     def.ID,
 			Status: "fail",
 			Signal: "failed to load base prompt",
 			Detail: err.Error(),
@@ -64,7 +41,7 @@ func runAgentRuleInjectionCheck(root string, check Check) (CheckResult, error) {
 	enhancedPrompt, injectionIssues, err := buildEnhancedPrompt(root, basePromptContent, config.InjectRules)
 	if err != nil {
 		return CheckResult{
-			ID:     check.ID,
+			ID:     def.ID,
 			Status: "fail",
 			Signal: "failed to build enhanced prompt",
 			Detail: err.Error(),
@@ -78,7 +55,7 @@ func runAgentRuleInjectionCheck(root string, check Check) (CheckResult, error) {
 	metadataJSON, err := json.Marshal(metadata)
 	if err != nil {
 		return CheckResult{
-			ID:     check.ID,
+			ID:     def.ID,
 			Status: "fail",
 			Signal: "failed to serialize enforce rules",
 			Detail: err.Error(),
@@ -96,50 +73,24 @@ func runAgentRuleInjectionCheck(root string, check Check) (CheckResult, error) {
 	// Build the prompt envelope with enhanced prompt
 	envelope := PromptEnvelope{
 		Kind:    "dun.agent-rule-injection.v1",
-		ID:      check.ID,
-		Title:   check.Description,
+		ID:      def.ID,
+		Title:   def.Description,
 		Summary: buildPromptSummary(config),
 		Prompt:  enhancedPrompt,
 		Callback: PromptCallback{
-			Command: fmt.Sprintf("dun respond --id %s --response - --metadata '%s'", check.ID, string(metadataJSON)),
+			Command: fmt.Sprintf("dun respond --id %s --response - --metadata '%s'", def.ID, string(metadataJSON)),
 			Stdin:   true,
 		},
 	}
 
 	return CheckResult{
-		ID:     check.ID,
+		ID:     def.ID,
 		Status: status,
 		Signal: signal,
 		Detail: fmt.Sprintf("injected %d rules, %d enforce patterns", len(config.InjectRules), len(config.EnforceRules)),
 		Prompt: &envelope,
 		Issues: injectionIssues,
 	}, nil
-}
-
-// extractRuleInjectionConfig extracts rule injection config from Check fields.
-func extractRuleInjectionConfig(check Check) AgentRuleInjectionConfig {
-	var injectRules []InjectRule
-	for _, ir := range check.InjectRules {
-		injectRules = append(injectRules, InjectRule{
-			Source:  ir.Source,
-			Section: ir.Section,
-		})
-	}
-
-	var enforceRules []EnforceRule
-	for _, er := range check.EnforceRules {
-		enforceRules = append(enforceRules, EnforceRule{
-			ID:       er.ID,
-			Pattern:  er.Pattern,
-			Required: er.Required,
-		})
-	}
-
-	return AgentRuleInjectionConfig{
-		BasePrompt:   check.BasePrompt,
-		InjectRules:  injectRules,
-		EnforceRules: enforceRules,
-	}
 }
 
 // loadBasePrompt loads the base prompt template from the specified path.

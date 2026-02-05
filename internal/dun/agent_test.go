@@ -18,11 +18,10 @@ func TestRenderPromptIncludesAutomationMode(t *testing.T) {
 		FS:   os.DirFS(dir),
 		Base: ".",
 	}
-	check := Check{
-		ID:     "test",
+	config := AgentCheckConfig{
 		Prompt: "prompt.md",
 	}
-	text, _, err := renderPromptText(plugin, check, nil, "yolo")
+	text, _, err := renderPromptText(plugin, config, "test", nil, "yolo")
 	if err != nil {
 		t.Fatalf("render prompt: %v", err)
 	}

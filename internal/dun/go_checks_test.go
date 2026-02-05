@@ -12,7 +12,7 @@ func TestGoTestCheckPasses(t *testing.T) {
 	t.Setenv("PATH", binDir)
 
 	root := t.TempDir()
-	res, err := runGoTestCheck(root, Check{ID: "go-test"})
+	res, err := runGoTestCheck(root, CheckDefinition{ID: "go-test"})
 	if err != nil {
 		t.Fatalf("go test check: %v", err)
 	}
@@ -27,7 +27,7 @@ func TestGoTestCheckFails(t *testing.T) {
 	t.Setenv("DUN_GO_TEST_EXIT", "1")
 
 	root := t.TempDir()
-	res, err := runGoTestCheck(root, Check{ID: "go-test"})
+	res, err := runGoTestCheck(root, CheckDefinition{ID: "go-test"})
 	if err != nil {
 		t.Fatalf("go test check: %v", err)
 	}
@@ -45,13 +45,12 @@ func TestGoCoverageCheckFailsBelowThreshold(t *testing.T) {
 	t.Setenv("DUN_COVER_PCT", "72.0")
 
 	root := t.TempDir()
-	check := Check{
-		ID: "go-coverage",
+	config := GoCoverageConfig{
 		Rules: []Rule{
 			{Type: "coverage-min", Expected: 100},
 		},
 	}
-	res, err := runGoCoverageCheck(root, check, Options{})
+	res, err := runGoCoverageCheck(root, CheckDefinition{ID: "go-coverage"}, config, Options{})
 	if err != nil {
 		t.Fatalf("coverage check: %v", err)
 	}
@@ -69,13 +68,12 @@ func TestGoCoverageCheckPassesAtCustomThreshold(t *testing.T) {
 	t.Setenv("DUN_COVER_PCT", "80.0")
 
 	root := t.TempDir()
-	check := Check{
-		ID: "go-coverage",
+	config := GoCoverageConfig{
 		Rules: []Rule{
 			{Type: "coverage-min", Expected: 75},
 		},
 	}
-	res, err := runGoCoverageCheck(root, check, Options{})
+	res, err := runGoCoverageCheck(root, CheckDefinition{ID: "go-coverage"}, config, Options{})
 	if err != nil {
 		t.Fatalf("coverage check: %v", err)
 	}
@@ -90,7 +88,7 @@ func TestGoVetCheckFails(t *testing.T) {
 	t.Setenv("DUN_GO_VET_EXIT", "1")
 
 	root := t.TempDir()
-	res, err := runGoVetCheck(root, Check{ID: "go-vet"})
+	res, err := runGoVetCheck(root, CheckDefinition{ID: "go-vet"})
 	if err != nil {
 		t.Fatalf("go vet check: %v", err)
 	}
@@ -104,7 +102,7 @@ func TestGoVetCheckPasses(t *testing.T) {
 	t.Setenv("PATH", binDir)
 
 	root := t.TempDir()
-	res, err := runGoVetCheck(root, Check{ID: "go-vet"})
+	res, err := runGoVetCheck(root, CheckDefinition{ID: "go-vet"})
 	if err != nil {
 		t.Fatalf("go vet check: %v", err)
 	}
@@ -118,7 +116,7 @@ func TestGoStaticcheckWarnsWhenMissing(t *testing.T) {
 	t.Setenv("PATH", binDir)
 
 	root := t.TempDir()
-	res, err := runGoStaticcheck(root, Check{ID: "go-staticcheck"})
+	res, err := runGoStaticcheck(root, CheckDefinition{ID: "go-staticcheck"})
 	if err != nil {
 		t.Fatalf("staticcheck: %v", err)
 	}
@@ -137,7 +135,7 @@ func TestGoStaticcheckFailsWhenToolErrors(t *testing.T) {
 	t.Setenv("PATH", binDir)
 
 	root := t.TempDir()
-	res, err := runGoStaticcheck(root, Check{ID: "go-staticcheck"})
+	res, err := runGoStaticcheck(root, CheckDefinition{ID: "go-staticcheck"})
 	if err != nil {
 		t.Fatalf("staticcheck: %v", err)
 	}
@@ -156,7 +154,7 @@ func TestGoStaticcheckPassesWhenToolOK(t *testing.T) {
 	t.Setenv("PATH", binDir)
 
 	root := t.TempDir()
-	res, err := runGoStaticcheck(root, Check{ID: "go-staticcheck"})
+	res, err := runGoStaticcheck(root, CheckDefinition{ID: "go-staticcheck"})
 	if err != nil {
 		t.Fatalf("staticcheck: %v", err)
 	}
@@ -182,7 +180,7 @@ func TestRunGoCoverageCheckToolCoverError(t *testing.T) {
 	t.Setenv("DUN_TOOL_COVER_EXIT", "1")
 
 	root := t.TempDir()
-	res, err := runGoCoverageCheck(root, Check{ID: "go-coverage"}, Options{})
+	res, err := runGoCoverageCheck(root, CheckDefinition{ID: "go-coverage"}, GoCoverageConfig{}, Options{})
 	if err != nil {
 		t.Fatalf("coverage check: %v", err)
 	}
@@ -197,7 +195,7 @@ func TestRunGoCoverageCheckParseError(t *testing.T) {
 	t.Setenv("DUN_COVER_PCT", "bad")
 
 	root := t.TempDir()
-	res, err := runGoCoverageCheck(root, Check{ID: "go-coverage"}, Options{})
+	res, err := runGoCoverageCheck(root, CheckDefinition{ID: "go-coverage"}, GoCoverageConfig{}, Options{})
 	if err != nil {
 		t.Fatalf("coverage check: %v", err)
 	}
@@ -232,22 +230,22 @@ func TestWriteCoverageProfileCloseError(t *testing.T) {
 }
 
 func TestCoverageThresholdDefault(t *testing.T) {
-	if threshold := coverageThreshold(Check{}, Options{}); threshold != defaultCoverageThreshold {
+	if threshold := coverageThreshold(GoCoverageConfig{}, Options{}); threshold != defaultCoverageThreshold {
 		t.Fatalf("expected default threshold %d, got %d", defaultCoverageThreshold, threshold)
 	}
 }
 
 func TestCoverageThresholdFromOptions(t *testing.T) {
 	opts := Options{CoverageThreshold: 95}
-	if threshold := coverageThreshold(Check{}, opts); threshold != 95 {
+	if threshold := coverageThreshold(GoCoverageConfig{}, opts); threshold != 95 {
 		t.Fatalf("expected options threshold 95, got %d", threshold)
 	}
 }
 
 func TestCoverageThresholdOptionsOverrideRule(t *testing.T) {
 	opts := Options{CoverageThreshold: 95}
-	check := Check{Rules: []Rule{{Type: "coverage-min", Expected: 100}}}
-	if threshold := coverageThreshold(check, opts); threshold != 95 {
+	config := GoCoverageConfig{Rules: []Rule{{Type: "coverage-min", Expected: 100}}}
+	if threshold := coverageThreshold(config, opts); threshold != 95 {
 		t.Fatalf("expected options threshold 95, got %d", threshold)
 	}
 }
@@ -266,7 +264,7 @@ func TestRunGoCoverageCheckHandlesGoTestFailure(t *testing.T) {
 	t.Setenv("DUN_GO_TEST_EXIT", "1")
 
 	root := t.TempDir()
-	res, err := runGoCoverageCheck(root, Check{ID: "go-coverage"}, Options{})
+	res, err := runGoCoverageCheck(root, CheckDefinition{ID: "go-coverage"}, GoCoverageConfig{}, Options{})
 	if err != nil {
 		t.Fatalf("coverage check: %v", err)
 	}
@@ -277,7 +275,7 @@ func TestRunGoCoverageCheckHandlesGoTestFailure(t *testing.T) {
 
 func TestRunGoCoverageCheckWriteProfileError(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "missing")
-	if _, err := runGoCoverageCheck(root, Check{ID: "go-coverage"}, Options{}); err == nil {
+	if _, err := runGoCoverageCheck(root, CheckDefinition{ID: "go-coverage"}, GoCoverageConfig{}, Options{}); err == nil {
 		t.Fatalf("expected write profile error")
 	}
 }

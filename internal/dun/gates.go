@@ -24,8 +24,8 @@ type gateItem struct {
 	Source   string `yaml:"source"`
 }
 
-func runGateCheck(root string, plugin Plugin, check Check) (CheckResult, error) {
-	if len(check.GateFiles) == 0 {
+func runGateCheck(root string, plugin Plugin, def CheckDefinition, config GateConfig) (CheckResult, error) {
+	if len(config.GateFiles) == 0 {
 		return CheckResult{}, fmt.Errorf("gate files missing")
 	}
 
@@ -34,7 +34,7 @@ func runGateCheck(root string, plugin Plugin, check Check) (CheckResult, error) 
 	manualActions := map[string]string{}
 	issuesByKey := map[string]Issue{}
 
-	for _, gatePath := range check.GateFiles {
+	for _, gatePath := range config.GateFiles {
 		gates, err := loadGateFile(plugin, gatePath)
 		if err != nil {
 			return CheckResult{}, err
@@ -90,7 +90,7 @@ func runGateCheck(root string, plugin Plugin, check Check) (CheckResult, error) 
 
 	if len(requiredList) == 0 && len(optionalList) == 0 && len(manualList) == 0 {
 		return CheckResult{
-			ID:     check.ID,
+			ID:     def.ID,
 			Status: "pass",
 			Signal: "all gates satisfied",
 		}, nil
@@ -118,7 +118,7 @@ func runGateCheck(root string, plugin Plugin, check Check) (CheckResult, error) 
 	}
 
 	return CheckResult{
-		ID:     check.ID,
+		ID:     def.ID,
 		Status: status,
 		Signal: signal,
 		Detail: strings.Join(detailParts, "; "),

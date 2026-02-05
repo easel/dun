@@ -22,12 +22,12 @@ type CodeInfo struct {
 }
 
 // runSpecBindingCheck verifies bidirectional references between specifications and code.
-func runSpecBindingCheck(root string, check Check) (CheckResult, error) {
+func runSpecBindingCheck(root string, def CheckDefinition, config SpecBindingConfig) (CheckResult, error) {
 	// Extract spec information
-	specMap, err := extractSpecs(root, check.Bindings.Specs)
+	specMap, err := extractSpecs(root, config.Bindings.Specs)
 	if err != nil {
 		return CheckResult{
-			ID:     check.ID,
+			ID:     def.ID,
 			Status: "fail",
 			Signal: "failed to extract specs",
 			Detail: err.Error(),
@@ -35,10 +35,10 @@ func runSpecBindingCheck(root string, check Check) (CheckResult, error) {
 	}
 
 	// Extract code references
-	codeMap, err := extractCodeRefs(root, check.Bindings.Code)
+	codeMap, err := extractCodeRefs(root, config.Bindings.Code)
 	if err != nil {
 		return CheckResult{
-			ID:     check.ID,
+			ID:     def.ID,
 			Status: "fail",
 			Signal: "failed to extract code refs",
 			Detail: err.Error(),
@@ -66,7 +66,7 @@ func runSpecBindingCheck(root string, check Check) (CheckResult, error) {
 	var issues []Issue
 	status := "pass"
 
-	for _, rule := range check.BindingRules {
+	for _, rule := range config.BindingRules {
 		ruleIssues, ruleStatus := applyBindingRule(rule, specMap, codeMap, specsToCode, codeToSpecs, coverage)
 		issues = append(issues, ruleIssues...)
 
@@ -83,7 +83,7 @@ func runSpecBindingCheck(root string, check Check) (CheckResult, error) {
 	detail := fmt.Sprintf("%d/%d specs have implementations", specsWithCode, totalSpecs)
 
 	return CheckResult{
-		ID:     check.ID,
+		ID:     def.ID,
 		Status: status,
 		Signal: signal,
 		Detail: detail,
@@ -92,11 +92,7 @@ func runSpecBindingCheck(root string, check Check) (CheckResult, error) {
 }
 
 // extractSpecs finds all spec files and extracts their IDs and implementation references.
-func extractSpecs(root string, specPatterns []struct {
-	Pattern               string `yaml:"pattern"`
-	ImplementationSection string `yaml:"implementation_section"`
-	IDPattern             string `yaml:"id_pattern"`
-}) (map[string]SpecInfo, error) {
+func extractSpecs(root string, specPatterns []SpecBinding) (map[string]SpecInfo, error) {
 	specMap := make(map[string]SpecInfo)
 
 	for _, sp := range specPatterns {
@@ -133,10 +129,7 @@ func extractSpecs(root string, specPatterns []struct {
 }
 
 // extractCodeRefs finds all code files and extracts spec references from them.
-func extractCodeRefs(root string, codePatterns []struct {
-	Pattern     string `yaml:"pattern"`
-	SpecComment string `yaml:"spec_comment"`
-}) (map[string]CodeInfo, error) {
+func extractCodeRefs(root string, codePatterns []CodeBinding) (map[string]CodeInfo, error) {
 	codeMap := make(map[string]CodeInfo)
 
 	for _, cp := range codePatterns {

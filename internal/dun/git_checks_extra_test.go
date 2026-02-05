@@ -44,7 +44,7 @@ func TestHookCheckFailsWhenToolErrors(t *testing.T) {
 	origPath := os.Getenv("PATH")
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+origPath)
 
-	res, err := runHookCheck(root, Check{ID: "git-hooks"})
+	res, err := runHookCheck(root, CheckDefinition{ID: "git-hooks"})
 	if err != nil {
 		t.Fatalf("hook check: %v", err)
 	}
@@ -134,7 +134,7 @@ func TestRunGitStatusCheckSkipsEmptyAndDuplicate(t *testing.T) {
 	}
 	t.Cleanup(func() { gitStatusFunc = orig })
 
-	res, err := runGitStatusCheck(t.TempDir(), Check{ID: "git-status"})
+	res, err := runGitStatusCheck(t.TempDir(), CheckDefinition{ID: "git-status"})
 	if err != nil {
 		t.Fatalf("git status: %v", err)
 	}
@@ -150,7 +150,7 @@ func TestRunGitStatusCheckError(t *testing.T) {
 	}
 	t.Cleanup(func() { gitStatusFunc = orig })
 
-	if _, err := runGitStatusCheck(t.TempDir(), Check{ID: "git-status"}); err == nil {
+	if _, err := runGitStatusCheck(t.TempDir(), CheckDefinition{ID: "git-status"}); err == nil {
 		t.Fatalf("expected git status error")
 	}
 }
@@ -162,14 +162,14 @@ func TestRunHookCheckDetectError(t *testing.T) {
 	}
 	t.Cleanup(func() { detectHookToolFunc = orig })
 
-	if _, err := runHookCheck(t.TempDir(), Check{ID: "git-hooks"}); err == nil {
+	if _, err := runHookCheck(t.TempDir(), CheckDefinition{ID: "git-hooks"}); err == nil {
 		t.Fatalf("expected detect error")
 	}
 }
 
 func TestRunHookCheckSkip(t *testing.T) {
 	root := tempGitRepo(t)
-	res, err := runHookCheck(root, Check{ID: "git-hooks"})
+	res, err := runHookCheck(root, CheckDefinition{ID: "git-hooks"})
 	if err != nil {
 		t.Fatalf("hook check: %v", err)
 	}
@@ -183,7 +183,7 @@ func TestRunHookCheckWarnWhenToolMissing(t *testing.T) {
 	writeFile(t, root+"/lefthook.yml", "pre-commit: {}")
 	t.Setenv("PATH", "")
 
-	res, err := runHookCheck(root, Check{ID: "git-hooks"})
+	res, err := runHookCheck(root, CheckDefinition{ID: "git-hooks"})
 	if err != nil {
 		t.Fatalf("hook check: %v", err)
 	}
@@ -205,7 +205,7 @@ func TestRunHookCheckPasses(t *testing.T) {
 	origPath := os.Getenv("PATH")
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+origPath)
 
-	res, err := runHookCheck(root, Check{ID: "git-hooks"})
+	res, err := runHookCheck(root, CheckDefinition{ID: "git-hooks"})
 	if err != nil {
 		t.Fatalf("hook check: %v", err)
 	}

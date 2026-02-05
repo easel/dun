@@ -9,7 +9,7 @@ import (
 // runSelfTestCheck runs dun's internal self-tests to verify harness functionality.
 // This check ensures that dun can properly invoke agent harnesses before attempting
 // to run actual agent checks.
-func runSelfTestCheck(root string, check Check) (CheckResult, error) {
+func runSelfTestCheck(root string, def CheckDefinition) (CheckResult, error) {
 	var issues []Issue
 	var details []string
 
@@ -21,7 +21,7 @@ func runSelfTestCheck(root string, check Check) (CheckResult, error) {
 		})
 		// Cannot continue tests without a registry
 		return CheckResult{
-			ID:     check.ID,
+			ID:     def.ID,
 			Status: "fail",
 			Signal: "self-test failures detected",
 			Detail: "DefaultRegistry is nil - cannot run harness tests",
@@ -169,7 +169,7 @@ func runSelfTestCheck(root string, check Check) (CheckResult, error) {
 	}
 
 	return CheckResult{
-		ID:     check.ID,
+		ID:     def.ID,
 		Status: status,
 		Signal: signal,
 		Detail: strings.Join(details, "\n"),

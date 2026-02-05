@@ -12,7 +12,7 @@ func TestGitStatusCheckWarnsWhenDirty(t *testing.T) {
 	root := tempGitRepo(t)
 	writeFile(t, filepath.Join(root, "notes.txt"), "hello")
 
-	res, err := runGitStatusCheck(root, Check{ID: "git-status"})
+	res, err := runGitStatusCheck(root, CheckDefinition{ID: "git-status"})
 	if err != nil {
 		t.Fatalf("git status check: %v", err)
 	}
@@ -30,7 +30,7 @@ func TestGitStatusCheckWarnsWhenDirty(t *testing.T) {
 func TestGitStatusCheckPassesWhenClean(t *testing.T) {
 	root := tempGitRepo(t)
 
-	res, err := runGitStatusCheck(root, Check{ID: "git-status"})
+	res, err := runGitStatusCheck(root, CheckDefinition{ID: "git-status"})
 	if err != nil {
 		t.Fatalf("git status check: %v", err)
 	}
@@ -44,7 +44,7 @@ func TestHookCheckWarnsWhenToolMissing(t *testing.T) {
 	writeFile(t, filepath.Join(root, "lefthook.yml"), "pre-commit: {}")
 	t.Setenv("PATH", "")
 
-	res, err := runHookCheck(root, Check{ID: "git-hooks"})
+	res, err := runHookCheck(root, CheckDefinition{ID: "git-hooks"})
 	if err != nil {
 		t.Fatalf("hook check: %v", err)
 	}
@@ -71,7 +71,7 @@ func TestHookCheckRunsWhenToolPresent(t *testing.T) {
 	origPath := os.Getenv("PATH")
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+origPath)
 
-	res, err := runHookCheck(root, Check{ID: "git-hooks"})
+	res, err := runHookCheck(root, CheckDefinition{ID: "git-hooks"})
 	if err != nil {
 		t.Fatalf("hook check: %v", err)
 	}

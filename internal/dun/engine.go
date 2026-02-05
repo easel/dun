@@ -199,50 +199,26 @@ func sortPlan(plan []plannedCheck) {
 }
 
 func runCheck(root string, pc plannedCheck, opts Options) (CheckResult, error) {
-	switch pc.Check.Type {
-	case "rule-set":
-		return runRuleSet(root, pc.Check)
-	case "gates":
-		return runGateCheck(root, pc.Plugin, pc.Check)
-	case "state-rules":
-		return runStateRules(root, pc.Plugin, pc.Check)
-	case "agent":
-		return runAgentCheck(root, pc.Plugin, pc.Check, opts)
-	case "git-status":
-		return runGitStatusCheck(root, pc.Check)
-	case "hook-check":
-		return runHookCheck(root, pc.Check)
-	case "command":
-		return runCommandCheck(root, pc.Check)
-	case "go-test":
-		return runGoTestCheck(root, pc.Check)
-	case "go-coverage":
-		return runGoCoverageCheck(root, pc.Check, opts)
-	case "go-vet":
-		return runGoVetCheck(root, pc.Check)
-	case "go-staticcheck":
-		return runGoStaticcheck(root, pc.Check)
-	case "beads-ready":
-		return runBeadsReadyCheck(root, pc.Check)
-	case "beads-critical-path":
-		return runBeadsCriticalPathCheck(root, pc.Check)
-	case "beads-suggest":
-		return runBeadsSuggestCheck(root, pc.Check)
-	case "spec-binding":
-		return runSpecBindingCheck(root, pc.Check)
-	case "change-cascade":
-		return runChangeCascadeCheck(root, pc.Check)
-	case "integration-contract":
-		return runIntegrationContractCheck(root, pc.Check)
-	case "conflict-detection":
-		return runConflictDetectionCheck(root, pc.Check)
-	case "agent-rule-injection":
-		return runAgentRuleInjectionCheck(root, pc.Check)
-	case "doc-dag":
-		return runDocDagCheck(root, pc.Plugin, pc.Check)
-	case "self-test":
-		return runSelfTestCheck(root, pc.Check)
-	default:
+	handler, ok := LookupCheckType(pc.Check.Type)
+	if !ok {
 		return CheckResult{}, fmt.Errorf("unknown check type: %s", pc.Check.Type)
 	}
+	cfg, err := handler.Decode(pc.Check)
+	if err != nil {
+		return CheckResult{}, err
+	}
+	def := CheckDefinition{
+		ID:          pc.Check.ID,
+		Description: pc.Check.Description,
+		Type:        pc.Check.Type,
+		Phase:       pc.Check.Phase,
+		Priority:    pc.Check.Priority,
+		Conditions:  pc.Check.Conditions,
+		PluginID:    pc.Plugin.Manifest.ID,
+	}
+	result, err := handler.Run(root, def, cfg, opts, pc.Plugin)
+	if err != nil {
+		return CheckResult{}, err
+	}
+	return summarizeResult(result), nil
 }

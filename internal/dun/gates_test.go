@@ -9,7 +9,7 @@ import (
 
 func TestRunGateCheckMissingGateFiles(t *testing.T) {
 	plugin := Plugin{}
-	_, err := runGateCheck(".", plugin, Check{ID: "gates"})
+	_, err := runGateCheck(".", plugin, CheckDefinition{ID: "gates"}, GateConfig{})
 	if err == nil {
 		t.Fatalf("expected error for missing gate files")
 	}
@@ -24,8 +24,9 @@ func TestRunGateCheckPassesWhenSatisfied(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "docs", "a.md"), "# Section\n")
 
 	plugin := Plugin{FS: os.DirFS(dir), Base: "."}
-	check := Check{ID: "gates", GateFiles: []string{"gate.yml"}}
-	res, err := runGateCheck(dir, plugin, check)
+	def := CheckDefinition{ID: "gates"}
+	config := GateConfig{GateFiles: []string{"gate.yml"}}
+	res, err := runGateCheck(dir, plugin, def, config)
 	if err != nil {
 		t.Fatalf("run gate check: %v", err)
 	}
@@ -39,8 +40,9 @@ func TestRunGateCheckFailsWhenRequiredMissing(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "gate.yml"), "input_gates:\n  - criteria: \"Gate\"\n    required: true\n    evidence: \"docs/missing.md\"\n")
 
 	plugin := Plugin{FS: os.DirFS(dir), Base: "."}
-	check := Check{ID: "gates", GateFiles: []string{"gate.yml"}}
-	res, err := runGateCheck(dir, plugin, check)
+	def := CheckDefinition{ID: "gates"}
+	config := GateConfig{GateFiles: []string{"gate.yml"}}
+	res, err := runGateCheck(dir, plugin, def, config)
 	if err != nil {
 		t.Fatalf("run gate check: %v", err)
 	}
@@ -56,8 +58,9 @@ func TestRunGateCheckWarnsWhenOptionalMissing(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "gate.yml"), "input_gates:\n  - criteria: \"Gate\"\n    required: false\n    evidence: \"docs/missing.md\"\n")
 	plugin := Plugin{FS: os.DirFS(dir), Base: "."}
-	check := Check{ID: "gates", GateFiles: []string{"gate.yml"}}
-	res, err := runGateCheck(dir, plugin, check)
+	def := CheckDefinition{ID: "gates"}
+	config := GateConfig{GateFiles: []string{"gate.yml"}}
+	res, err := runGateCheck(dir, plugin, def, config)
 	if err != nil {
 		t.Fatalf("run gate check: %v", err)
 	}
@@ -69,8 +72,9 @@ func TestRunGateCheckWarnsWhenOptionalMissing(t *testing.T) {
 func TestRunGateCheckMissingGateFile(t *testing.T) {
 	dir := t.TempDir()
 	plugin := Plugin{FS: os.DirFS(dir), Base: "."}
-	check := Check{ID: "gates", GateFiles: []string{"missing.yml"}}
-	if _, err := runGateCheck(dir, plugin, check); err == nil {
+	def := CheckDefinition{ID: "gates"}
+	config := GateConfig{GateFiles: []string{"missing.yml"}}
+	if _, err := runGateCheck(dir, plugin, def, config); err == nil {
 		t.Fatalf("expected missing gate file error")
 	}
 }
@@ -82,8 +86,9 @@ func TestRunGateCheckEvidenceError(t *testing.T) {
 		t.Fatalf("mkdir docs: %v", err)
 	}
 	plugin := Plugin{FS: os.DirFS(dir), Base: "."}
-	check := Check{ID: "gates", GateFiles: []string{"gate.yml"}}
-	if _, err := runGateCheck(dir, plugin, check); err == nil {
+	def := CheckDefinition{ID: "gates"}
+	config := GateConfig{GateFiles: []string{"gate.yml"}}
+	if _, err := runGateCheck(dir, plugin, def, config); err == nil {
 		t.Fatalf("expected evidence error")
 	}
 }

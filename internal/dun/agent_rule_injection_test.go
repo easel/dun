@@ -8,6 +8,16 @@ import (
 	"testing"
 )
 
+func runAgentRuleInjectionCheckFromSpec(root string, check Check) (CheckResult, error) {
+	def := CheckDefinition{ID: check.ID, Description: check.Description}
+	config := AgentRuleInjectionConfig{
+		BasePrompt:   check.BasePrompt,
+		InjectRules:  check.InjectRules,
+		EnforceRules: check.EnforceRules,
+	}
+	return runAgentRuleInjectionCheck(root, Plugin{}, def, config)
+}
+
 func TestRunAgentRuleInjectionCheck_BasicPass(t *testing.T) {
 	root := t.TempDir()
 
@@ -49,22 +59,15 @@ Follow the coding standards.
 		Type:        "agent-rule-injection",
 		Description: "Test rule injection",
 		BasePrompt:  "prompts/implement-feature.md",
-		InjectRules: []struct {
-			Source  string `yaml:"source"`
-			Section string `yaml:"section"`
-		}{
+		InjectRules: []InjectRule{
 			{Source: ".dun/rules/coding-standards.yaml", Section: "## Rules to Follow"},
 		},
-		EnforceRules: []struct {
-			ID       string `yaml:"id"`
-			Pattern  string `yaml:"pattern"`
-			Required bool   `yaml:"required"`
-		}{
+		EnforceRules: []EnforceRule{
 			{ID: "must-reference-spec", Pattern: `Implements: FEAT-\d+`, Required: true},
 		},
 	}
 
-	result, err := runAgentRuleInjectionCheck(root, check)
+	result, err := runAgentRuleInjectionCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -92,7 +95,7 @@ func TestRunAgentRuleInjectionCheck_NoBasePrompt(t *testing.T) {
 		BasePrompt: "", // Missing base prompt
 	}
 
-	result, err := runAgentRuleInjectionCheck(root, check)
+	result, err := runAgentRuleInjectionCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -114,7 +117,7 @@ func TestRunAgentRuleInjectionCheck_BasePromptNotFound(t *testing.T) {
 		BasePrompt: "prompts/nonexistent.md",
 	}
 
-	result, err := runAgentRuleInjectionCheck(root, check)
+	result, err := runAgentRuleInjectionCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -143,15 +146,12 @@ func TestRunAgentRuleInjectionCheck_InjectRuleSourceNotFound(t *testing.T) {
 		ID:         "test-missing-source",
 		Type:       "agent-rule-injection",
 		BasePrompt: "prompts/prompt.md",
-		InjectRules: []struct {
-			Source  string `yaml:"source"`
-			Section string `yaml:"section"`
-		}{
+		InjectRules: []InjectRule{
 			{Source: "nonexistent/rules.yaml", Section: "## Rules"},
 		},
 	}
 
-	result, err := runAgentRuleInjectionCheck(root, check)
+	result, err := runAgentRuleInjectionCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -198,15 +198,12 @@ Just context, no rules section.
 		ID:         "test-section-not-found",
 		Type:       "agent-rule-injection",
 		BasePrompt: "prompts/prompt.md",
-		InjectRules: []struct {
-			Source  string `yaml:"source"`
-			Section string `yaml:"section"`
-		}{
+		InjectRules: []InjectRule{
 			{Source: "rules/coding.yaml", Section: "## Rules to Follow"},
 		},
 	}
 
-	result, err := runAgentRuleInjectionCheck(root, check)
+	result, err := runAgentRuleInjectionCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -251,15 +248,12 @@ func TestRunAgentRuleInjectionCheck_NoSection(t *testing.T) {
 		ID:         "test-no-section",
 		Type:       "agent-rule-injection",
 		BasePrompt: "prompts/prompt.md",
-		InjectRules: []struct {
-			Source  string `yaml:"source"`
-			Section string `yaml:"section"`
-		}{
+		InjectRules: []InjectRule{
 			{Source: "rules/coding.yaml", Section: ""}, // No section specified
 		},
 	}
 
-	result, err := runAgentRuleInjectionCheck(root, check)
+	result, err := runAgentRuleInjectionCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -304,15 +298,12 @@ func TestRunAgentRuleInjectionCheck_FromRegistry(t *testing.T) {
 		ID:         "test-from-registry",
 		Type:       "agent-rule-injection",
 		BasePrompt: "prompts/prompt.md",
-		InjectRules: []struct {
-			Source  string `yaml:"source"`
-			Section string `yaml:"section"`
-		}{
+		InjectRules: []InjectRule{
 			{Source: "from_registry", Section: "## Governing Specs"},
 		},
 	}
 
-	result, err := runAgentRuleInjectionCheck(root, check)
+	result, err := runAgentRuleInjectionCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -341,15 +332,12 @@ func TestRunAgentRuleInjectionCheck_FromRegistryNotFound(t *testing.T) {
 		ID:         "test-from-registry-not-found",
 		Type:       "agent-rule-injection",
 		BasePrompt: "prompts/prompt.md",
-		InjectRules: []struct {
-			Source  string `yaml:"source"`
-			Section string `yaml:"section"`
-		}{
+		InjectRules: []InjectRule{
 			{Source: "from_registry", Section: "## Specs"},
 		},
 	}
 
-	result, err := runAgentRuleInjectionCheck(root, check)
+	result, err := runAgentRuleInjectionCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -398,16 +386,13 @@ func TestRunAgentRuleInjectionCheck_MultipleRules(t *testing.T) {
 		ID:         "test-multiple-rules",
 		Type:       "agent-rule-injection",
 		BasePrompt: "prompts/prompt.md",
-		InjectRules: []struct {
-			Source  string `yaml:"source"`
-			Section string `yaml:"section"`
-		}{
+		InjectRules: []InjectRule{
 			{Source: "rules/coding.yaml", Section: "## Coding Standards"},
 			{Source: "rules/security.yaml", Section: "## Security Guidelines"},
 		},
 	}
 
-	result, err := runAgentRuleInjectionCheck(root, check)
+	result, err := runAgentRuleInjectionCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -439,17 +424,13 @@ func TestRunAgentRuleInjectionCheck_EnforceRulesMetadata(t *testing.T) {
 		ID:         "test-enforce-metadata",
 		Type:       "agent-rule-injection",
 		BasePrompt: "prompts/prompt.md",
-		EnforceRules: []struct {
-			ID       string `yaml:"id"`
-			Pattern  string `yaml:"pattern"`
-			Required bool   `yaml:"required"`
-		}{
+		EnforceRules: []EnforceRule{
 			{ID: "must-have-tests", Pattern: `_test\.go$`, Required: true},
 			{ID: "spec-reference", Pattern: `FEAT-\d+`, Required: false},
 		},
 	}
 
-	result, err := runAgentRuleInjectionCheck(root, check)
+	result, err := runAgentRuleInjectionCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -617,23 +598,20 @@ func TestParseEnforceRulesMetadata_Invalid(t *testing.T) {
 func TestExtractRuleInjectionConfig(t *testing.T) {
 	check := Check{
 		BasePrompt: "prompts/test.md",
-		InjectRules: []struct {
-			Source  string `yaml:"source"`
-			Section string `yaml:"section"`
-		}{
+		InjectRules: []InjectRule{
 			{Source: "rules/coding.yaml", Section: "## Rules"},
 			{Source: "from_registry", Section: "## Specs"},
 		},
-		EnforceRules: []struct {
-			ID       string `yaml:"id"`
-			Pattern  string `yaml:"pattern"`
-			Required bool   `yaml:"required"`
-		}{
+		EnforceRules: []EnforceRule{
 			{ID: "test-rule", Pattern: "test", Required: true},
 		},
 	}
 
-	config := extractRuleInjectionConfig(check)
+	config := AgentRuleInjectionConfig{
+		BasePrompt:   check.BasePrompt,
+		InjectRules:  check.InjectRules,
+		EnforceRules: check.EnforceRules,
+	}
 
 	if config.BasePrompt != "prompts/test.md" {
 		t.Errorf("expected base_prompt 'prompts/test.md', got %q", config.BasePrompt)
@@ -920,17 +898,13 @@ func TestRunAgentRuleInjectionCheck_EnforceRulesJSONSerialization(t *testing.T) 
 		ID:         "test-json",
 		Type:       "agent-rule-injection",
 		BasePrompt: "prompts/prompt.md",
-		EnforceRules: []struct {
-			ID       string `yaml:"id"`
-			Pattern  string `yaml:"pattern"`
-			Required bool   `yaml:"required"`
-		}{
+		EnforceRules: []EnforceRule{
 			{ID: "test-1", Pattern: `test\d+`, Required: true},
 			{ID: "test-2", Pattern: `other`, Required: false},
 		},
 	}
 
-	result, err := runAgentRuleInjectionCheck(root, check)
+	result, err := runAgentRuleInjectionCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -976,7 +950,7 @@ func TestRunAgentRuleInjectionCheck_NoInjectRulesNoEnforceRules(t *testing.T) {
 		// No inject rules or enforce rules
 	}
 
-	result, err := runAgentRuleInjectionCheck(root, check)
+	result, err := runAgentRuleInjectionCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1045,7 +1019,7 @@ func TestRunAgentRuleInjectionCheck_PromptEnvelopeFields(t *testing.T) {
 		BasePrompt:  "prompts/prompt.md",
 	}
 
-	result, err := runAgentRuleInjectionCheck(root, check)
+	result, err := runAgentRuleInjectionCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

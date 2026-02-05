@@ -7,6 +7,12 @@ import (
 	"testing"
 )
 
+func runSpecBindingCheckFromSpec(root string, check Check) (CheckResult, error) {
+	def := CheckDefinition{ID: check.ID}
+	config := SpecBindingConfig{Bindings: check.Bindings, BindingRules: check.BindingRules}
+	return runSpecBindingCheck(root, def, config)
+}
+
 func TestRunSpecBindingCheck_BasicPass(t *testing.T) {
 	root := t.TempDir()
 
@@ -46,32 +52,15 @@ func HandleAuth() {
 	check := Check{
 		ID:   "test-spec-binding",
 		Type: "spec-binding",
-		Bindings: struct {
-			Specs []struct {
-				Pattern               string `yaml:"pattern"`
-				ImplementationSection string `yaml:"implementation_section"`
-				IDPattern             string `yaml:"id_pattern"`
-			} `yaml:"specs"`
-			Code []struct {
-				Pattern     string `yaml:"pattern"`
-				SpecComment string `yaml:"spec_comment"`
-			} `yaml:"code"`
-		}{
-			Specs: []struct {
-				Pattern               string `yaml:"pattern"`
-				ImplementationSection string `yaml:"implementation_section"`
-				IDPattern             string `yaml:"id_pattern"`
-			}{
+		Bindings: SpecBindings{
+			Specs: []SpecBinding{
 				{
 					Pattern:               "docs/specs/FEAT-*.md",
 					ImplementationSection: "## Implementation",
 					IDPattern:             `FEAT-\d+`,
 				},
 			},
-			Code: []struct {
-				Pattern     string `yaml:"pattern"`
-				SpecComment string `yaml:"spec_comment"`
-			}{
+			Code: []CodeBinding{
 				{
 					Pattern:     "internal/**/*.go",
 					SpecComment: "// Implements: FEAT-",
@@ -83,7 +72,7 @@ func HandleAuth() {
 		},
 	}
 
-	result, err := runSpecBindingCheck(root, check)
+	result, err := runSpecBindingCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -124,31 +113,14 @@ TBD
 	check := Check{
 		ID:   "test-orphan-spec",
 		Type: "spec-binding",
-		Bindings: struct {
-			Specs []struct {
-				Pattern               string `yaml:"pattern"`
-				ImplementationSection string `yaml:"implementation_section"`
-				IDPattern             string `yaml:"id_pattern"`
-			} `yaml:"specs"`
-			Code []struct {
-				Pattern     string `yaml:"pattern"`
-				SpecComment string `yaml:"spec_comment"`
-			} `yaml:"code"`
-		}{
-			Specs: []struct {
-				Pattern               string `yaml:"pattern"`
-				ImplementationSection string `yaml:"implementation_section"`
-				IDPattern             string `yaml:"id_pattern"`
-			}{
+		Bindings: SpecBindings{
+			Specs: []SpecBinding{
 				{
 					Pattern:   "docs/specs/FEAT-*.md",
 					IDPattern: `FEAT-\d+`,
 				},
 			},
-			Code: []struct {
-				Pattern     string `yaml:"pattern"`
-				SpecComment string `yaml:"spec_comment"`
-			}{
+			Code: []CodeBinding{
 				{
 					Pattern:     "internal/**/*.go",
 					SpecComment: "// Implements: FEAT-",
@@ -160,7 +132,7 @@ TBD
 		},
 	}
 
-	result, err := runSpecBindingCheck(root, check)
+	result, err := runSpecBindingCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -195,26 +167,9 @@ func OrphanFunction() {
 	check := Check{
 		ID:   "test-orphan-code",
 		Type: "spec-binding",
-		Bindings: struct {
-			Specs []struct {
-				Pattern               string `yaml:"pattern"`
-				ImplementationSection string `yaml:"implementation_section"`
-				IDPattern             string `yaml:"id_pattern"`
-			} `yaml:"specs"`
-			Code []struct {
-				Pattern     string `yaml:"pattern"`
-				SpecComment string `yaml:"spec_comment"`
-			} `yaml:"code"`
-		}{
-			Specs: []struct {
-				Pattern               string `yaml:"pattern"`
-				ImplementationSection string `yaml:"implementation_section"`
-				IDPattern             string `yaml:"id_pattern"`
-			}{},
-			Code: []struct {
-				Pattern     string `yaml:"pattern"`
-				SpecComment string `yaml:"spec_comment"`
-			}{
+		Bindings: SpecBindings{
+			Specs: []SpecBinding{},
+			Code: []CodeBinding{
 				{
 					Pattern:     "internal/*.go",
 					SpecComment: "// Implements: FEAT-",
@@ -226,7 +181,7 @@ func OrphanFunction() {
 		},
 	}
 
-	result, err := runSpecBindingCheck(root, check)
+	result, err := runSpecBindingCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -257,38 +212,21 @@ func TestRunSpecBindingCheck_WarnOnly(t *testing.T) {
 	check := Check{
 		ID:   "test-warn-only",
 		Type: "spec-binding",
-		Bindings: struct {
-			Specs []struct {
-				Pattern               string `yaml:"pattern"`
-				ImplementationSection string `yaml:"implementation_section"`
-				IDPattern             string `yaml:"id_pattern"`
-			} `yaml:"specs"`
-			Code []struct {
-				Pattern     string `yaml:"pattern"`
-				SpecComment string `yaml:"spec_comment"`
-			} `yaml:"code"`
-		}{
-			Specs: []struct {
-				Pattern               string `yaml:"pattern"`
-				ImplementationSection string `yaml:"implementation_section"`
-				IDPattern             string `yaml:"id_pattern"`
-			}{
+		Bindings: SpecBindings{
+			Specs: []SpecBinding{
 				{
 					Pattern:   "docs/specs/FEAT-*.md",
 					IDPattern: `FEAT-\d+`,
 				},
 			},
-			Code: []struct {
-				Pattern     string `yaml:"pattern"`
-				SpecComment string `yaml:"spec_comment"`
-			}{},
+			Code: []CodeBinding{},
 		},
 		BindingRules: []BindingRule{
 			{Type: "no-orphan-specs", WarnOnly: true},
 		},
 	}
 
-	result, err := runSpecBindingCheck(root, check)
+	result, err := runSpecBindingCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -327,31 +265,14 @@ func TestRunSpecBindingCheck_CoverageBelowThreshold(t *testing.T) {
 	check := Check{
 		ID:   "test-coverage",
 		Type: "spec-binding",
-		Bindings: struct {
-			Specs []struct {
-				Pattern               string `yaml:"pattern"`
-				ImplementationSection string `yaml:"implementation_section"`
-				IDPattern             string `yaml:"id_pattern"`
-			} `yaml:"specs"`
-			Code []struct {
-				Pattern     string `yaml:"pattern"`
-				SpecComment string `yaml:"spec_comment"`
-			} `yaml:"code"`
-		}{
-			Specs: []struct {
-				Pattern               string `yaml:"pattern"`
-				ImplementationSection string `yaml:"implementation_section"`
-				IDPattern             string `yaml:"id_pattern"`
-			}{
+		Bindings: SpecBindings{
+			Specs: []SpecBinding{
 				{
 					Pattern:   "docs/specs/FEAT-*.md",
 					IDPattern: `FEAT-\d+`,
 				},
 			},
-			Code: []struct {
-				Pattern     string `yaml:"pattern"`
-				SpecComment string `yaml:"spec_comment"`
-			}{
+			Code: []CodeBinding{
 				{
 					Pattern:     "internal/*.go",
 					SpecComment: "// Implements: FEAT-",
@@ -363,7 +284,7 @@ func TestRunSpecBindingCheck_CoverageBelowThreshold(t *testing.T) {
 		},
 	}
 
-	result, err := runSpecBindingCheck(root, check)
+	result, err := runSpecBindingCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -381,38 +302,21 @@ func TestRunSpecBindingCheck_NoSpecs(t *testing.T) {
 	check := Check{
 		ID:   "test-no-specs",
 		Type: "spec-binding",
-		Bindings: struct {
-			Specs []struct {
-				Pattern               string `yaml:"pattern"`
-				ImplementationSection string `yaml:"implementation_section"`
-				IDPattern             string `yaml:"id_pattern"`
-			} `yaml:"specs"`
-			Code []struct {
-				Pattern     string `yaml:"pattern"`
-				SpecComment string `yaml:"spec_comment"`
-			} `yaml:"code"`
-		}{
-			Specs: []struct {
-				Pattern               string `yaml:"pattern"`
-				ImplementationSection string `yaml:"implementation_section"`
-				IDPattern             string `yaml:"id_pattern"`
-			}{
+		Bindings: SpecBindings{
+			Specs: []SpecBinding{
 				{
 					Pattern:   "docs/specs/FEAT-*.md",
 					IDPattern: `FEAT-\d+`,
 				},
 			},
-			Code: []struct {
-				Pattern     string `yaml:"pattern"`
-				SpecComment string `yaml:"spec_comment"`
-			}{},
+			Code: []CodeBinding{},
 		},
 		BindingRules: []BindingRule{
 			{Type: "bidirectional-coverage", MinCoverage: 0.8},
 		},
 	}
 
-	result, err := runSpecBindingCheck(root, check)
+	result, err := runSpecBindingCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -449,31 +353,14 @@ func NoSpec() {}
 	check := Check{
 		ID:   "test-multiple-rules",
 		Type: "spec-binding",
-		Bindings: struct {
-			Specs []struct {
-				Pattern               string `yaml:"pattern"`
-				ImplementationSection string `yaml:"implementation_section"`
-				IDPattern             string `yaml:"id_pattern"`
-			} `yaml:"specs"`
-			Code []struct {
-				Pattern     string `yaml:"pattern"`
-				SpecComment string `yaml:"spec_comment"`
-			} `yaml:"code"`
-		}{
-			Specs: []struct {
-				Pattern               string `yaml:"pattern"`
-				ImplementationSection string `yaml:"implementation_section"`
-				IDPattern             string `yaml:"id_pattern"`
-			}{
+		Bindings: SpecBindings{
+			Specs: []SpecBinding{
 				{
 					Pattern:   "docs/specs/FEAT-*.md",
 					IDPattern: `FEAT-\d+`,
 				},
 			},
-			Code: []struct {
-				Pattern     string `yaml:"pattern"`
-				SpecComment string `yaml:"spec_comment"`
-			}{
+			Code: []CodeBinding{
 				{
 					Pattern:     "internal/*.go",
 					SpecComment: "// Implements: FEAT-",
@@ -486,7 +373,7 @@ func NoSpec() {}
 		},
 	}
 
-	result, err := runSpecBindingCheck(root, check)
+	result, err := runSpecBindingCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -866,11 +753,7 @@ func TestApplyBindingRule_OrphanCode(t *testing.T) {
 func TestExtractSpecs_InvalidIDPattern(t *testing.T) {
 	root := t.TempDir()
 
-	specPatterns := []struct {
-		Pattern               string `yaml:"pattern"`
-		ImplementationSection string `yaml:"implementation_section"`
-		IDPattern             string `yaml:"id_pattern"`
-	}{
+	specPatterns := []SpecBinding{
 		{Pattern: "*.md", IDPattern: "[invalid"},
 	}
 
@@ -895,10 +778,7 @@ func TestExtractCodeRefs_MultiplePatterns(t *testing.T) {
 		t.Fatalf("failed to write file: %v", err)
 	}
 
-	codePatterns := []struct {
-		Pattern     string `yaml:"pattern"`
-		SpecComment string `yaml:"spec_comment"`
-	}{
+	codePatterns := []CodeBinding{
 		{Pattern: "src/*.go", SpecComment: "// Implements: FEAT-"},
 		{Pattern: "src/*.go", SpecComment: "// Spec: US-"},
 	}
@@ -922,28 +802,14 @@ func TestRunSpecBindingCheck_InvalidSpecPattern(t *testing.T) {
 	check := Check{
 		ID:   "test-invalid-pattern",
 		Type: "spec-binding",
-		Bindings: struct {
-			Specs []struct {
-				Pattern               string `yaml:"pattern"`
-				ImplementationSection string `yaml:"implementation_section"`
-				IDPattern             string `yaml:"id_pattern"`
-			} `yaml:"specs"`
-			Code []struct {
-				Pattern     string `yaml:"pattern"`
-				SpecComment string `yaml:"spec_comment"`
-			} `yaml:"code"`
-		}{
-			Specs: []struct {
-				Pattern               string `yaml:"pattern"`
-				ImplementationSection string `yaml:"implementation_section"`
-				IDPattern             string `yaml:"id_pattern"`
-			}{
+		Bindings: SpecBindings{
+			Specs: []SpecBinding{
 				{Pattern: "*.md", IDPattern: "[invalid-regex"},
 			},
 		},
 	}
 
-	result, err := runSpecBindingCheck(root, check)
+	result, err := runSpecBindingCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1002,7 +868,7 @@ func TestRunSpecBindingCheck_NoRules(t *testing.T) {
 		BindingRules: []BindingRule{},
 	}
 
-	result, err := runSpecBindingCheck(root, check)
+	result, err := runSpecBindingCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1087,11 +953,7 @@ func TestExtractSpecs_UnreadableFile(t *testing.T) {
 	}
 	defer os.Chmod(specPath, 0644)
 
-	specPatterns := []struct {
-		Pattern               string `yaml:"pattern"`
-		ImplementationSection string `yaml:"implementation_section"`
-		IDPattern             string `yaml:"id_pattern"`
-	}{
+	specPatterns := []SpecBinding{
 		{Pattern: "docs/*.md", IDPattern: `FEAT-\d+`},
 	}
 
@@ -1124,10 +986,7 @@ func TestExtractCodeRefs_UnreadableFile(t *testing.T) {
 	}
 	defer os.Chmod(codePath, 0644)
 
-	codePatterns := []struct {
-		Pattern     string `yaml:"pattern"`
-		SpecComment string `yaml:"spec_comment"`
-	}{
+	codePatterns := []CodeBinding{
 		{Pattern: "src/*.go", SpecComment: "// Implements: FEAT-"},
 	}
 
@@ -1187,34 +1046,17 @@ func TestRunSpecBindingCheck_InvalidCodePattern(t *testing.T) {
 	check := Check{
 		ID:   "test-invalid-code-pattern",
 		Type: "spec-binding",
-		Bindings: struct {
-			Specs []struct {
-				Pattern               string `yaml:"pattern"`
-				ImplementationSection string `yaml:"implementation_section"`
-				IDPattern             string `yaml:"id_pattern"`
-			} `yaml:"specs"`
-			Code []struct {
-				Pattern     string `yaml:"pattern"`
-				SpecComment string `yaml:"spec_comment"`
-			} `yaml:"code"`
-		}{
-			Specs: []struct {
-				Pattern               string `yaml:"pattern"`
-				ImplementationSection string `yaml:"implementation_section"`
-				IDPattern             string `yaml:"id_pattern"`
-			}{
+		Bindings: SpecBindings{
+			Specs: []SpecBinding{
 				{Pattern: "docs/*.md", IDPattern: `FEAT-\d+`},
 			},
-			Code: []struct {
-				Pattern     string `yaml:"pattern"`
-				SpecComment string `yaml:"spec_comment"`
-			}{
+			Code: []CodeBinding{
 				{Pattern: "[invalid-glob", SpecComment: "// Implements: FEAT-"},
 			},
 		},
 	}
 
-	result, err := runSpecBindingCheck(root, check)
+	result, err := runSpecBindingCheckFromSpec(root, check)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1273,11 +1115,7 @@ func TestExtractSpecIDs_EmptyFilePath(t *testing.T) {
 func TestExtractSpecs_InvalidGlobPattern(t *testing.T) {
 	root := t.TempDir()
 
-	specPatterns := []struct {
-		Pattern               string `yaml:"pattern"`
-		ImplementationSection string `yaml:"implementation_section"`
-		IDPattern             string `yaml:"id_pattern"`
-	}{
+	specPatterns := []SpecBinding{
 		{Pattern: "[invalid-glob"},
 	}
 

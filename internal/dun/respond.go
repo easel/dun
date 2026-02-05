@@ -19,12 +19,12 @@ func Respond(id string, reader io.Reader) (CheckResult, error) {
 	if resp.Status == "" || resp.Signal == "" {
 		return CheckResult{}, fmt.Errorf("agent response missing required fields")
 	}
-	return CheckResult{
+	return summarizeResult(CheckResult{
 		ID:     id,
 		Status: resp.Status,
 		Signal: resp.Signal,
 		Detail: resp.Detail,
 		Next:   resp.Next,
 		Issues: resp.Issues,
-	}, nil
+	}), nil
 }
